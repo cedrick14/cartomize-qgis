@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "name": "admin_units",
+  "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
+  "features": [
+    {"type":"Feature","properties":{"NAME":"North District","POP_2025":42000,"CLASS":"A"},"geometry":{"type":"Polygon","coordinates":[[[14.0,-4.0],[14.5,-4.0],[14.5,-4.5],[14.0,-4.5],[14.0,-4.0]]]}},
+    {"type":"Feature","properties":{"NAME":"Central District","POP_2025":68000,"CLASS":"B"},"geometry":{"type":"Polygon","coordinates":[[[14.5,-4.0],[15.0,-4.0],[15.0,-4.5],[14.5,-4.5],[14.5,-4.0]]]}},
+    {"type":"Feature","properties":{"NAME":"South District","POP_2025":31000,"CLASS":"A"},"geometry":{"type":"Polygon","coordinates":[[[14.0,-4.5],[15.0,-4.5],[15.0,-5.0],[14.0,-5.0],[14.0,-4.5]]]}}
+  ]
+}

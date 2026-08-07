@@ -1,0 +1,25 @@
+"""Constantes fonctionnelles de Cartomize."""
+from __future__ import annotations
+
+PLUGIN_NAME = "Cartomize"
+PLUGIN_VERSION = "10.4.0-beta3"
+DEFAULT_AUTHOR = "ONDON NKOUA Cédrick Belmich"
+PLUGIN_MENU = "&Cartomize"
+SETTINGS_PREFIX = "Cartomize"
+LEGACY_SETTINGS_PREFIXES = ("CartomizeProfessional",)
+DEFAULT_COMMUNITY_URL = ""
+DEFAULT_EXPORT_DPI = 600
+DEFAULT_PREVIEW_WIDTH_PX = 3840
+DEFAULT_TEXT_SCALE_PERCENT = 130
+DEFAULT_MINIMUM_FONT_SIZE_PT = 9.5
+TEMPLATE_SCALE_PX_PER_MM = 3.0
+MAX_TEMPLATE_BYTES = 1_000_000
+MAX_TEMPLATE_ELEMENTS = 250
+MAX_AUDIT_LAYERS = 2_000
+MAX_PROFILE_FEATURES = 5_000
+SUPPORTED_PAGE_FORMATS = {
+    "A4 paysage": (297.0, 210.0),
+    "A4 portrait": (210.0, 297.0),
+    "A3 paysage": (420.0, 297.0),
+    "A3 portrait": (297.0, 420.0),
+}

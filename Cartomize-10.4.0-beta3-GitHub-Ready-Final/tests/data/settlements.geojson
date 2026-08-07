@@ -1,0 +1,9 @@
+{
+  "type": "FeatureCollection",
+  "name": "settlements",
+  "features": [
+    {"type":"Feature","properties":{"NAME":"Alpha","LEVEL":1},"geometry":{"type":"Point","coordinates":[14.25,-4.25]}},
+    {"type":"Feature","properties":{"NAME":"Beta","LEVEL":2},"geometry":{"type":"Point","coordinates":[14.75,-4.25]}},
+    {"type":"Feature","properties":{"NAME":"Gamma","LEVEL":2},"geometry":{"type":"Point","coordinates":[14.45,-4.75]}}
+  ]
+}

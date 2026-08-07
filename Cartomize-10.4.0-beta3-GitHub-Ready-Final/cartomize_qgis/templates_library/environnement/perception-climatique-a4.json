@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.1",
+  "app_version": "10.4.0-beta3",
+  "name": "Perception communautaire du changement climatique",
+  "category": "environnement",
+  "variant": "professionnel",
+  "description": "Carte et tableau de synthèse adaptés aux enquêtes socio-environnementales, vulnérabilités et savoirs locaux.",
+  "page_format": "A4 paysage",
+  "accent_color": "#0369a1",
+  "tags": [
+    "climat",
+    "communautés",
+    "enquête",
+    "vulnérabilité"
+  ],
+  "layout_json": {
+    "schema_version": "1.1",
+    "app_version": "10.4.0-beta3",
+    "page_format": "A4 paysage",
+    "elements": [
+      {
+        "id": "header",
+        "type": "shape",
+        "x": 0,
+        "y": 0,
+        "width": 891,
+        "height": 74,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#0c4a6e"
+        },
+        "content": {}
+      },
+      {
+        "id": "title",
+        "type": "title",
+        "x": 26,
+        "y": 14,
+        "width": 700,
+        "height": 34,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "fill": "#ffffff",
+          "fontSize": 24,
+          "fontFamily": "Georgia, serif",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "Perception communautaire du changement climatique"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "subtitle",
+        "x": 28,
+        "y": 50,
+        "width": 650,
+        "height": 18,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#bae6fd",
+          "fontSize": 12,
+          "fontFamily": "Arial, sans-serif"
+        },
+        "content": {
+          "text": "Villages enquêtés; échantillon; période"
+        }
+      },
+      {
+        "id": "map",
+        "type": "map_frame",
+        "x": 24,
+        "y": 98,
+        "width": 560,
+        "height": 392,
+        "angle": 0,
+        "z_index": 3,
+        "locked": false,
+        "style": {},
+        "content": {}
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 606,
+        "y": 98,
+        "width": 260,
+        "height": 190,
+        "angle": 0,
+        "z_index": 4,
+        "locked": false,
+        "style": {},
+        "content": {}
+      },
+      {
+        "id": "chart-box",
+        "type": "shape",
+        "x": 606,
+        "y": 308,
+        "width": 260,
+        "height": 182,
+        "angle": 0,
+        "z_index": 5,
+        "locked": false,
+        "style": {
+          "fill": "#f0f9ff"
+        },
+        "content": {}
+      },
+      {
+        "id": "chart-title",
+        "type": "text",
+        "x": 622,
+        "y": 321,
+        "width": 228,
+        "height": 24,
+        "angle": 0,
+        "z_index": 6,
+        "locked": false,
+        "style": {
+          "fill": "#075985",
+          "fontSize": 13,
+          "fontFamily": "Arial, sans-serif",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "INDICATEURS DE PERCEPTION"
+        }
+      },
+      {
+        "id": "chart-text",
+        "type": "text",
+        "x": 622,
+        "y": 354,
+        "width": 226,
+        "height": 120,
+        "angle": 0,
+        "z_index": 7,
+        "locked": false,
+        "style": {
+          "fill": "#0c4a6e",
+          "fontSize": 12,
+          "fontFamily": "Arial, sans-serif"
+        },
+        "content": {
+          "text": "Hausse de température : … %\nSaisons perturbées : … %\nRendements en baisse : … %\nÉvénements extrêmes : … %"
+        }
+      },
+      {
+        "id": "north",
+        "type": "north_arrow",
+        "x": 518,
+        "y": 420,
+        "width": 42,
+        "height": 42,
+        "angle": 0,
+        "z_index": 8,
+        "locked": false,
+        "style": {},
+        "content": {}
+      },
+      {
+        "id": "scale",
+        "type": "scale_bar",
+        "x": 42,
+        "y": 448,
+        "width": 180,
+        "height": 24,
+        "angle": 0,
+        "z_index": 9,
+        "locked": false,
+        "style": {},
+        "content": {}
+      },
+      {
+        "id": "table",
+        "type": "table",
+        "x": 24,
+        "y": 516,
+        "width": 842,
+        "height": 74,
+        "angle": 0,
+        "z_index": 10,
+        "locked": false,
+        "style": {},
+        "content": {}
+      },
+      {
+        "id": "source",
+        "type": "text",
+        "x": 24,
+        "y": 602,
+        "width": 842,
+        "height": 18,
+        "angle": 0,
+        "z_index": 11,
+        "locked": false,
+        "style": {
+          "fill": "#475569",
+          "fontSize": 9,
+          "fontFamily": "Arial, sans-serif"
+        },
+        "content": {
+          "text": "Sources : enquêtes communautaires, données climatiques et cartographie participative."
+        }
+      }
+    ],
+    "background_color": "#ffffff"
+  }
+}
