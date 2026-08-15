@@ -1,0 +1,224 @@
+{
+  "name": "Carte topographique: Institutionnel",
+  "category": "topographique",
+  "variant": "institutionnel",
+  "description": "Modèle institutionnel pour carte topographique.",
+  "page_format": "A4 paysage",
+  "layout_json": {
+    "elements": [
+      {
+        "id": "top-rule",
+        "type": "shape",
+        "x": 0,
+        "y": 0,
+        "width": 891,
+        "height": 12,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      },
+      {
+        "id": "title",
+        "type": "title",
+        "x": 30,
+        "y": 28,
+        "width": 830,
+        "height": 34,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 21,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "CARTE TOPOGRAPHIQUE DE RÉFÉRENCE"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "subtitle",
+        "x": 30,
+        "y": 66,
+        "width": 830,
+        "height": 20,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "normal"
+        },
+        "content": {
+          "text": "Territoire · thème · période d'étude"
+        }
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 30,
+        "y": 100,
+        "width": 620,
+        "height": 450,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1.15,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 676,
+        "y": 100,
+        "width": 185,
+        "height": 126,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 0.85,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 676,
+        "y": 260,
+        "width": 185,
+        "height": 206,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "north-676-492",
+        "type": "north_arrow",
+        "x": 676,
+        "y": 492,
+        "width": 45,
+        "height": 45,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale-732-505",
+        "type": "scale_bar",
+        "x": 732,
+        "y": 505,
+        "width": 129,
+        "height": 28,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 30,
+        "y": 574,
+        "width": 831,
+        "height": 24,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection/CRS : …  |  Auteur : …  |  Date : …"
+        }
+      },
+      {
+        "id": "title-rule",
+        "type": "shape",
+        "x": 24,
+        "y": 93.0,
+        "width": 843,
+        "height": 1.5,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#6F604F",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      }
+    ],
+    "background_color": "#ffffff",
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A4 paysage"
+  },
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "accent_color": "#6F604F",
+  "tags": [
+    "topographique",
+    "institutionnel"
+  ],
+  "design_principles": [
+    "fond blanc et panneaux secondaires légèrement teintés",
+    "une seule couleur d’accent moderne et désaturée",
+    "traits, cadres cartographiques et textes noirs",
+    "hiérarchie typographique sobre et lisible",
+    "marges, espacements et alignements réguliers",
+    "aucune donnée géographique fictive incluse"
+  ],
+  "accent_tint": "#F0ECE6",
+  "palette_mode": "modern-theme"
+}

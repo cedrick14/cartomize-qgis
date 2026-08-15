@@ -1,1 +1,0 @@
-The files in this directory are synthetic Cartomize test data created for plugin testing. They may be used, modified and redistributed without restriction (CC0-style dedication).
