@@ -1,0 +1,19 @@
+[general]
+name=Cartomize
+qgisMinimumVersion=3.40
+qgisMaximumVersion=3.99
+description=Expert-reviewed cartographic intelligence, native QGIS layouts, and reproducible map production.
+about=Cartomize profiles vector and raster layers, proposes explainable cartographic decisions, lets experts edit every critical choice, and creates native, reusable QGIS print layouts without altering source data.
+version=10.5.1
+author=ONDON NKOUA Cédrick Belmich
+email=support@cartomizeplugin.com
+homepage=https://cartomizeplugin.com
+repository=https://github.com/cedrick14/cartomize-qgis
+tracker=https://github.com/cedrick14/cartomize-qgis/issues
+tags=cartography,map automation,raster,vector,print layout,symbology,labeling,mapops,quality control,qgis
+icon=icon.png
+experimental=False
+deprecated=False
+hasProcessingProvider=True
+server=False
+license=GNU GPL v3

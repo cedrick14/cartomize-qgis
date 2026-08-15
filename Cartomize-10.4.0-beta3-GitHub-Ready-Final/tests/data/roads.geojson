@@ -1,8 +1,0 @@
-{
-  "type": "FeatureCollection",
-  "name": "roads",
-  "features": [
-    {"type":"Feature","properties":{"NAME":"National Road 1","TYPE":"primary"},"geometry":{"type":"LineString","coordinates":[[14.05,-4.9],[14.45,-4.55],[14.8,-4.25],[14.95,-4.05]]}},
-    {"type":"Feature","properties":{"NAME":"Regional Road","TYPE":"secondary"},"geometry":{"type":"LineString","coordinates":[[14.1,-4.2],[14.5,-4.3],[14.9,-4.4]]}}
-  ]
-}
