@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"
+VIEW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml.cs"
 VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
 PUBLIC_API = ROOT / "tests/qgis_public_api_10_5_1.json"
@@ -44,6 +45,7 @@ class QgisParityTests(unittest.TestCase):
     def setUpClass(cls):
         cls.root = ET.parse(XAML).getroot()
         cls.xaml_text = XAML.read_text(encoding="utf-8")
+        cls.view_code = VIEW_CODE.read_text(encoding="utf-8")
         cls.view_model = VIEW_MODEL.read_text(encoding="utf-8")
         cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
 
@@ -137,10 +139,19 @@ class QgisParityTests(unittest.TestCase):
         self.assertNotIn("Background=\"#", self.xaml_text)
 
     def test_style_inheritance_is_loadable_by_wpf(self):
-        # Style.BasedOn is not a dependency property.  A DynamicResource here
-        # compiles to BAML but fails when ArcGIS Pro constructs the dock pane,
-        # leaving an empty white client area.
-        self.assertNotRegex(self.xaml_text, r'BasedOn="\{DynamicResource\s+')
+        # Les styles Esri sont appliqués directement aux contrôles. Cela évite
+        # toute résolution de Style.BasedOn pendant la construction du DockPane.
+        self.assertNotIn("BasedOn=", self.xaml_text)
+        for resource in ("Esri_Button", "Esri_ButtonBorderless", "Esri_DataGrid", "Esri_TextBlockH1", "Esri_TextBlockH3"):
+            self.assertIn(f"DynamicResource {resource}", self.xaml_text)
+
+    def test_dockpane_load_failure_cannot_stop_arcgis_pro(self):
+        self.assertIn("try", self.view_code)
+        self.assertIn("catch (Exception exception)", self.view_code)
+        self.assertIn("WriteLoadError(exception)", self.view_code)
+        self.assertIn("ui-load.log", self.view_code)
+        self.assertIn("RefreshProjectSafelyAsync", self.view_model)
+        self.assertIn("RefreshLayerFieldsSafelyAsync", self.view_model)
 
 
 if __name__ == "__main__":

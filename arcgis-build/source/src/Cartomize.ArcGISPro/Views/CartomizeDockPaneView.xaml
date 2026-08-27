@@ -4,42 +4,6 @@
              MinWidth="420">
   <UserControl.Resources>
     <!-- ArcGIS Pro fournit les couleurs, les polices et les états bleus de sélection. -->
-    <Style TargetType="TextBlock" BasedOn="{StaticResource Esri_TextBlockRegular}" />
-    <Style TargetType="Label">
-      <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style TargetType="CheckBox">
-      <Setter Property="Margin" Value="0,3" />
-    </Style>
-    <Style TargetType="TextBox">
-      <Setter Property="Padding" Value="5" />
-      <Setter Property="MinHeight" Value="30" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style TargetType="ComboBox">
-      <Setter Property="Padding" Value="4" />
-      <Setter Property="MinHeight" Value="30" />
-    </Style>
-    <Style TargetType="DataGrid">
-      <Setter Property="SelectionMode" Value="Single" />
-      <Setter Property="SelectionUnit" Value="FullRow" />
-      <Setter Property="HeadersVisibility" Value="Column" />
-      <Setter Property="AutoGenerateColumns" Value="False" />
-      <Setter Property="CanUserAddRows" Value="False" />
-    </Style>
-    <Style x:Key="PageTitleStyle" TargetType="TextBlock"
-           BasedOn="{StaticResource Esri_TextBlockH1}">
-      <Setter Property="Margin" Value="0,0,0,4" />
-    </Style>
-    <Style x:Key="DescriptionStyle" TargetType="TextBlock"
-           BasedOn="{StaticResource Esri_TextBlockRegular}">
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="Margin" Value="0,0,0,12" />
-    </Style>
-    <Style x:Key="SectionTitleStyle" TargetType="TextBlock"
-           BasedOn="{StaticResource Esri_TextBlockH3}">
-      <Setter Property="Margin" Value="0,0,0,5" />
-    </Style>
     <Style x:Key="CardStyle" TargetType="Border">
       <Setter Property="Background" Value="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource Esri_BorderBrush}" />
@@ -47,16 +11,6 @@
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="12,11,12,12" />
       <Setter Property="Margin" Value="0,0,0,12" />
-    </Style>
-    <Style x:Key="SecondaryButtonStyle" TargetType="Button"
-           BasedOn="{StaticResource Esri_ButtonBorderless}">
-      <Setter Property="Padding" Value="10,5" />
-      <Setter Property="MinHeight" Value="32" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="Margin" Value="0,3" />
-    </Style>
-    <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </UserControl.Resources>
 
@@ -87,14 +41,14 @@
       <TabItem Header="Automatisation">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Automatisation" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Automatisation" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Analysez le projet, comparez plusieurs propositions et créez une carte ArcGIS Pro native en suivant un plan explicable."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Préparer l’analyse" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Préparer l’analyse" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Définissez l’objectif et les données à prendre en compte. Les valeurs automatiques conviennent à la plupart des projets."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions>
@@ -117,14 +71,14 @@
                 <CheckBox Content="Harmoniser la symbologie du projet (peut remplacer les styles actuels)" IsChecked="{Binding AutomationApplySymbology}" />
                 <CheckBox Content="Corriger automatiquement la lisibilité" IsChecked="{Binding AutomationAutoCorrect}" />
                 <Button Content="Analyser le projet" Command="{Binding AnalyzeAutomationCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Plan cartographique recommandé" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Plan cartographique recommandé" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Le rapport présente les décisions proposées avant toute modification du projet."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <TextBox Text="{Binding AutomationReportText}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="170" />
                 <ProgressBar Minimum="0" Maximum="100" Value="0" MinHeight="18" Margin="0,8,0,0" />
@@ -132,10 +86,12 @@
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Propositions" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Propositions" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Comparez les variantes selon leur score, leur maquette et les principales décisions de composition."
-                           Style="{StaticResource DescriptionStyle}" />
-                <DataGrid MinHeight="220" ItemsSource="{Binding Proposals}" SelectedItem="{Binding SelectedProposal}">
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <DataGrid MinHeight="220" ItemsSource="{Binding Proposals}" SelectedItem="{Binding SelectedProposal}"
+                          Style="{DynamicResource Esri_DataGrid}" SelectionMode="Single" SelectionUnit="FullRow"
+                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="Score" Width="Auto" Binding="{Binding Score}" />
                     <DataGridTextColumn Header="Proposition" Width="Auto" Binding="{Binding Name}" />
@@ -162,22 +118,22 @@
                   <Label Grid.Row="8" Content="Validation" Margin="0,6,12,0" /><CheckBox Grid.Row="8" Grid.Column="1" Content="Décisions vérifiées par le cartographe" IsChecked="{Binding ProposalValidated}" />
                 </Grid>
                 <Button Content="Créer la proposition sélectionnée" Command="{Binding AutopilotCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Button Content="Créer les trois propositions" Command="{Binding GenerateAllCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}" />
+                        Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Recettes réutilisables" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Recettes réutilisables" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Enregistrez les décisions cartographiques pour reproduire la même carte avec de nouvelles données."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Button Content="Enregistrer la recette" Command="{Binding SaveRecipeCommand}"
-                          Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
+                          Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
                   <Button Grid.Column="1" Content="Rejouer une recette" Command="{Binding ReplayCommand}"
-                          Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                          Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
               </StackPanel>
             </Border>
@@ -187,44 +143,44 @@
       <TabItem Header="Projet">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Projet" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Projet" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Consultez l’état du projet, sélectionnez une couche et appliquez une recommandation de symbologie réversible."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Vue d’ensemble du projet" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Vue d’ensemble du projet" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBox Text="{Binding ProjectSummary}" IsReadOnly="True" AcceptsReturn="True"
                          TextWrapping="Wrap" MinHeight="150" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Couche active" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Couche active" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Les actions utilisent la couche choisie ici, sans modifier les autres couches du projet."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Label Content="Couche" Margin="0,6,12,0" />
                   <ComboBox Grid.Column="1" ItemsSource="{Binding LayerNames}" SelectedItem="{Binding SelectedLayerName}" />
                 </Grid>
                 <Button Content="Importer des données…" Command="{Binding ImportDataCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Button Content="Afficher l’emprise" Command="{Binding ZoomLayerCommand}"
-                          Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
+                          Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
                   <Button Grid.Column="1" Content="Ouvrir les propriétés" Command="{Binding LayerPropertiesCommand}"
-                          Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                          Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Recommandation de symbologie" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Recommandation de symbologie" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="L’analyse est lancée uniquement sur demande afin de préserver la réactivité d’ArcGIS Pro, y compris avec des couches volumineuses ou distantes."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Button Content="Analyser la couche sélectionnée" Command="{Binding AnalyzeLayerCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <TextBox Text="{Binding RecommendationText}" IsReadOnly="True" AcceptsReturn="True"
                          TextWrapping="Wrap" MinHeight="190" />
                 <Border Style="{StaticResource CardStyle}" Margin="0,8,0,8">
@@ -252,11 +208,11 @@
                   </Grid>
                 </Border>
                 <Button Content="Appliquer la recommandation" Command="{Binding ApplyRecommendationCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" />
+                        Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Button Content="Restaurer le style précédent" Command="{Binding UndoStyleCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}" />
+                        Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Button Content="Ouvrir Raster Engine" Command="{Binding RasterCommand}"
-                        IsEnabled="{Binding IsRasterLayer}" Style="{StaticResource SecondaryButtonStyle}" />
+                        IsEnabled="{Binding IsRasterLayer}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -265,14 +221,14 @@
       <TabItem Header="Mise en page">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Mise en page" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Mise en page" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Choisissez une maquette, renseignez les informations essentielles et produisez une mise en page ArcGIS Pro native entièrement modifiable."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Catalogue de maquettes" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Catalogue de maquettes" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Utilisez la recherche et les catégories pour parcourir les maquettes ArcGIS Pro disponibles hors connexion."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -287,9 +243,9 @@
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Contenu de la carte" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Contenu de la carte" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Ces informations sont ajoutées à la composition et restent modifiables dans le concepteur ArcGIS Pro."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions>
@@ -306,31 +262,31 @@
                 </Grid>
                 <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="{Binding LayoutVisibleOnly}" />
                 <CheckBox Content="Ajouter une grille au cadre principal" IsChecked="{Binding LayoutAddGrid}" />
-                <Button Content="Créer la mise en page" Command="{Binding LayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" />
-                <Button Content="Actualiser la mise en page" Command="{Binding SynchronizeLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <Button Content="Ouvrir l’aperçu HD dans ArcGIS Pro" Command="{Binding OpenLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                <Button Content="Créer la mise en page" Command="{Binding LayoutCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <Button Content="Actualiser la mise en page" Command="{Binding SynchronizeLayoutCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <Button Content="Ouvrir l’aperçu HD dans ArcGIS Pro" Command="{Binding OpenLayoutCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Aperçu et export" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Aperçu et export" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Sélectionnez une mise en page existante, améliorez son rendu puis choisissez un format de sortie."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Label Content="Mise en page" Margin="0,6,12,0" /><ComboBox Grid.Column="1" ItemsSource="{Binding LayoutNames}" SelectedItem="{Binding SelectedLayoutName}" />
                 </Grid>
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                  <Button Content="Actualiser l’aperçu HD" Command="{Binding RefreshPreviewCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Column="1" Content="Améliorer la lisibilité" Command="{Binding OptimizeLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Content="Actualiser l’aperçu HD" Command="{Binding RefreshPreviewCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
+                  <Button Grid.Column="1" Content="Améliorer la lisibilité" Command="{Binding OptimizeLayoutCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
                 <TextBlock Text="Formats de sortie" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,6,0,2" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <Button Content="Exporter en PDF" Command="{Binding ExportPdfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Column="1" Content="Exporter en SVG" Command="{Binding ExportSvgCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
-                  <Button Grid.Row="1" Content="Exporter en PNG" Command="{Binding ExportPngCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Row="1" Grid.Column="1" Content="Enregistrer en PAGX" Command="{Binding ExportPagxCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Content="Exporter en PDF" Command="{Binding ExportPdfCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
+                  <Button Grid.Column="1" Content="Exporter en SVG" Command="{Binding ExportSvgCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
+                  <Button Grid.Row="1" Content="Exporter en PNG" Command="{Binding ExportPngCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Enregistrer en PAGX" Command="{Binding ExportPagxCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
               </StackPanel>
             </Border>
@@ -340,30 +296,32 @@
       <TabItem Header="Qualité">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Qualité" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Qualité" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Contrôlez la cohérence du projet et des mises en page avant publication. Chaque anomalie est accompagnée d’une action recommandée."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Résultat du contrôle" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Résultat du contrôle" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="{Binding AuditScoreText}" Style="{DynamicResource Esri_TextBlockH1}" />
-                <Button Content="Lancer le contrôle de la qualité" Command="{Binding AuditCommand}" Style="{StaticResource PrimaryButtonStyle}" />
-                <Button Content="Vérifier le placement des étiquettes" Command="{Binding LabelAuditCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                <Button Content="Lancer le contrôle de la qualité" Command="{Binding AuditCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <Button Content="Vérifier le placement des étiquettes" Command="{Binding LabelAuditCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <TextBlock Text="{Binding LabelAuditText}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Observations" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Observations" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Sélectionnez une ligne pour examiner le niveau, la couche concernée et la correction proposée."
-                           Style="{StaticResource DescriptionStyle}" />
-                <DataGrid MinHeight="330" ItemsSource="{Binding AuditFindings}">
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <DataGrid MinHeight="330" ItemsSource="{Binding AuditFindings}"
+                          Style="{DynamicResource Esri_DataGrid}" SelectionMode="Single" SelectionUnit="FullRow"
+                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="Niveau" Width="Auto" Binding="{Binding Severity}" /><DataGridTextColumn Header="Code" Width="Auto" Binding="{Binding Code}" />
                     <DataGridTextColumn Header="Couche" Width="Auto" Binding="{Binding Layer}" /><DataGridTextColumn Header="Observation et action recommandée" Width="*" Binding="{Binding Summary}" />
                   </DataGrid.Columns>
                 </DataGrid>
-                <Button Content="Copier le rapport" Command="{Binding CopyReportCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                <Button Content="Copier le rapport" Command="{Binding CopyReportCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -372,35 +330,35 @@
       <TabItem Header="Production">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Production" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Production" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Produisez des séries de cartes, surveillez les changements du projet et formalisez la validation du cartographe."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Production en série" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Production en série" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Un manifeste JSON décrit les cartes à produire, les variables et les formats de sortie."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                  <TextBox Text="{Binding BatchManifestPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Chemin du manifeste de production" /><Button Grid.Column="1" Content="Parcourir" Command="{Binding SelectManifestCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,3,0,3" />
+                  <TextBox Text="{Binding BatchManifestPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Chemin du manifeste de production" /><Button Grid.Column="1" Content="Parcourir" Command="{Binding SelectManifestCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="8,3,0,3" />
                 </Grid>
-                <Button Content="Créer un manifeste" Command="{Binding CreateManifestCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <Button Content="Exécuter la série" Command="{Binding BatchCommand}" Style="{StaticResource PrimaryButtonStyle}" />
+                <Button Content="Créer un manifeste" Command="{Binding CreateManifestCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <Button Content="Exécuter la série" Command="{Binding BatchCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <TextBox Text="{Binding BatchStatusText}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="135" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Suivi MapOps" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Suivi MapOps" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Comparez l’état actuel du projet à une référence et identifiez les cartes à régénérer."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <Button Content="Créer l’état de référence" Command="{Binding CreateMapOpsBaselineCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Column="1" Content="Vérifier les changements" Command="{Binding CheckMapOpsCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="4,3,0,3" />
-                  <Button Grid.Row="1" Content="Accepter l’état actuel" Command="{Binding AcceptMapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Row="1" Grid.Column="1" Content="Régénérer la dernière recette" Command="{Binding RegenerateMapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Content="Créer l’état de référence" Command="{Binding CreateMapOpsBaselineCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
+                  <Button Grid.Column="1" Content="Vérifier les changements" Command="{Binding CheckMapOpsCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
+                  <Button Grid.Row="1" Content="Accepter l’état actuel" Command="{Binding AcceptMapOpsCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="0,3,4,3" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Régénérer la dernière recette" Command="{Binding RegenerateMapOpsCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
                 <CheckBox Content="Régénérer automatiquement la dernière recette lorsque des données utilisées changent" IsChecked="{Binding MapOpsAutoRegenerate}" />
                 <TextBox Text="{Binding MapOpsStatus}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" />
@@ -408,9 +366,9 @@
             </Border>
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
-                <TextBlock Text="Validation cartographique" Style="{StaticResource SectionTitleStyle}" />
+                <TextBlock Text="Validation cartographique" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="L’approbation humaine reste distincte du score automatique et produit un certificat traçable."
-                           Style="{StaticResource DescriptionStyle}" />
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -428,8 +386,8 @@
                 <TextBlock Text="Notes et réserves" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,8,0,2" />
                 <TextBox Text="{Binding ValidationNotes, UpdateSourceTrigger=PropertyChanged}" ToolTip="Précisez les limites des données, les réserves ou les corrections demandées."
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" />
-                <Button Content="Approuver la mise en page" Command="{Binding ApproveLayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" />
-                <Button Content="Exporter le certificat" Command="{Binding ExportCertificateCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                <Button Content="Approuver la mise en page" Command="{Binding ApproveLayoutCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <Button Content="Exporter le certificat" Command="{Binding ExportCertificateCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <TextBlock Text="{Binding ValidationStatus}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
@@ -439,26 +397,26 @@
       <TabItem Header="Communauté">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Communauté" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Communauté" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Accédez au portail officiel Cartomize et aux maquettes disponibles hors ligne."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}"><StackPanel>
-              <TextBlock Text="Portail Cartomize" Style="{StaticResource SectionTitleStyle}" />
-              <TextBlock Text="Consultez les maquettes publiées et les ressources de la communauté." Style="{StaticResource DescriptionStyle}" />
+              <TextBlock Text="Portail Cartomize" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
+              <TextBlock Text="Consultez les maquettes publiées et les ressources de la communauté." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
               <TextBlock Text="Le portail s’ouvre dans votre navigateur. Aucune donnée du projet ArcGIS Pro n’est transmise." TextWrapping="Wrap" />
             </StackPanel></Border>
             <Border Style="{StaticResource CardStyle}"><StackPanel>
-              <TextBlock Text="Maquettes hors ligne" Style="{StaticResource SectionTitleStyle}" />
-              <TextBlock Text="{Binding CommunityStatus}" Style="{StaticResource DescriptionStyle}" />
+              <TextBlock Text="Maquettes hors ligne" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
+              <TextBlock Text="{Binding CommunityStatus}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
               <TextBlock Text="Elles restent accessibles lorsque le portail ou Internet est indisponible." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
             </StackPanel></Border>
             <Border Style="{StaticResource CardStyle}"><StackPanel>
-              <TextBlock Text="Ressources en ligne" Style="{StaticResource SectionTitleStyle}" />
-              <TextBlock Text="Actualisez la liste des ressources publiées sur le portail officiel." Style="{StaticResource DescriptionStyle}" />
+              <TextBlock Text="Ressources en ligne" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
+              <TextBlock Text="Actualisez la liste des ressources publiées sur le portail officiel." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
               <ListBox MinHeight="190" ItemsSource="{Binding CommunityResources}" SelectedItem="{Binding SelectedCommunityResource}" />
-              <Button Content="Actualiser le catalogue en ligne" Command="{Binding RefreshCommunityCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-              <Button Content="Ouvrir la ressource sélectionnée" Command="{Binding OpenCommunityResourceCommand}" Style="{StaticResource PrimaryButtonStyle}" />
-              <Button Content="Ouvrir le portail Cartomize" Command="{Binding CommunityCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+              <Button Content="Actualiser le catalogue en ligne" Command="{Binding RefreshCommunityCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+              <Button Content="Ouvrir la ressource sélectionnée" Command="{Binding OpenCommunityResourceCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+              <Button Content="Ouvrir le portail Cartomize" Command="{Binding CommunityCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
             </StackPanel></Border>
           </StackPanel>
         </ScrollViewer>
@@ -466,13 +424,13 @@
       <TabItem Header="Système">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="12">
-            <TextBlock Text="Système" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Système" Style="{DynamicResource Esri_TextBlockH1}" Margin="0,0,0,4" />
             <TextBlock Text="Vérifiez la disponibilité des composants ArcGIS Pro requis et consultez l’état technique du plugin."
-                       Style="{StaticResource DescriptionStyle}" />
+                       Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}"><StackPanel>
-              <TextBlock Text="Diagnostic" Style="{StaticResource SectionTitleStyle}" />
+              <TextBlock Text="Diagnostic" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
               <TextBox Text="{Binding DiagnosticText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="360" />
-              <Button Content="Actualiser l’état du système" Command="{Binding DiagnosticsCommand}" Style="{StaticResource PrimaryButtonStyle}" />
+              <Button Content="Actualiser l’état du système" Command="{Binding DiagnosticsCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
             </StackPanel></Border>
           </StackPanel>
         </ScrollViewer>

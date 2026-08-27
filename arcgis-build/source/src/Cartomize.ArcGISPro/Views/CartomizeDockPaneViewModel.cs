@@ -134,7 +134,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         CommunityCommand = new DelegateCommand(() => OpenUrl("https://cartomizeplugin.com/"));
         DiagnosticsCommand = new AsyncDelegateCommand(RunDiagnosticsAsync, () => !IsBusy);
 
-        _ = RefreshProjectAsync();
+        _ = RefreshProjectSafelyAsync();
     }
 
     public ObservableCollection<string> MapNames { get; } = [];
@@ -217,7 +217,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             if (!SetProperty(ref _selectedLayerName, value)) return;
             IsRasterLayer = !string.IsNullOrWhiteSpace(value) && _rasterLayerNames.Contains(value);
             RecommendationText = string.IsNullOrWhiteSpace(value) ? "Sélectionnez une couche vectorielle ou raster valide." : "Cliquez sur « Analyser la couche sélectionnée » pour obtenir une proposition.";
-            _ = RefreshLayerFieldsAsync();
+            _ = RefreshLayerFieldsSafelyAsync();
         }
     }
 
@@ -585,6 +585,19 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         });
     }
 
+    private async Task RefreshProjectSafelyAsync()
+    {
+        try
+        {
+            await RefreshProjectAsync();
+        }
+        catch (Exception exception)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+                StatusText = $"Projet ArcGIS Pro indisponible : {exception.Message}");
+        }
+    }
+
     private async Task RefreshLayerFieldsAsync()
     {
         var selected = SelectedLayerName;
@@ -603,6 +616,19 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             SelectedThematicField = LayerFields.Contains(SelectedThematicField ?? string.Empty) ? SelectedThematicField : LayerFields.FirstOrDefault();
             SelectedLabelField = LayerFields.Contains(SelectedLabelField ?? string.Empty) ? SelectedLabelField : LayerFields.FirstOrDefault();
         });
+    }
+
+    private async Task RefreshLayerFieldsSafelyAsync()
+    {
+        try
+        {
+            await RefreshLayerFieldsAsync();
+        }
+        catch (Exception exception)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+                StatusText = $"Champs de la couche indisponibles : {exception.Message}");
+        }
     }
 
     private void LoadTemplateCatalog()

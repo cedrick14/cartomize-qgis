@@ -91,10 +91,10 @@ def main() -> int:
     for resource in native_resources:
         if resource not in xaml_text:
             errors.append(f"Ressource de thème ArcGIS Pro absente : {resource}")
-    if re.search(r'BasedOn="\{DynamicResource\s+', xaml_text):
+    if "BasedOn=" in xaml_text:
         errors.append(
-            "Style.BasedOn doit utiliser StaticResource : DynamicResource provoque "
-            "un échec de chargement du DockPane WPF."
+            "Le DockPane ne doit pas hériter localement des styles Esri : les "
+            "ressources de thème doivent être appliquées directement aux contrôles."
         )
     for forbidden in ("Foreground=", "FontFamily=", "FontWeight=", "Color=\"#", "Background=\"#"):
         if forbidden in xaml_text:
