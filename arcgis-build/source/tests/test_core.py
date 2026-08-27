@@ -94,7 +94,7 @@ class BatchTests(unittest.TestCase):
             manifest = load_manifest(path)
             self.assertEqual(manifest.dpi, 600)
             self.assertEqual(manifest.jobs[0].output_formats, ("pdf", "qpt"))
-            self.assertEqual(Path(manifest.output_directory), Path(folder) / "outputs")
+            self.assertEqual(Path(manifest.output_directory), (Path(folder) / "outputs").resolve())
 
 
 class LayerStackTests(unittest.TestCase):
