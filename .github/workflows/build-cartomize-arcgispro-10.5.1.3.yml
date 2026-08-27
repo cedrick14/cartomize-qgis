@@ -66,6 +66,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $sourceStage | Out-Null
           & robocopy $source $sourceStage /E /XD .vs bin obj __pycache__ release CARTOMIZE /XF *.pyc *.csproj.user *.esriAddInX *.pdb *.dll
           if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $global:LASTEXITCODE = 0
           Compress-Archive -Path (Join-Path $sourceStage "*") -DestinationPath (Join-Path $output "cartomize-arcgis-pro-source-10.5.1.zip") -Force
           Get-ChildItem $output | Format-Table Name,Length
 
