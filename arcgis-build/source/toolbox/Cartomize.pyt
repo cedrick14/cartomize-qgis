@@ -1,0 +1,915 @@
+# -*- coding: utf-8 -*-
+"""Boîte à outils native Cartomize pour ArcGIS Pro 3.7 et arcpy.mp."""
+
+from __future__ import annotations
+
+from dataclasses import asdict
+from pathlib import Path
+import os
+import traceback
+
+import arcpy
+
+from cartomize_core.audit import audit_project
+from cartomize_core.batch import load_manifest, safe_output_name
+from cartomize_core.constants import APP_NAME, APP_VERSION, DEFAULT_DPI
+from cartomize_core.io_utils import safe_name, write_json
+from cartomize_core.layout import build_layout, export_layout, is_basemap_layer, result_dict
+from cartomize_core.layout import optimize_layout, synchronize_layout
+from cartomize_core.label_intelligence import audit_labels
+from cartomize_core.layer_stack import LayerDescriptor, plan_layer_stacks
+from cartomize_core.mapops import compare as compare_snapshot
+from cartomize_core.mapops import save as save_snapshot
+from cartomize_core.mapops import snapshot
+from cartomize_core.raster import analyze_raster, raster_type_label
+from cartomize_core.project_graph import ProjectRelationshipEngine
+from cartomize_core.recipes import load_recipe, make_recipe, save_recipe
+from cartomize_core.symbology import apply_raster_symbology, apply_vector_symbology
+from cartomize_core.templates import TemplateCatalog, discover_template_root
+from cartomize_core.vector import analyze_vector
+
+
+OBJECTIVES = (
+    ("auto", "Détection automatique"),
+    ("administrative", "Carte administrative"),
+    ("amenagement", "Aménagement du territoire"),
+    ("occupation_sol", "Occupation du sol"),
+    ("risques", "Carte de risques"),
+    ("hydrologique", "Hydrologie"),
+    ("environnement", "Environnement"),
+    ("agriculture", "Agriculture"),
+    ("transport", "Transport et accessibilité"),
+    ("urbanisme", "Urbanisme"),
+    ("demographie", "Démographie"),
+    ("biodiversite", "Biodiversité"),
+    ("energie", "Énergie"),
+    ("sante", "Santé"),
+    ("humanitaire", "Humanitaire"),
+    ("scientifique", "Publication scientifique"),
+    ("topographique", "Topographie"),
+    ("atlas", "Atlas territorial"),
+)
+STYLE_PROFILES = (
+    ("balanced", "Équilibré"),
+    ("institutional", "Institutionnel"),
+    ("analytical", "Analytique"),
+    ("minimal", "Minimaliste"),
+)
+VARIANTS = (
+    ("institutional", "Institutionnelle"),
+    ("analytical", "Analytique"),
+    ("minimal", "Minimaliste"),
+)
+
+
+def _catalog():
+    return TemplateCatalog(discover_template_root(__file__))
+
+
+def _project():
+    return arcpy.mp.ArcGISProject("CURRENT")
+
+
+def _project_folder(aprx=None):
+    aprx = aprx or _project()
+    folder = str(getattr(aprx, "homeFolder", "") or "").strip()
+    return Path(folder if folder else os.environ.get("USERPROFILE", os.getcwd())).resolve()
+
+
+def _map_by_name(aprx, name):
+    if name:
+        matches = aprx.listMaps(str(name))
+        if matches:
+            return matches[0]
+    active = getattr(aprx, "activeMap", None)
+    if active is not None:
+        return active
+    maps = aprx.listMaps()
+    if not maps:
+        raise RuntimeError("Le projet courant ne contient aucune carte.")
+    return maps[0]
+
+
+def _layer_by_name(map_item, name, predicate=None):
+    for layer in map_item.listLayers():
+        if name and str(layer.name).casefold() != str(name).casefold():
+            continue
+        if predicate is None or predicate(layer):
+            return layer
+    raise RuntimeError(f"La couche « {name} » est introuvable dans la carte « {map_item.name} ».")
+
+
+def _raster_layer_from_input(map_item, source, source_text, diagnosis):
+    if getattr(source, "isRasterLayer", False) and hasattr(source, "symbology"):
+        return source
+    names = {
+        str(value).casefold()
+        for value in (
+            source_text,
+            Path(str(source_text or "")).name,
+            Path(str(source_text or "")).stem,
+            diagnosis.get("name"),
+            Path(str(diagnosis.get("source") or "")).name,
+            Path(str(diagnosis.get("source") or "")).stem,
+        )
+        if str(value or "").strip()
+    }
+    expected_path = os.path.normcase(os.path.normpath(str(diagnosis.get("source") or "")))
+    for layer in map_item.listLayers():
+        if not getattr(layer, "isRasterLayer", False):
+            continue
+        if str(getattr(layer, "name", "")).casefold() in names:
+            return layer
+        try:
+            layer_path = os.path.normcase(os.path.normpath(str(layer.dataSource)))
+            if expected_path and layer_path == expected_path:
+                return layer
+        except Exception:
+            pass
+    return None
+
+
+def _template_id(value):
+    text = str(value or "")
+    labels = _catalog().labels()
+    return labels.get(text, text)
+
+
+def _template_label(template_id):
+    for label, item_id in _catalog().labels().items():
+        if item_id == template_id:
+            return label
+    return template_id
+
+
+def _map_parameter(display="Carte", name="map_name", multi=False):
+    parameter = arcpy.Parameter(displayName=display, name=name, datatype="GPString", parameterType="Required", direction="Input", multiValue=multi)
+    try:
+        aprx = _project()
+        choices = [item.name for item in aprx.listMaps()]
+        parameter.filter.type = "ValueList"
+        parameter.filter.list = choices
+        if choices:
+            active = getattr(aprx, "activeMap", None)
+            parameter.value = active.name if active is not None else choices[0]
+    except Exception:
+        pass
+    return parameter
+
+
+def _template_parameter(required=True):
+    parameter = arcpy.Parameter(
+        displayName="Maquette Cartomize",
+        name="template",
+        datatype="GPString",
+        parameterType="Required" if required else "Optional",
+        direction="Input",
+    )
+    try:
+        labels = list(_catalog().labels())
+        parameter.filter.type = "ValueList"
+        parameter.filter.list = labels
+        if labels:
+            parameter.value = labels[0]
+    except Exception:
+        pass
+    return parameter
+
+
+def _file_parameter(display, name, direction="Output", required=False, extension="json"):
+    parameter = arcpy.Parameter(
+        displayName=display,
+        name=name,
+        datatype="DEFile",
+        parameterType="Required" if required else "Optional",
+        direction=direction,
+    )
+    parameter.filter.list = [item for item in str(extension).split(";") if item]
+    return parameter
+
+
+def _status_parameter():
+    return arcpy.Parameter(displayName="Statut", name="status", datatype="GPString", parameterType="Derived", direction="Output")
+
+
+def _bool_parameter(display, name, value=False):
+    parameter = arcpy.Parameter(displayName=display, name=name, datatype="GPBoolean", parameterType="Optional", direction="Input")
+    parameter.value = bool(value)
+    return parameter
+
+
+def _integer_parameter(display, name, value, low=1, high=10000):
+    parameter = arcpy.Parameter(displayName=display, name=name, datatype="GPLong", parameterType="Optional", direction="Input")
+    parameter.value = int(value)
+    parameter.filter.type = "Range"
+    parameter.filter.list = [low, high]
+    return parameter
+
+
+def _double_parameter(display, name, value, low=0.0, high=100.0):
+    parameter = arcpy.Parameter(displayName=display, name=name, datatype="GPDouble", parameterType="Optional", direction="Input")
+    parameter.value = float(value)
+    parameter.filter.type = "Range"
+    parameter.filter.list = [float(low), float(high)]
+    return parameter
+
+
+def _choice_parameter(display, name, choices, default_key):
+    labels = {label: key for key, label in choices}
+    parameter = arcpy.Parameter(displayName=display, name=name, datatype="GPString", parameterType="Required", direction="Input")
+    parameter.filter.type = "ValueList"
+    parameter.filter.list = list(labels)
+    parameter.value = next(label for key, label in choices if key == default_key)
+    return parameter
+
+
+def _choice_key(value, choices, fallback):
+    text = str(value or "")
+    for key, label in choices:
+        if text == label or text == key:
+            return key
+    return fallback
+
+
+def _text(parameter):
+    if parameter is None:
+        return ""
+    return str(getattr(parameter, "valueAsText", None) or "")
+
+
+def _message(messages, value):
+    messages.addMessage(str(value))
+
+
+def _fail(messages, exc):
+    messages.addErrorMessage(str(exc))
+    messages.addErrorMessage(traceback.format_exc())
+    raise arcpy.ExecuteError
+
+
+class Toolbox:
+    def __init__(self):
+        self.label = f"Cartomize {APP_VERSION}"
+        self.alias = "cartomize"
+        self.tools = [
+            AuditProject, AutopilotMap, CreateLayout, VectorIntelligence,
+            RasterIntelligence, GeoIntelligence, BatchMaps, ReplayRecipe, MapOpsCheck,
+        ]
+
+
+class AuditProject:
+    def __init__(self):
+        self.label = "Contrôler la qualité cartographique du projet"
+        self.description = "Contrôle les sources, CRS, couches, métadonnées et mises en page sans modifier le projet."
+        self.category = "Contrôle de la qualité"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        output = _file_parameter("Rapport JSON", "output_report")
+        try:
+            output.value = str(_project_folder() / "cartomize-audit.json")
+        except Exception:
+            pass
+        mode = arcpy.Parameter(displayName="Contrôle", name="audit_mode", datatype="GPString", parameterType="Optional", direction="Input")
+        mode.filter.type = "ValueList"
+        mode.filter.list = ["Projet", "Étiquettes"]
+        mode.value = "Projet"
+        return [output, mode, _status_parameter()]
+
+    def isLicensed(self):
+        return True
+
+    def execute(self, parameters, messages):
+        try:
+            report = audit_labels(_project()) if _text(parameters[1]).casefold().startswith("étiq") else audit_project(arcpy, _project())
+            if _text(parameters[0]):
+                write_json(_text(parameters[0]), report.to_dict())
+            status = f"{report.status} — {report.score}/100 — {len(report.findings)} observation(s)"
+            parameters[2].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class VectorIntelligence:
+    def __init__(self):
+        self.label = "Analyser une couche vectorielle"
+        self.description = "Profile les attributs et géométries, recommande champs, étiquettes et rendu."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        source = arcpy.Parameter(displayName="Couche vectorielle", name="input_features", datatype="GPFeatureLayer", parameterType="Required", direction="Input")
+        sample = _integer_parameter("Taille maximale de l'échantillon", "sample_limit", 1000, 100, 5000)
+        apply_style = _bool_parameter("Appliquer la symbologie recommandée", "apply_style", False)
+        output = _file_parameter("Rapport JSON", "output_report")
+        return [source, sample, apply_style, output, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            source = parameters[0].value
+            profile = analyze_vector(arcpy, source, int(parameters[1].value or 1000))
+            style_result = {"applied": False}
+            if bool(parameters[2].value):
+                aprx = _project()
+                active_map = _map_by_name(aprx, None)
+                layer = source if hasattr(source, "symbology") else _layer_by_name(active_map, profile["layer_name"], lambda item: getattr(item, "isFeatureLayer", False))
+                style_result = apply_vector_symbology(aprx, layer, profile)
+            payload = {"kind": "vector_intelligence", "profile": profile, "styling": style_result}
+            if _text(parameters[3]):
+                write_json(_text(parameters[3]), payload)
+            status = f"Champ d’étiquette : {profile['label_field'] or 'à confirmer'} · champ thématique : {profile['thematic_field'] or 'à confirmer'}"
+            parameters[4].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class RasterIntelligence:
+    def __init__(self):
+        self.label = "Analyser un raster avec Raster Engine"
+        self.description = "Analyse les métadonnées, le NoData, les classes, les fréquences et les valeurs atypiques sans modifier le raster source."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        source = arcpy.Parameter(displayName="Couche raster", name="input_raster", datatype="GPRasterLayer", parameterType="Required", direction="Input")
+        apply_style = _bool_parameter("Appliquer le coloriseur recommandé", "apply_style", False)
+        output = _file_parameter("Rapport JSON", "output_report")
+        return [source, apply_style, output, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            source = parameters[0].value
+            source_text = _text(parameters[0])
+            diagnosis = analyze_raster(arcpy, source, source_text)
+            style_result = {"applied": False}
+            if bool(parameters[1].value):
+                aprx = _project()
+                active_map = _map_by_name(aprx, None)
+                layer = _raster_layer_from_input(active_map, source, source_text, diagnosis)
+                if layer is None:
+                    style_result = {
+                        "applied": False,
+                        "reason": "Le diagnostic est terminé, mais la source n’est pas une couche de la carte active.",
+                    }
+                else:
+                    style_result = apply_raster_symbology(aprx, layer, diagnosis)
+            payload = {"kind": "raster_intelligence", "diagnosis": diagnosis, "styling": style_result}
+            if _text(parameters[2]):
+                write_json(_text(parameters[2]), payload)
+            status = (
+                f"{raster_type_label(diagnosis['raster_type'])} · "
+                f"confiance {round(100 * diagnosis['confidence'])}% · "
+                f"{len(diagnosis['classes'])} classe(s)"
+            )
+            parameters[3].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class CreateLayout:
+    def __init__(self):
+        self.label = "Créer une mise en page Cartomize"
+        self.description = "Convertit une maquette Cartomize en mise en page ArcGIS Pro entièrement éditable."
+        self.category = "Mise en page et publication"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        map_parameter = _map_parameter()
+        template = _template_parameter()
+        title = arcpy.Parameter(displayName="Titre", name="title", datatype="GPString", parameterType="Required", direction="Input")
+        title.value = "TITRE DE LA CARTE"
+        subtitle = arcpy.Parameter(displayName="Sous-titre", name="subtitle", datatype="GPString", parameterType="Optional", direction="Input")
+        layout_name = arcpy.Parameter(displayName="Nom de la mise en page", name="layout_name", datatype="GPString", parameterType="Optional", direction="Input")
+        layout_name.value = "Cartomize — Mise en page"
+        credits = arcpy.Parameter(displayName="Sources et crédits", name="credits", datatype="GPString", parameterType="Optional", direction="Input")
+        visible_only = _bool_parameter("Utiliser uniquement les couches visibles", "visible_only", True)
+        margin = _double_parameter("Marge autour des données (%)", "margin_percent", 3.0, 0.0, 50.0)
+        add_grid = _bool_parameter("Ajouter une grille", "add_grid", False)
+        hide_basemap = _bool_parameter("Exclure le fond de carte de la légende", "hide_basemap_legend", True)
+        open_view = _bool_parameter("Ouvrir la mise en page", "open_view", True)
+        export = _file_parameter("Export immédiat (facultatif)", "export_path", extension="pdf;png;jpg;tif;svg")
+        dpi = _integer_parameter("Résolution d'export (DPI)", "dpi", DEFAULT_DPI, 96, 1200)
+        pagx = _file_parameter("Enregistrer la maquette ArcGIS Pro (PAGX)", "pagx_path", extension="pagx")
+        recipe = _file_parameter("Enregistrer la recette JSON", "recipe_path")
+        operation = arcpy.Parameter(displayName="Opération", name="operation", datatype="GPString", parameterType="Optional", direction="Input")
+        operation.filter.type = "ValueList"
+        operation.filter.list = ["Créer", "Synchroniser", "Optimiser", "Exporter"]
+        operation.value = "Créer"
+        existing_layout = arcpy.Parameter(displayName="Mise en page existante", name="existing_layout", datatype="GPString", parameterType="Optional", direction="Input")
+        try:
+            names = [item.name for item in _project().listLayouts()]
+            existing_layout.filter.type = "ValueList"
+            existing_layout.filter.list = names
+        except Exception:
+            pass
+        return [
+            map_parameter, template, title, subtitle, layout_name, credits,
+            visible_only, margin, add_grid, hide_basemap, open_view,
+            export, dpi, pagx, recipe, operation, existing_layout, _status_parameter(),
+        ]
+
+    def execute(self, parameters, messages):
+        try:
+            aprx = _project()
+            map_item = _map_by_name(aprx, _text(parameters[0]))
+            template_id = _template_id(_text(parameters[1]))
+            spec = _catalog().get(template_id)
+            operation = _text(parameters[15]) or "Créer"
+            existing_name = _text(parameters[16]) or _text(parameters[4])
+            result = None
+            status = ""
+            if operation == "Créer":
+                result = build_layout(
+                    arcpy, aprx, map_item, spec,
+                    layout_name=_text(parameters[4]) or f"Cartomize — {spec.name}",
+                    title=_text(parameters[2]), subtitle=_text(parameters[3]), credits=_text(parameters[5]),
+                    visible_only=bool(parameters[6].value),
+                    margin_percent=float(parameters[7].value or 0.0),
+                    add_grid=bool(parameters[8].value),
+                    remove_basemap_from_legend=bool(parameters[9].value),
+                    open_view=bool(parameters[10].value),
+                    export_path=_text(parameters[11]),
+                    dpi=int(parameters[12].value or DEFAULT_DPI),
+                    pagx_path=_text(parameters[13]),
+                )
+                status = f"{result.layout_name} créée — {result.element_count} éléments — {result.map_frame_count} cadre(s)"
+            else:
+                matches = aprx.listLayouts(existing_name) if existing_name else aprx.listLayouts()
+                if not matches:
+                    raise RuntimeError("Sélectionnez une mise en page ArcGIS Pro existante.")
+                layout = matches[0]
+                if operation == "Synchroniser":
+                    counts = synchronize_layout(arcpy, layout, map_item, title=_text(parameters[2]), subtitle=_text(parameters[3]), credits=_text(parameters[5]), visible_only=bool(parameters[6].value), margin_percent=float(parameters[7].value or 0.0))
+                    status = f"{layout.name} actualisée — {counts['texts']} texte(s) · {counts['map_frames']} cadre(s)"
+                elif operation == "Optimiser":
+                    counts = optimize_layout(layout)
+                    status = f"{layout.name} améliorée — {counts['moved']} déplacement(s) · {counts['resized']} redimensionnement(s)"
+                elif operation == "Exporter":
+                    target = _text(parameters[13]) or _text(parameters[11])
+                    if not target:
+                        raise RuntimeError("Indiquez un fichier d’export.")
+                    if str(target).casefold().endswith(".pagx"):
+                        Path(target).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+                        layout.exportToPAGX(str(Path(target).expanduser().resolve()))
+                    else:
+                        export_layout(arcpy, layout, target, dpi=int(parameters[12].value or DEFAULT_DPI))
+                    status = f"{layout.name} exportée — {target}"
+                else:
+                    raise RuntimeError(f"Opération inconnue : {operation}")
+                if bool(parameters[10].value):
+                    try:
+                        layout.openView()
+                    except Exception:
+                        pass
+            if _text(parameters[14]):
+                recipe = make_recipe(
+                    map_name=map_item.name, template_id=template_id, layout_name=result.layout_name if result is not None else existing_name,
+                    title=_text(parameters[2]), subtitle=_text(parameters[3]), credits=_text(parameters[5]),
+                    visible_only=bool(parameters[6].value), margin_percent=float(parameters[7].value or 0.0),
+                    add_grid=bool(parameters[8].value),
+                    remove_basemap_from_legend=bool(parameters[9].value), open_view=bool(parameters[10].value),
+                    export_path=_text(parameters[11]), dpi=int(parameters[12].value or DEFAULT_DPI),
+                    pagx_path=_text(parameters[13]), sources=_text(parameters[5]),
+                )
+                save_recipe(_text(parameters[14]), recipe)
+            parameters[17].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class GeoIntelligence:
+    def __init__(self):
+        self.label = "Analyser le projet"
+        self.description = "Produit une lecture combinée du projet, des relations cartographiques et des couches."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        map_parameter = _map_parameter()
+        output = _file_parameter("Rapport JSON", "output_report")
+        return [map_parameter, output, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            aprx = _project()
+            map_item = _map_by_name(aprx, _text(parameters[0]))
+            audit = audit_project(arcpy, aprx)
+            layers = []
+            layer_objects = list(map_item.listLayers())
+            roles = {}
+            main_layer_id = ""
+            for layer in layer_objects:
+                layer_id = str(getattr(layer, "URI", "") or getattr(layer, "longName", layer.name))
+                record = {
+                    "layer_id": layer_id,
+                    "name": layer.name,
+                    "visible": bool(getattr(layer, "visible", True)),
+                    "basemap": is_basemap_layer(layer),
+                }
+                if getattr(layer, "isFeatureLayer", False) and not getattr(layer, "isBroken", False):
+                    try:
+                        profile = analyze_vector(arcpy, layer, 500)
+                        record.update({
+                            "kind": "vector", "label_field": profile["label_field"],
+                            "thematic_field": profile["thematic_field"], "role": profile["role"],
+                            "role_confidence": profile["role_confidence"],
+                        })
+                        roles[layer_id] = profile["role"]
+                    except Exception as exc:
+                        record.update({"kind": "vector", "error": str(exc)})
+                elif getattr(layer, "isRasterLayer", False) and not getattr(layer, "isBroken", False):
+                    try:
+                        diagnosis = analyze_raster(arcpy, layer)
+                        record.update({
+                            "kind": "raster", "theme": diagnosis["theme"],
+                            "raster_type": diagnosis["raster_type"],
+                            "theme_confidence": diagnosis["theme_confidence"],
+                        })
+                        roles[layer_id] = diagnosis["theme"]
+                    except Exception as exc:
+                        record.update({"kind": "raster", "error": str(exc)})
+                else:
+                    record["kind"] = "other"
+                if not main_layer_id and not record["basemap"] and record.get("kind") in {"vector", "raster"}:
+                    main_layer_id = layer_id
+                layers.append(record)
+
+            graph = ProjectRelationshipEngine(arcpy).analyze(
+                layer_objects, roles=roles, main_layer_id=main_layer_id,
+            )
+            descriptors = [
+                LayerDescriptor(
+                    layer_id=item["layer_id"], kind=item.get("kind", "other"),
+                    basemap=bool(item.get("basemap")),
+                )
+                for item in layers
+            ]
+            stack = plan_layer_stacks(
+                descriptors,
+                visible_ids=[item["layer_id"] for item in layers if item["visible"]],
+                focus_id=main_layer_id,
+            )
+            payload = {
+                "kind": "geo_intelligence", "map": map_item.name, "audit": audit.to_dict(),
+                "layers": layers,
+                "relationship_graph": graph.to_dict(),
+                "layer_stack": asdict(stack),
+                "recommendations": _geo_recommendations(audit, layers),
+            }
+            if _text(parameters[1]):
+                write_json(_text(parameters[1]), payload)
+            status = f"{len(layers)} couche(s) analysée(s) · score projet {audit.score}/100"
+            parameters[2].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class AutopilotMap:
+    def __init__(self):
+        self.label = "Créer automatiquement une carte"
+        self.description = "Audit, profilage, symbologie native et mise en page explicable dans un flux unique."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        map_parameter = _map_parameter()
+        objective = _choice_parameter("Objectif cartographique", "objective", OBJECTIVES, "auto")
+        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPString", parameterType="Optional", direction="Input")
+        try:
+            active_map = _map_by_name(_project(), None)
+            choices = [
+                layer.name for layer in active_map.listLayers()
+                if not getattr(layer, "isBroken", False)
+                and not is_basemap_layer(layer)
+                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
+            ]
+            main_layer.filter.type = "ValueList"
+            main_layer.filter.list = choices
+        except Exception:
+            pass
+        style_profile = _choice_parameter("Profil cartographique", "style_profile", STYLE_PROFILES, "balanced")
+        variant = _choice_parameter("Proposition", "variant", VARIANTS, "institutional")
+        apply_style = _bool_parameter("Appliquer la symbologie", "apply_style", True)
+        auto_correct = _bool_parameter("Corriger automatiquement la lisibilité", "auto_correct", True)
+        visible_only = _bool_parameter("Utiliser uniquement les couches visibles", "visible_only", True)
+        sources = arcpy.Parameter(displayName="Sources et crédits", name="sources", datatype="GPString", parameterType="Optional", direction="Input")
+        title = arcpy.Parameter(displayName="Titre", name="title", datatype="GPString", parameterType="Optional", direction="Input")
+        template = _template_parameter(required=False)
+        report = _file_parameter("Rapport et recette JSON", "output_report")
+        return [
+            map_parameter, objective, main_layer, style_profile, variant,
+            apply_style, auto_correct, visible_only, sources, title,
+            template, report, _status_parameter(),
+        ]
+
+    def execute(self, parameters, messages):
+        try:
+            aprx = _project()
+            map_item = _map_by_name(aprx, _text(parameters[0]))
+            objective = _choice_key(_text(parameters[1]), OBJECTIVES, "auto")
+            objective_label = dict(OBJECTIVES).get(objective, "Détection automatique")
+            style_profile = _choice_key(_text(parameters[3]), STYLE_PROFILES, "balanced")
+            variant_id = _choice_key(_text(parameters[4]), VARIANTS, "institutional")
+            audit = audit_project(arcpy, aprx)
+            candidates = [
+                layer for layer in map_item.listLayers()
+                if not getattr(layer, "isBroken", False)
+                and not is_basemap_layer(layer)
+                and (not bool(parameters[7].value) or bool(getattr(layer, "visible", True)))
+                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
+            ]
+            requested_main = _text(parameters[2])
+            primary = next(
+                (layer for layer in candidates if requested_main and str(layer.name).casefold() == requested_main.casefold()),
+                candidates[0] if candidates else None,
+            )
+            if primary is None:
+                raise RuntimeError("Aucune couche thématique valide n'a été trouvée.")
+            analysis = {}
+            styling = {"applied": False}
+            if getattr(primary, "isFeatureLayer", False):
+                analysis = analyze_vector(arcpy, primary, 1000)
+                if bool(parameters[5].value):
+                    styling = apply_vector_symbology(aprx, primary, analysis)
+            else:
+                analysis = analyze_raster(arcpy, primary)
+                if bool(parameters[5].value):
+                    styling = apply_raster_symbology(aprx, primary, analysis)
+            requested = _template_id(_text(parameters[10])) if _text(parameters[10]) else ""
+            spec = _catalog().get(requested or _choose_template(objective_label, analysis))
+            title = _text(parameters[9]) or objective_label.upper()
+            margin = 3.0 if bool(parameters[6].value) else 0.0
+            result = build_layout(
+                arcpy, aprx, map_item, spec,
+                layout_name=f"Cartomize — {safe_name(title, 'Carte').replace('_', ' ')}",
+                title=title, subtitle=objective_label, credits=_text(parameters[8]),
+                visible_only=bool(parameters[7].value), margin_percent=margin,
+                add_grid=objective in {"topographique", "atlas"},
+                remove_basemap_from_legend=True, open_view=True,
+            )
+            layer_ids = [str(getattr(layer, "URI", "") or layer.name) for layer in candidates]
+            layer_names = [str(layer.name) for layer in candidates]
+            recipe = make_recipe(
+                map_name=map_item.name, template_id=spec.template_id,
+                template_name=spec.name, layout_name=result.layout_name,
+                title=title, subtitle=objective_label, credits=_text(parameters[8]),
+                objective=objective,
+                main_layer_id=str(getattr(primary, "URI", "") or primary.name),
+                main_layer_name=str(primary.name), layer_ids=layer_ids, layer_names=layer_names,
+                variant_id=variant_id, variant_name=dict(VARIANTS).get(variant_id, "Institutionnelle"),
+                style_profile=style_profile, apply_symbology=bool(parameters[5].value),
+                auto_correct=bool(parameters[6].value), visible_only=bool(parameters[7].value),
+                sources=_text(parameters[8]), margin_percent=margin,
+                add_grid=objective in {"topographique", "atlas"},
+                remove_basemap_from_legend=True, open_view=True, dpi=DEFAULT_DPI,
+            )
+            confidence = float(analysis.get("role_confidence", analysis.get("confidence", 0.6)) or 0.6)
+            final_score = max(0, min(100, round((audit.score + 100 * confidence) / 2)))
+            payload = {
+                "kind": "autopilot", "objective": objective,
+                "objective_label": objective_label, "style_profile": style_profile,
+                "variant": variant_id, "audit": audit.to_dict(),
+                "primary_layer": primary.name, "analysis": analysis, "styling": styling,
+                "layout": result_dict(result), "final_score": final_score,
+                "proposals": _automation_proposals(objective, title, analysis),
+                "recipe": recipe,
+            }
+            if _text(parameters[11]):
+                write_json(_text(parameters[11]), payload)
+            status = f"{result.layout_name} — score {final_score}/100"
+            parameters[12].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class BatchMaps:
+    def __init__(self):
+        self.label = "Produire une série de cartes Cartomize"
+        self.description = "Exécute un manifeste Cartomize QGIS ou ArcGIS Pro jusqu’à 5 000 cartes."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        manifest = _file_parameter("Manifeste de production JSON", "manifest_path", direction="Input", required=True)
+        report = _file_parameter("Rapport JSON", "output_report")
+        return [manifest, report, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            aprx = _project()
+            manifest = load_manifest(_text(parameters[0]))
+            recipe = load_recipe(manifest.recipe_path)
+            settings = recipe["layout"]
+            spec = _catalog().get(settings["template_id"])
+            folder = Path(manifest.output_directory).expanduser().resolve()
+            folder.mkdir(parents=True, exist_ok=True)
+            results = []
+            errors = []
+            for index, job in enumerate(manifest.jobs, 1):
+                layout = None
+                try:
+                    map_item = _map_by_name(aprx, settings.get("map_name"))
+                    title = job.title or settings.get("title") or "TITRE DE LA CARTE"
+                    subtitle = job.subtitle or settings.get("subtitle") or ""
+                    credits = job.sources or settings.get("credits") or recipe.get("sources") or ""
+                    result = build_layout(
+                        arcpy, aprx, map_item, spec,
+                        layout_name=f"Cartomize — {job.output_name}", title=title,
+                        subtitle=subtitle, credits=credits,
+                        visible_only=bool(settings.get("visible_only", True)),
+                        margin_percent=float(settings.get("margin_percent", 3.0)),
+                        add_grid=bool(settings.get("add_grid", False)),
+                        remove_basemap_from_legend=bool(settings.get("remove_basemap_from_legend", True)),
+                        open_view=False,
+                    )
+                    layout = aprx.listLayouts(result.layout_name)[0]
+                    outputs = []
+                    stem = safe_output_name(job.output_name or job.job_id)
+                    for output_format in job.output_formats:
+                        suffix = "pagx" if output_format == "qpt" else output_format
+                        target = folder / f"{stem}.{suffix}"
+                        if suffix == "pagx":
+                            layout.exportToPAGX(str(target))
+                            outputs.append(str(target))
+                        else:
+                            outputs.append(export_layout(arcpy, layout, str(target), dpi=manifest.dpi))
+                    results.append({
+                        "job_id": job.job_id,
+                        "status": "Réussie",
+                        "layout_name": result.layout_name,
+                        "outputs": outputs,
+                        "validation_status": "En attente" if manifest.require_human_validation else "Non requise",
+                    })
+                    _message(messages, f"[{index}/{len(manifest.jobs)}] {job.output_name} exportée.")
+                except Exception as exc:
+                    errors.append({"job_id": job.job_id, "output_name": job.output_name, "error": str(exc)})
+                    messages.addWarningMessage(f"{job.output_name} : {exc}")
+                finally:
+                    if layout is not None and not manifest.keep_layouts:
+                        try:
+                            aprx.deleteItem(layout)
+                        except Exception:
+                            pass
+            payload = {
+                "kind": "batch_maps", "template": spec.template_id,
+                "total": len(manifest.jobs), "succeeded": len(results),
+                "failed": len(errors), "results": results, "errors": errors,
+            }
+            if _text(parameters[1]):
+                write_json(_text(parameters[1]), payload)
+            status = f"{len(results)} export(s) réussi(s) · {len(errors)} échec(s)"
+            parameters[2].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class ReplayRecipe:
+    def __init__(self):
+        self.label = "Rejouer une recette Cartomize"
+        self.description = "Recrée une mise en page Cartomize à partir d'une recette JSON v1."
+        self.category = "Automatisation cartographique"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        recipe = _file_parameter("Recette Cartomize JSON", "recipe_path", direction="Input", required=True)
+        return [recipe, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            recipe = load_recipe(_text(parameters[0]))
+            settings = recipe["layout"]
+            aprx = _project()
+            map_item = _map_by_name(aprx, settings.get("map_name"))
+            spec = _catalog().get(settings["template_id"])
+            result = build_layout(
+                arcpy, aprx, map_item, spec,
+                layout_name=settings.get("layout_name") or f"Cartomize — {spec.name}",
+                title=settings.get("title") or "TITRE DE LA CARTE",
+                subtitle=settings.get("subtitle") or "",
+                credits=settings.get("credits") or recipe.get("sources") or "",
+                visible_only=bool(settings.get("visible_only", recipe.get("visible_only", True))),
+                margin_percent=float(settings.get("margin_percent", 3.0)),
+                add_grid=bool(settings.get("add_grid", False)),
+                remove_basemap_from_legend=bool(settings.get("remove_basemap_from_legend", True)),
+                open_view=bool(settings.get("open_view", True)), export_path=settings.get("export_path") or "",
+                pagx_path=settings.get("pagx_path") or "",
+                dpi=int(settings.get("dpi") or DEFAULT_DPI),
+            )
+            status = f"Recette rejouée — {result.layout_name}"
+            parameters[1].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+class MapOpsCheck:
+    def __init__(self):
+        self.label = "Vérifier les changements MapOps"
+        self.description = "Crée ou compare une empreinte légère des cartes, couches et mises en page."
+        self.category = "Contrôle qualité"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        previous = _file_parameter("Empreinte précédente (facultatif)", "previous_snapshot", direction="Input")
+        output = _file_parameter("Nouvelle empreinte", "output_snapshot", required=True)
+        try:
+            output.value = str(_project_folder() / "cartomize-mapops.json")
+        except Exception:
+            pass
+        report = _file_parameter("Rapport de comparaison", "comparison_report")
+        action = arcpy.Parameter(displayName="Action", name="action", datatype="GPString", parameterType="Optional", direction="Input")
+        action.filter.type = "ValueList"
+        action.filter.list = ["Créer référence", "Vérifier", "Accepter"]
+        action.value = "Vérifier"
+        return [previous, output, report, action, _status_parameter()]
+
+    def execute(self, parameters, messages):
+        try:
+            current = snapshot(_project(), arcpy)
+            action = _text(parameters[3]) or "Vérifier"
+            comparison = {"changed": False, "baseline_created": action == "Créer référence", "accepted": action == "Accepter", "status": action}
+            if action == "Vérifier" and _text(parameters[0]):
+                comparison = compare_snapshot(_text(parameters[0]), current)
+                comparison["baseline_created"] = False
+            elif action == "Vérifier" and not _text(parameters[0]):
+                raise RuntimeError("Créez d’abord un état de référence MapOps.")
+            save_snapshot(_text(parameters[1]), current)
+            if _text(parameters[2]):
+                write_json(_text(parameters[2]), comparison)
+            if action == "Créer référence":
+                status = "État de référence créé"
+            elif action == "Accepter":
+                status = "État actuel accepté comme référence"
+            else:
+                status = "Modifications détectées" if comparison.get("changed") else "Aucune modification détectée"
+            parameters[4].value = status
+            _message(messages, status)
+        except Exception as exc:
+            _fail(messages, exc)
+
+
+def _choose_template(objective, analysis):
+    text = str(objective).casefold()
+    candidates = {
+        "localisation": "professionnelles/25-localisation-territoriale-trois-niveaux",
+        "occupation": "occupation_sol/institutionnel",
+        "environnement": "environnement/fragmentation-forestiere-a3",
+        "transport": "transport/accessibilite-reseau-a4",
+        "santé": "sante/couverture-services-a4",
+        "agriculture": "agriculture/aptitude-agricole-a3",
+        "humanitaire": "humanitaire/situation-urgence-a3",
+    }
+    for token, template_id in candidates.items():
+        if token in text:
+            return template_id
+    theme = str(analysis.get("theme") or "")
+    if theme in {"land_cover", "forest_dynamics"}:
+        return "occupation_sol/institutionnel" if theme == "land_cover" else "environnement/fragmentation-forestiere-a3"
+    return "administrative/institutionnel"
+
+
+def _automation_proposals(objective, title, analysis):
+    """Trois propositions comme dans l’onglet Automatisation de QGIS."""
+    base = _choose_template(dict(OBJECTIVES).get(objective, objective), analysis)
+    options = (
+        ("institutional", "Institutionnelle", base, 3.0, objective in {"topographique", "atlas"}),
+        ("analytical", "Analytique", "professionnelles/13-planche-analyse-multi-blocs", 4.0, False),
+        ("minimal", "Minimaliste", "professionnelles/03-localisation-hierarchique", 5.0, False),
+    )
+    proposals = []
+    for variant_id, name, template_id, margin, add_grid in options:
+        try:
+            spec = _catalog().get(template_id)
+        except Exception:
+            spec = _catalog().get(base)
+        proposals.append({
+            "variant_id": variant_id,
+            "name": name,
+            "template_id": spec.template_id,
+            "template_name": spec.name,
+            "page_format": spec.page_format,
+            "title": title,
+            "margin_percent": margin,
+            "add_grid": add_grid,
+        })
+    return proposals
+
+
+def _geo_recommendations(audit, layers):
+    recommendations = []
+    if audit.score < 85:
+        recommendations.append("Corriger d'abord les observations critiques et élevées de l'audit.")
+    if not any(item.get("basemap") for item in layers):
+        recommendations.append("Un fond de carte Esri peut améliorer le contexte; il restera exclu de la légende Cartomize.")
+    if sum(item.get("kind") == "raster" for item in layers) > 1:
+        recommendations.append("Vérifier l'ordre, la transparence et les fonctions de rendu des rasters superposés.")
+    if not recommendations:
+        recommendations.append("Le projet est prêt pour une mise en page Cartomize et une validation humaine.")
+    return recommendations

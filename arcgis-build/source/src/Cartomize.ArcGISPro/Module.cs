@@ -23,5 +23,18 @@ internal sealed class Module : ArcGIS.Desktop.Framework.Contracts.Module
 
     public static string ToolboxPath => Path.Combine(InstallationDirectory, "Toolbox", "Cartomize.pyt");
 
+    public static string TemplatesDirectory => Path.Combine(InstallationDirectory, "Templates");
+
+    public static string UserDataDirectory
+    {
+        get
+        {
+            var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var directory = Path.Combine(root, "ESRI", "Cartomize", "10.5.1");
+            Directory.CreateDirectory(directory);
+            return directory;
+        }
+    }
+
     protected override bool CanUnload() => true;
 }

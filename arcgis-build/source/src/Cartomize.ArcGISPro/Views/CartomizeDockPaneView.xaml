@@ -102,30 +102,20 @@
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
                   <Label Grid.Row="0" Content="Objectif" Margin="0,6,12,0" />
-                  <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="0">
-                    <ComboBoxItem Content="Détection automatique" /><ComboBoxItem Content="Carte administrative" />
-                    <ComboBoxItem Content="Aménagement du territoire" /><ComboBoxItem Content="Occupation du sol" />
-                    <ComboBoxItem Content="Carte de risques" /><ComboBoxItem Content="Hydrologie" />
-                    <ComboBoxItem Content="Environnement" /><ComboBoxItem Content="Agriculture" />
-                    <ComboBoxItem Content="Transport et accessibilité" /><ComboBoxItem Content="Urbanisme" />
-                    <ComboBoxItem Content="Démographie" /><ComboBoxItem Content="Biodiversité" />
-                    <ComboBoxItem Content="Énergie" /><ComboBoxItem Content="Santé" />
-                    <ComboBoxItem Content="Humanitaire" /><ComboBoxItem Content="Publication scientifique" />
-                    <ComboBoxItem Content="Topographie" /><ComboBoxItem Content="Atlas territorial" />
-                  </ComboBox>
+                  <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Objectives}"
+                            SelectedItem="{Binding SelectedObjective}" />
                   <Label Grid.Row="1" Content="Couche principale" Margin="0,6,12,0" />
                   <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding LayerNames}" SelectedItem="{Binding SelectedLayerName}" />
                   <Label Grid.Row="2" Content="Style de composition" Margin="0,6,12,0" />
-                  <ComboBox Grid.Row="2" Grid.Column="1" SelectedIndex="0">
-                    <ComboBoxItem Content="Équilibré" /><ComboBoxItem Content="Institutionnel" />
-                    <ComboBoxItem Content="Analytique" /><ComboBoxItem Content="Minimaliste" />
-                  </ComboBox>
+                  <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding StyleProfiles}"
+                            SelectedItem="{Binding SelectedStyleProfile}" />
                   <Label Grid.Row="3" Content="Sources" Margin="0,6,12,0" />
-                  <TextBox Grid.Row="3" Grid.Column="1" ToolTip="Sources, année et crédits cartographiques" />
+                  <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding AutomationSources, UpdateSourceTrigger=PropertyChanged}"
+                           ToolTip="Sources, année et crédits cartographiques" />
                 </Grid>
-                <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="True" />
-                <CheckBox Content="Harmoniser la symbologie du projet (peut remplacer les styles actuels)" />
-                <CheckBox Content="Corriger automatiquement la lisibilité" IsChecked="True" />
+                <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="{Binding AutomationVisibleOnly}" />
+                <CheckBox Content="Harmoniser la symbologie du projet (peut remplacer les styles actuels)" IsChecked="{Binding AutomationApplySymbology}" />
+                <CheckBox Content="Corriger automatiquement la lisibilité" IsChecked="{Binding AutomationAutoCorrect}" />
                 <Button Content="Analyser le projet" Command="{Binding AnalyzeAutomationCommand}"
                         Style="{StaticResource PrimaryButtonStyle}" />
               </StackPanel>
@@ -135,7 +125,7 @@
                 <TextBlock Text="Plan cartographique recommandé" Style="{StaticResource SectionTitleStyle}" />
                 <TextBlock Text="Le rapport présente les décisions proposées avant toute modification du projet."
                            Style="{StaticResource DescriptionStyle}" />
-                <TextBox Text="Lancez l’analyse pour obtenir une recommandation structurée."
+                <TextBox Text="{Binding AutomationReportText}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="170" />
                 <ProgressBar Minimum="0" Maximum="100" Value="0" MinHeight="18" Margin="0,8,0,0" />
               </StackPanel>
@@ -145,13 +135,13 @@
                 <TextBlock Text="Propositions" Style="{StaticResource SectionTitleStyle}" />
                 <TextBlock Text="Comparez les variantes selon leur score, leur maquette et les principales décisions de composition."
                            Style="{StaticResource DescriptionStyle}" />
-                <DataGrid MinHeight="220">
+                <DataGrid MinHeight="220" ItemsSource="{Binding Proposals}" SelectedItem="{Binding SelectedProposal}">
                   <DataGrid.Columns>
-                    <DataGridTextColumn Header="Score" Width="Auto" />
-                    <DataGridTextColumn Header="Proposition" Width="Auto" />
-                    <DataGridTextColumn Header="Maquette" Width="Auto" />
-                    <DataGridTextColumn Header="Format" Width="Auto" />
-                    <DataGridTextColumn Header="Décisions" Width="*" />
+                    <DataGridTextColumn Header="Score" Width="Auto" Binding="{Binding Score}" />
+                    <DataGridTextColumn Header="Proposition" Width="Auto" Binding="{Binding Name}" />
+                    <DataGridTextColumn Header="Maquette" Width="Auto" Binding="{Binding TemplateName}" />
+                    <DataGridTextColumn Header="Format" Width="Auto" Binding="{Binding PageFormat}" />
+                    <DataGridTextColumn Header="Décisions" Width="*" Binding="{Binding Decisions}" />
                   </DataGrid.Columns>
                 </DataGrid>
                 <Grid Margin="0,8,0,0">
@@ -161,15 +151,15 @@
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
-                  <Label Grid.Row="0" Content="Maquette" Margin="0,6,12,0" /><ComboBox Grid.Row="0" Grid.Column="1" />
-                  <Label Grid.Row="1" Content="Titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" />
-                  <Label Grid.Row="2" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" />
-                  <Label Grid.Row="3" Content="Marge d’emprise" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="3 %" />
-                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" />
-                  <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="100 %" />
-                  <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" />
-                  <Label Grid.Row="7" Content="Grille" Margin="0,6,12,0" /><CheckBox Grid.Row="7" Grid.Column="1" Content="Afficher une grille de coordonnées" />
-                  <Label Grid.Row="8" Content="Validation" Margin="0,6,12,0" /><CheckBox Grid.Row="8" Grid.Column="1" Content="Décisions vérifiées par le cartographe" />
+                  <Label Grid.Row="0" Content="Maquette" Margin="0,6,12,0" /><ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding FilteredTemplates}" SelectedItem="{Binding SelectedTemplate}" />
+                  <Label Grid.Row="1" Content="Titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LayoutTitle, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="2" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LayoutSubtitle, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="3" Content="Marge d’emprise" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LayoutMargin, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding SelectedMapName}" />
+                  <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ContextOpacity, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding LocatorMapName}" />
+                  <Label Grid.Row="7" Content="Grille" Margin="0,6,12,0" /><CheckBox Grid.Row="7" Grid.Column="1" Content="Afficher une grille de coordonnées" IsChecked="{Binding LayoutAddGrid}" />
+                  <Label Grid.Row="8" Content="Validation" Margin="0,6,12,0" /><CheckBox Grid.Row="8" Grid.Column="1" Content="Décisions vérifiées par le cartographe" IsChecked="{Binding ProposalValidated}" />
                 </Grid>
                 <Button Content="Créer la proposition sélectionnée" Command="{Binding AutopilotCommand}"
                         Style="{StaticResource PrimaryButtonStyle}" />
@@ -247,26 +237,18 @@
                       <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Content="Mode de rendu" Margin="0,6,12,0" />
-                    <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="0">
-                      <ComboBoxItem Content="Symbole unique" /><ComboBoxItem Content="Catégorisé" /><ComboBoxItem Content="Gradué — quantiles" />
-                    </ComboBox>
-                    <Label Grid.Row="1" Content="Champ thématique" Margin="0,6,12,0" /><ComboBox Grid.Row="1" Grid.Column="1" />
-                    <Label Grid.Row="2" Content="Nombre maximal de classes" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="5" />
+                    <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RenderModes}" SelectedItem="{Binding SelectedRenderMode}" />
+                    <Label Grid.Row="1" Content="Champ thématique" Margin="0,6,12,0" /><ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding LayerFields}" SelectedItem="{Binding SelectedThematicField}" />
+                    <Label Grid.Row="2" Content="Nombre maximal de classes" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MaxClasses, UpdateSourceTrigger=PropertyChanged}" />
                     <Label Grid.Row="3" Content="Palette" Margin="0,6,12,0" />
-                    <ComboBox Grid.Row="3" Grid.Column="1" SelectedIndex="0">
-                      <ComboBoxItem Content="Qualitative" /><ComboBoxItem Content="Séquentielle" /><ComboBoxItem Content="Divergente" />
-                    </ComboBox>
-                    <Label Grid.Row="4" Content="Champ d’étiquette" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" />
-                    <Label Grid.Row="5" Content="Étiquetage" Margin="0,6,12,0" /><CheckBox Grid.Row="5" Grid.Column="1" Content="Activer les étiquettes" />
-                    <Label Grid.Row="6" Content="Taille des étiquettes" Margin="0,6,12,0" /><TextBox Grid.Row="6" Grid.Column="1" Text="9,5 pt" />
+                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding PaletteChoices}" SelectedItem="{Binding SelectedPalette}" />
+                    <Label Grid.Row="4" Content="Champ d’étiquette" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding LayerFields}" SelectedItem="{Binding SelectedLabelField}" />
+                    <Label Grid.Row="5" Content="Étiquetage" Margin="0,6,12,0" /><CheckBox Grid.Row="5" Grid.Column="1" Content="Activer les étiquettes" IsChecked="{Binding LabelsEnabled}" />
+                    <Label Grid.Row="6" Content="Taille des étiquettes" Margin="0,6,12,0" /><TextBox Grid.Row="6" Grid.Column="1" Text="{Binding LabelSize, UpdateSourceTrigger=PropertyChanged}" />
                     <Label Grid.Row="7" Content="Placement" Margin="0,6,12,0" />
-                    <ComboBox Grid.Row="7" Grid.Column="1" SelectedIndex="0">
-                      <ComboBoxItem Content="Automatique selon la géométrie" /><ComboBoxItem Content="Autour du point" />
-                      <ComboBoxItem Content="Sur le point" /><ComboBoxItem Content="Le long de la ligne" />
-                      <ComboBoxItem Content="Courbe" /><ComboBoxItem Content="Horizontal" /><ComboBoxItem Content="Libre" />
-                    </ComboBox>
-                    <Label Grid.Row="8" Content="Opacité de la couche" Margin="0,6,12,0" /><TextBox Grid.Row="8" Grid.Column="1" Text="100 %" />
-                    <Label Grid.Row="9" Content="Validation" Margin="0,6,12,0" /><CheckBox Grid.Row="9" Grid.Column="1" Content="Confirmer les paramètres avant application" />
+                    <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding PlacementChoices}" SelectedItem="{Binding SelectedPlacement}" />
+                    <Label Grid.Row="8" Content="Opacité de la couche" Margin="0,6,12,0" /><TextBox Grid.Row="8" Grid.Column="1" Text="{Binding LayerOpacity, UpdateSourceTrigger=PropertyChanged}" />
+                    <Label Grid.Row="9" Content="Validation" Margin="0,6,12,0" /><CheckBox Grid.Row="9" Grid.Column="1" Content="Confirmer les paramètres avant application" IsChecked="{Binding ConfirmStyleParameters}" />
                   </Grid>
                 </Border>
                 <Button Content="Appliquer la recommandation" Command="{Binding ApplyRecommendationCommand}"
@@ -295,19 +277,12 @@
                   <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                   <Label Content="Recherche" /><Label Grid.Column="1" Content="Catégorie" Margin="8,0,0,0" />
-                  <TextBox Grid.Row="1" ToolTip="Rechercher par titre, thème ou usage" />
-                  <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,0,0,0" SelectedIndex="0">
-                    <ComboBoxItem Content="Toutes les catégories" /><ComboBoxItem Content="Administration" /><ComboBoxItem Content="Agriculture" />
-                    <ComboBoxItem Content="Aménagement du territoire" /><ComboBoxItem Content="Atlas" /><ComboBoxItem Content="Biodiversité" />
-                    <ComboBoxItem Content="Démographie" /><ComboBoxItem Content="Énergie" /><ComboBoxItem Content="Environnement" />
-                    <ComboBoxItem Content="Humanitaire" /><ComboBoxItem Content="Hydrologie" /><ComboBoxItem Content="Occupation du sol" />
-                    <ComboBoxItem Content="Risques" /><ComboBoxItem Content="Santé" /><ComboBoxItem Content="Publication scientifique" />
-                    <ComboBoxItem Content="Topographie" /><ComboBoxItem Content="Transport" /><ComboBoxItem Content="Urbanisme" />
-                  </ComboBox>
+                  <TextBox Grid.Row="1" Text="{Binding TemplateSearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Rechercher par titre, thème ou usage" />
+                  <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,0,0,0" ItemsSource="{Binding TemplateCategories}" SelectedItem="{Binding SelectedTemplateCategory}" />
                 </Grid>
-                <ListBox MinHeight="190" Margin="0,8,0,8" />
+                <ListBox MinHeight="190" Margin="0,8,0,8" ItemsSource="{Binding FilteredTemplates}" SelectedItem="{Binding SelectedTemplate}" />
                 <TextBlock Text="Détails de la maquette" Style="{DynamicResource Esri_TextBlockRegular}" />
-                <TextBox IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
+                <TextBox Text="{Binding TemplateDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -321,16 +296,16 @@
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
-                  <Label Grid.Row="0" Content="Titre" Margin="0,6,12,0" /><TextBox Grid.Row="0" Grid.Column="1" ToolTip="Titre principal de la carte" />
-                  <Label Grid.Row="1" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" ToolTip="Sous-titre ou période d’analyse" />
-                  <Label Grid.Row="2" Content="Sources" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" ToolTip="Sources, auteur et date" />
-                  <Label Grid.Row="3" Content="Marge cartographique" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="3 %" />
-                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" />
-                  <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="100 %" />
-                  <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" />
+                  <Label Grid.Row="0" Content="Titre" Margin="0,6,12,0" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding LayoutTitle, UpdateSourceTrigger=PropertyChanged}" ToolTip="Titre principal de la carte" />
+                  <Label Grid.Row="1" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LayoutSubtitle, UpdateSourceTrigger=PropertyChanged}" ToolTip="Sous-titre ou période d’analyse" />
+                  <Label Grid.Row="2" Content="Sources" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LayoutSources, UpdateSourceTrigger=PropertyChanged}" ToolTip="Sources, auteur et date" />
+                  <Label Grid.Row="3" Content="Marge cartographique" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LayoutMargin, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding SelectedMapName}" />
+                  <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ContextOpacity, UpdateSourceTrigger=PropertyChanged}" />
+                  <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding LocatorMapName}" />
                 </Grid>
-                <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="True" />
-                <CheckBox Content="Ajouter une grille au cadre principal" />
+                <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="{Binding LayoutVisibleOnly}" />
+                <CheckBox Content="Ajouter une grille au cadre principal" IsChecked="{Binding LayoutAddGrid}" />
                 <Button Content="Créer la mise en page" Command="{Binding LayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" />
                 <Button Content="Actualiser la mise en page" Command="{Binding SynchronizeLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" />
                 <Button Content="Ouvrir l’aperçu HD dans ArcGIS Pro" Command="{Binding OpenLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" />
@@ -342,7 +317,7 @@
                 <TextBlock Text="Sélectionnez une mise en page existante, améliorez son rendu puis choisissez un format de sortie."
                            Style="{StaticResource DescriptionStyle}" />
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                  <Label Content="Mise en page" Margin="0,6,12,0" /><ComboBox Grid.Column="1" />
+                  <Label Content="Mise en page" Margin="0,6,12,0" /><ComboBox Grid.Column="1" ItemsSource="{Binding LayoutNames}" SelectedItem="{Binding SelectedLayoutName}" />
                 </Grid>
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Button Content="Actualiser l’aperçu HD" Command="{Binding RefreshPreviewCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
@@ -352,10 +327,10 @@
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <Button Content="Exporter en PDF" Command="{Binding ExportLayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Column="1" Content="Exporter en SVG" Command="{Binding ExportLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
-                  <Button Grid.Row="1" Content="Exporter en PNG" Command="{Binding ExportLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Row="1" Grid.Column="1" Content="Enregistrer en PAGX" Command="{Binding ExportLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Content="Exporter en PDF" Command="{Binding ExportPdfCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,3,4,3" />
+                  <Button Grid.Column="1" Content="Exporter en SVG" Command="{Binding ExportSvgCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Grid.Row="1" Content="Exporter en PNG" Command="{Binding ExportPngCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Enregistrer en PAGX" Command="{Binding ExportPagxCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
                 </Grid>
               </StackPanel>
             </Border>
@@ -371,10 +346,10 @@
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
                 <TextBlock Text="Résultat du contrôle" Style="{StaticResource SectionTitleStyle}" />
-                <TextBlock Text="Score non évalué" Style="{DynamicResource Esri_TextBlockH1}" />
+                <TextBlock Text="{Binding AuditScoreText}" Style="{DynamicResource Esri_TextBlockH1}" />
                 <Button Content="Lancer le contrôle de la qualité" Command="{Binding AuditCommand}" Style="{StaticResource PrimaryButtonStyle}" />
                 <Button Content="Vérifier le placement des étiquettes" Command="{Binding LabelAuditCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <TextBlock Text="Étiquettes non évaluées" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding LabelAuditText}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -382,10 +357,10 @@
                 <TextBlock Text="Observations" Style="{StaticResource SectionTitleStyle}" />
                 <TextBlock Text="Sélectionnez une ligne pour examiner le niveau, la couche concernée et la correction proposée."
                            Style="{StaticResource DescriptionStyle}" />
-                <DataGrid MinHeight="330">
+                <DataGrid MinHeight="330" ItemsSource="{Binding AuditFindings}">
                   <DataGrid.Columns>
-                    <DataGridTextColumn Header="Niveau" Width="Auto" /><DataGridTextColumn Header="Code" Width="Auto" />
-                    <DataGridTextColumn Header="Couche" Width="Auto" /><DataGridTextColumn Header="Observation et action recommandée" Width="*" />
+                    <DataGridTextColumn Header="Niveau" Width="Auto" Binding="{Binding Severity}" /><DataGridTextColumn Header="Code" Width="Auto" Binding="{Binding Code}" />
+                    <DataGridTextColumn Header="Couche" Width="Auto" Binding="{Binding Layer}" /><DataGridTextColumn Header="Observation et action recommandée" Width="*" Binding="{Binding Summary}" />
                   </DataGrid.Columns>
                 </DataGrid>
                 <Button Content="Copier le rapport" Command="{Binding CopyReportCommand}" Style="{StaticResource SecondaryButtonStyle}" />
@@ -406,11 +381,11 @@
                 <TextBlock Text="Un manifeste JSON décrit les cartes à produire, les variables et les formats de sortie."
                            Style="{StaticResource DescriptionStyle}" />
                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                  <TextBox ToolTip="Chemin du manifeste de production" /><Button Grid.Column="1" Content="Parcourir" Command="{Binding SelectManifestCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,3,0,3" />
+                  <TextBox Text="{Binding BatchManifestPath, UpdateSourceTrigger=PropertyChanged}" ToolTip="Chemin du manifeste de production" /><Button Grid.Column="1" Content="Parcourir" Command="{Binding SelectManifestCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="8,3,0,3" />
                 </Grid>
                 <Button Content="Créer un manifeste" Command="{Binding CreateManifestCommand}" Style="{StaticResource SecondaryButtonStyle}" />
                 <Button Content="Exécuter la série" Command="{Binding BatchCommand}" Style="{StaticResource PrimaryButtonStyle}" />
-                <TextBox Text="Sélectionnez ou créez un manifeste. Cartomize peut produire jusqu’à 5 000 cartes par série."
+                <TextBox Text="{Binding BatchStatusText}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="135" />
               </StackPanel>
             </Border>
@@ -422,13 +397,13 @@
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <Button Content="Créer l’état de référence" Command="{Binding MapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Column="1" Content="Vérifier les changements" Command="{Binding MapOpsCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="4,3,0,3" />
-                  <Button Grid.Row="1" Content="Accepter l’état actuel" Command="{Binding MapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
-                  <Button Grid.Row="1" Grid.Column="1" Content="Régénérer la dernière recette" Command="{Binding ReplayCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Content="Créer l’état de référence" Command="{Binding CreateMapOpsBaselineCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
+                  <Button Grid.Column="1" Content="Vérifier les changements" Command="{Binding CheckMapOpsCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="4,3,0,3" />
+                  <Button Grid.Row="1" Content="Accepter l’état actuel" Command="{Binding AcceptMapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
+                  <Button Grid.Row="1" Grid.Column="1" Content="Régénérer la dernière recette" Command="{Binding RegenerateMapOpsCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
                 </Grid>
-                <CheckBox Content="Régénérer automatiquement la dernière recette lorsque des données utilisées changent" />
-                <TextBox Text="Aucun changement vérifié." IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" />
+                <CheckBox Content="Régénérer automatiquement la dernière recette lorsque des données utilisées changent" IsChecked="{Binding MapOpsAutoRegenerate}" />
+                <TextBox Text="{Binding MapOpsStatus}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -439,23 +414,23 @@
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                  <Label Content="Réviseur" Margin="0,6,12,0" /><TextBox Grid.Column="1" ToolTip="Nom du cartographe responsable" />
-                  <Label Grid.Row="1" Content="Organisation" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" ToolTip="Organisation" />
+                  <Label Content="Réviseur" Margin="0,6,12,0" /><TextBox Grid.Column="1" Text="{Binding ValidationReviewer, UpdateSourceTrigger=PropertyChanged}" ToolTip="Nom du cartographe responsable" />
+                  <Label Grid.Row="1" Content="Organisation" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ValidationOrganization, UpdateSourceTrigger=PropertyChanged}" ToolTip="Organisation" />
                 </Grid>
                 <TextBlock Text="Liste de contrôle obligatoire" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,8,0,2" />
-                <CheckBox Content="Les sources, dates et limites des données sont vérifiées." />
-                <CheckBox Content="Le CRS, l’emprise et l’échelle correspondent à l’objectif de la carte." />
-                <CheckBox Content="La symbologie représente correctement les variables et les classes." />
-                <CheckBox Content="Les étiquettes sont lisibles, sans ambiguïté ni collision majeure." />
-                <CheckBox Content="Le titre, la légende, l’échelle, le nord et les crédits sont cohérents." />
-                <CheckBox Content="Le contraste, la taille des textes et les couleurs sont accessibles." />
-                <CheckBox Content="Le fichier exporté a été ouvert et contrôlé au niveau de zoom requis." />
+                <CheckBox Content="Les sources, dates et limites des données sont vérifiées." IsChecked="{Binding CheckSources}" />
+                <CheckBox Content="Le CRS, l’emprise et l’échelle correspondent à l’objectif de la carte." IsChecked="{Binding CheckCrs}" />
+                <CheckBox Content="La symbologie représente correctement les variables et les classes." IsChecked="{Binding CheckSymbology}" />
+                <CheckBox Content="Les étiquettes sont lisibles, sans ambiguïté ni collision majeure." IsChecked="{Binding CheckLabels}" />
+                <CheckBox Content="Le titre, la légende, l’échelle, le nord et les crédits sont cohérents." IsChecked="{Binding CheckLayout}" />
+                <CheckBox Content="Le contraste, la taille des textes et les couleurs sont accessibles." IsChecked="{Binding CheckAccessibility}" />
+                <CheckBox Content="Le fichier exporté a été ouvert et contrôlé au niveau de zoom requis." IsChecked="{Binding CheckExport}" />
                 <TextBlock Text="Notes et réserves" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,8,0,2" />
-                <TextBox ToolTip="Précisez les limites des données, les réserves ou les corrections demandées."
+                <TextBox Text="{Binding ValidationNotes, UpdateSourceTrigger=PropertyChanged}" ToolTip="Précisez les limites des données, les réserves ou les corrections demandées."
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" />
                 <Button Content="Approuver la mise en page" Command="{Binding ApproveLayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" />
                 <Button Content="Exporter le certificat" Command="{Binding ExportCertificateCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <TextBlock Text="Statut : en attente de validation humaine" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ValidationStatus}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -474,15 +449,15 @@
             </StackPanel></Border>
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Maquettes hors ligne" Style="{StaticResource SectionTitleStyle}" />
-              <TextBlock Text="24 maquettes disponibles hors ligne." Style="{StaticResource DescriptionStyle}" />
+              <TextBlock Text="{Binding CommunityStatus}" Style="{StaticResource DescriptionStyle}" />
               <TextBlock Text="Elles restent accessibles lorsque le portail ou Internet est indisponible." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
             </StackPanel></Border>
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Ressources en ligne" Style="{StaticResource SectionTitleStyle}" />
               <TextBlock Text="Actualisez la liste des ressources publiées sur le portail officiel." Style="{StaticResource DescriptionStyle}" />
-              <ListBox MinHeight="190" />
+              <ListBox MinHeight="190" ItemsSource="{Binding CommunityResources}" SelectedItem="{Binding SelectedCommunityResource}" />
               <Button Content="Actualiser le catalogue en ligne" Command="{Binding RefreshCommunityCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-              <Button Content="Ouvrir la ressource sélectionnée" Command="{Binding CommunityCommand}" Style="{StaticResource PrimaryButtonStyle}" />
+              <Button Content="Ouvrir la ressource sélectionnée" Command="{Binding OpenCommunityResourceCommand}" Style="{StaticResource PrimaryButtonStyle}" />
               <Button Content="Ouvrir le portail Cartomize" Command="{Binding CommunityCommand}" Style="{StaticResource SecondaryButtonStyle}" />
             </StackPanel></Border>
           </StackPanel>
