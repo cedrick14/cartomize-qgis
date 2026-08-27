@@ -61,7 +61,12 @@ jobs:
             Select-Object -First 1
           if (-not $addin) { throw "Cartomize ArcGIS Pro .esriAddInX not found" }
           Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.esriAddInX")
-          Compress-Archive -Path (Join-Path $source "*") -DestinationPath (Join-Path $output "cartomize-arcgis-pro-source-10.5.1.zip") -Force
+          $sourceStage = Join-Path $env:RUNNER_TEMP "cartomize-arcgis-pro-source-10.5.1"
+          if (Test-Path $sourceStage) { Remove-Item $sourceStage -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $sourceStage | Out-Null
+          & robocopy $source $sourceStage /E /XD .vs bin obj __pycache__ release CARTOMIZE /XF *.pyc *.csproj.user *.esriAddInX *.pdb *.dll
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          Compress-Archive -Path (Join-Path $sourceStage "*") -DestinationPath (Join-Path $output "cartomize-arcgis-pro-source-10.5.1.zip") -Force
           Get-ChildItem $output | Format-Table Name,Length
 
       - name: Upload compiled artifact
