@@ -303,23 +303,41 @@ class VectorIntelligence:
         sample = _integer_parameter("Taille maximale de l'échantillon", "sample_limit", 1000, 100, 5000)
         apply_style = _bool_parameter("Appliquer la symbologie recommandée", "apply_style", False)
         output = _file_parameter("Rapport JSON", "output_report")
-        return [source, sample, apply_style, output, _status_parameter()]
+        render_mode = _choice_parameter("Mode de rendu", "render_mode", [("single", "Symbole unique"), ("categorized", "Catégorisé"), ("graduated", "Gradué — quantiles")], "single")
+        thematic = arcpy.Parameter(displayName="Champ thématique", name="thematic_field", datatype="Field", parameterType="Optional", direction="Input"); thematic.parameterDependencies = [source.name]
+        max_classes = _integer_parameter("Nombre maximal de classes", "max_classes", 5, 2, 12)
+        palette = _choice_parameter("Palette", "palette", [("qualitative", "Qualitative"), ("sequential", "Séquentielle"), ("diverging", "Divergente")], "qualitative")
+        label_field = arcpy.Parameter(displayName="Champ d'étiquette", name="label_field", datatype="Field", parameterType="Optional", direction="Input"); label_field.parameterDependencies = [source.name]
+        labels = _bool_parameter("Activer les étiquettes", "labels_enabled", False)
+        label_size = _double_parameter("Taille des étiquettes (pt)", "label_size", 9.5, 5.0, 48.0)
+        placement = _choice_parameter("Placement", "label_placement", [("auto", "Automatique selon la géométrie"), ("around", "Autour du point"), ("on", "Sur le point"), ("line", "Le long de la ligne"), ("curved", "Courbe"), ("horizontal", "Horizontal"), ("free", "Libre")], "auto")
+        opacity = _integer_parameter("Opacité de la couche (%)", "opacity_percent", 100, 0, 100)
+        confirmed = _bool_parameter("Confirmer les paramètres avant application", "expert_confirmed", False)
+        return [source, sample, apply_style, output, render_mode, thematic, max_classes, palette, label_field, labels, label_size, placement, opacity, confirmed, _status_parameter()]
 
     def execute(self, parameters, messages):
         try:
             source = parameters[0].value
             profile = analyze_vector(arcpy, source, int(parameters[1].value or 1000))
+            profile = dict(profile)
+            if _text(parameters[5]):
+                profile["thematic_field"] = _text(parameters[5])
+            if _text(parameters[8]):
+                profile["label_field"] = _text(parameters[8])
             style_result = {"applied": False}
             if bool(parameters[2].value):
+                if float(profile.get("role_confidence", 0.0) or 0.0) < 0.70 and not bool(parameters[13].value):
+                    raise RuntimeError("La confiance est limitée. Vérifiez les paramètres puis confirmez leur application.")
                 aprx = _project()
                 active_map = _map_by_name(aprx, None)
                 layer = source if hasattr(source, "symbology") else _layer_by_name(active_map, profile["layer_name"], lambda item: getattr(item, "isFeatureLayer", False))
-                style_result = apply_vector_symbology(aprx, layer, profile)
-            payload = {"kind": "vector_intelligence", "profile": profile, "styling": style_result}
+                style_result = apply_vector_symbology(aprx, layer, profile, int(parameters[6].value or 5), mode=_text(parameters[4]), field_name=_text(parameters[5]), palette=_text(parameters[7]), label_field=_text(parameters[8]), labels_enabled=bool(parameters[9].value), label_size=float(parameters[10].value or 9.5), label_placement=_text(parameters[11]), opacity_percent=int(parameters[12].value or 100), expert_confirmed=bool(parameters[13].value))
+            expert = {"render_mode": _text(parameters[4]), "thematic_field": profile.get("thematic_field", ""), "max_classes": int(parameters[6].value or 5), "palette": _text(parameters[7]), "label_field": profile.get("label_field", ""), "labels_enabled": bool(parameters[9].value), "label_size": float(parameters[10].value or 9.5), "label_placement": _text(parameters[11]), "opacity_percent": int(parameters[12].value or 100), "expert_confirmed": bool(parameters[13].value)}
+            payload = {"kind": "vector_intelligence", "profile": profile, "expert_parameters": expert, "styling": style_result}
             if _text(parameters[3]):
                 write_json(_text(parameters[3]), payload)
             status = f"Champ d’étiquette : {profile['label_field'] or 'à confirmer'} · champ thématique : {profile['thematic_field'] or 'à confirmer'}"
-            parameters[4].value = status
+            parameters[14].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -336,7 +354,17 @@ class RasterIntelligence:
         source = arcpy.Parameter(displayName="Couche raster", name="input_raster", datatype="GPRasterLayer", parameterType="Required", direction="Input")
         apply_style = _bool_parameter("Appliquer le coloriseur recommandé", "apply_style", False)
         output = _file_parameter("Rapport JSON", "output_report")
-        return [source, apply_style, output, _status_parameter()]
+        render_mode = _choice_parameter("Mode de rendu", "render_mode", [("single", "Symbole unique"), ("categorized", "Catégorisé"), ("graduated", "Gradué — quantiles")], "graduated")
+        thematic = arcpy.Parameter(displayName="Champ thématique", name="thematic_field", datatype="GPString", parameterType="Optional", direction="Input")
+        max_classes = _integer_parameter("Nombre maximal de classes", "max_classes", 5, 2, 12)
+        palette = _choice_parameter("Palette", "palette", [("qualitative", "Qualitative"), ("sequential", "Séquentielle"), ("diverging", "Divergente")], "sequential")
+        label_field = arcpy.Parameter(displayName="Champ d'étiquette", name="label_field", datatype="GPString", parameterType="Optional", direction="Input")
+        labels = _bool_parameter("Activer les étiquettes", "labels_enabled", False)
+        label_size = _double_parameter("Taille des étiquettes (pt)", "label_size", 9.5, 5.0, 48.0)
+        placement = _choice_parameter("Placement", "label_placement", [("auto", "Automatique selon la géométrie"), ("around", "Autour du point"), ("on", "Sur le point"), ("line", "Le long de la ligne"), ("curved", "Courbe"), ("horizontal", "Horizontal"), ("free", "Libre")], "auto")
+        opacity = _integer_parameter("Opacité de la couche (%)", "opacity_percent", 100, 0, 100)
+        confirmed = _bool_parameter("Confirmer les paramètres avant application", "expert_confirmed", False)
+        return [source, apply_style, output, render_mode, thematic, max_classes, palette, label_field, labels, label_size, placement, opacity, confirmed, _status_parameter()]
 
     def execute(self, parameters, messages):
         try:
@@ -345,6 +373,8 @@ class RasterIntelligence:
             diagnosis = analyze_raster(arcpy, source, source_text)
             style_result = {"applied": False}
             if bool(parameters[1].value):
+                if float(diagnosis.get("confidence", 0.0) or 0.0) < 0.70 and not bool(parameters[12].value):
+                    raise RuntimeError("La confiance est limitée. Vérifiez les paramètres puis confirmez leur application.")
                 aprx = _project()
                 active_map = _map_by_name(aprx, None)
                 layer = _raster_layer_from_input(active_map, source, source_text, diagnosis)
@@ -354,8 +384,9 @@ class RasterIntelligence:
                         "reason": "Le diagnostic est terminé, mais la source n’est pas une couche de la carte active.",
                     }
                 else:
-                    style_result = apply_raster_symbology(aprx, layer, diagnosis)
-            payload = {"kind": "raster_intelligence", "diagnosis": diagnosis, "styling": style_result}
+                    style_result = apply_raster_symbology(aprx, layer, diagnosis, int(parameters[5].value or 5), palette=_text(parameters[6]), opacity_percent=int(parameters[11].value or 100), expert_confirmed=bool(parameters[12].value))
+            expert = {"render_mode": _text(parameters[3]), "max_classes": int(parameters[5].value or 5), "palette": _text(parameters[6]), "opacity_percent": int(parameters[11].value or 100), "expert_confirmed": bool(parameters[12].value)}
+            payload = {"kind": "raster_intelligence", "diagnosis": diagnosis, "expert_parameters": expert, "styling": style_result}
             if _text(parameters[2]):
                 write_json(_text(parameters[2]), payload)
             status = (
@@ -363,7 +394,7 @@ class RasterIntelligence:
                 f"confiance {round(100 * diagnosis['confidence'])}% · "
                 f"{len(diagnosis['classes'])} classe(s)"
             )
-            parameters[3].value = status
+            parameters[13].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -405,10 +436,17 @@ class CreateLayout:
             existing_layout.filter.list = names
         except Exception:
             pass
+        context_opacity = _integer_parameter("Opacité du contexte (%)", "context_opacity", 100, 0, 100)
+        locator_map = arcpy.Parameter(displayName="Carte de situation", name="locator_map", datatype="GPString", parameterType="Optional", direction="Input")
+        try:
+            locator_map.filter.type = "ValueList"
+            locator_map.filter.list = [item.name for item in _project().listMaps()]
+        except Exception:
+            pass
         return [
             map_parameter, template, title, subtitle, layout_name, credits,
             visible_only, margin, add_grid, hide_basemap, open_view,
-            export, dpi, pagx, recipe, operation, existing_layout, _status_parameter(),
+            export, dpi, pagx, recipe, operation, existing_layout, context_opacity, locator_map, _status_parameter(),
         ]
 
     def execute(self, parameters, messages):
@@ -419,6 +457,7 @@ class CreateLayout:
             spec = _catalog().get(template_id)
             operation = _text(parameters[15]) or "Créer"
             existing_name = _text(parameters[16]) or _text(parameters[4])
+            locator_map = _map_by_name(aprx, _text(parameters[18])) if _text(parameters[18]) else None
             result = None
             status = ""
             if operation == "Créer":
@@ -434,6 +473,8 @@ class CreateLayout:
                     export_path=_text(parameters[11]),
                     dpi=int(parameters[12].value or DEFAULT_DPI),
                     pagx_path=_text(parameters[13]),
+                    locator_map=locator_map,
+                    context_opacity_percent=int(parameters[17].value or 100),
                 )
                 status = f"{result.layout_name} créée — {result.element_count} éléments — {result.map_frame_count} cadre(s)"
             else:
@@ -475,7 +516,7 @@ class CreateLayout:
                     pagx_path=_text(parameters[13]), sources=_text(parameters[5]),
                 )
                 save_recipe(_text(parameters[14]), recipe)
-            parameters[17].value = status
+            parameters[19].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -601,10 +642,18 @@ class AutopilotMap:
         title = arcpy.Parameter(displayName="Titre", name="title", datatype="GPString", parameterType="Optional", direction="Input")
         template = _template_parameter(required=False)
         report = _file_parameter("Rapport et recette JSON", "output_report")
+        context_opacity = _integer_parameter("Opacité du contexte (%)", "context_opacity", 100, 0, 100)
+        locator_map = arcpy.Parameter(displayName="Carte de situation", name="locator_map", datatype="GPString", parameterType="Optional", direction="Input")
+        try:
+            locator_map.filter.type = "ValueList"
+            locator_map.filter.list = [item.name for item in _project().listMaps()]
+        except Exception:
+            pass
+        validated = _bool_parameter("Décisions vérifiées par le cartographe", "proposal_validated", False)
         return [
             map_parameter, objective, main_layer, style_profile, variant,
             apply_style, auto_correct, visible_only, sources, title,
-            template, report, _status_parameter(),
+            template, report, context_opacity, locator_map, validated, _status_parameter(),
         ]
 
     def execute(self, parameters, messages):
@@ -630,6 +679,13 @@ class AutopilotMap:
             )
             if primary is None:
                 raise RuntimeError("Aucune couche thématique valide n'a été trouvée.")
+            context_opacity = int(parameters[12].value or 100)
+            for context_layer in map_item.listLayers():
+                if is_basemap_layer(context_layer):
+                    try:
+                        context_layer.transparency = 100 - max(0, min(100, context_opacity))
+                    except Exception:
+                        pass
             analysis = {}
             styling = {"applied": False}
             if getattr(primary, "isFeatureLayer", False):
@@ -640,6 +696,9 @@ class AutopilotMap:
                 analysis = analyze_raster(arcpy, primary)
                 if bool(parameters[5].value):
                     styling = apply_raster_symbology(aprx, primary, analysis)
+            confidence = float(analysis.get("role_confidence", analysis.get("confidence", 0.6)) or 0.6)
+            if confidence < 0.70 and not bool(parameters[14].value):
+                raise RuntimeError("La confiance de la composition est limitée. Vérifiez les paramètres puis confirmez la décision du cartographe.")
             requested = _template_id(_text(parameters[10])) if _text(parameters[10]) else ""
             spec = _catalog().get(requested or _choose_template(objective_label, analysis))
             title = _text(parameters[9]) or objective_label.upper()
@@ -651,6 +710,8 @@ class AutopilotMap:
                 visible_only=bool(parameters[7].value), margin_percent=margin,
                 add_grid=objective in {"topographique", "atlas"},
                 remove_basemap_from_legend=True, open_view=True,
+                locator_map=_map_by_name(aprx, _text(parameters[13])) if _text(parameters[13]) else None,
+                context_opacity_percent=context_opacity,
             )
             layer_ids = [str(getattr(layer, "URI", "") or layer.name) for layer in candidates]
             layer_names = [str(layer.name) for layer in candidates]
@@ -667,8 +728,9 @@ class AutopilotMap:
                 sources=_text(parameters[8]), margin_percent=margin,
                 add_grid=objective in {"topographique", "atlas"},
                 remove_basemap_from_legend=True, open_view=True, dpi=DEFAULT_DPI,
+                context_opacity_percent=context_opacity,
+                locator_map_name=_text(parameters[13]), proposal_validated=bool(parameters[14].value),
             )
-            confidence = float(analysis.get("role_confidence", analysis.get("confidence", 0.6)) or 0.6)
             final_score = max(0, min(100, round((audit.score + 100 * confidence) / 2)))
             payload = {
                 "kind": "autopilot", "objective": objective,
@@ -677,12 +739,15 @@ class AutopilotMap:
                 "primary_layer": primary.name, "analysis": analysis, "styling": styling,
                 "layout": result_dict(result), "final_score": final_score,
                 "proposals": _automation_proposals(objective, title, analysis),
+                "context_opacity_percent": context_opacity,
+                "locator_map_name": _text(parameters[13]),
+                "proposal_validated": bool(parameters[14].value),
                 "recipe": recipe,
             }
             if _text(parameters[11]):
                 write_json(_text(parameters[11]), payload)
             status = f"{result.layout_name} — score {final_score}/100"
-            parameters[12].value = status
+            parameters[15].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -727,6 +792,8 @@ class BatchMaps:
                         add_grid=bool(settings.get("add_grid", False)),
                         remove_basemap_from_legend=bool(settings.get("remove_basemap_from_legend", True)),
                         open_view=False,
+                        locator_map=_map_by_name(aprx, settings.get("locator_map_name")) if settings.get("locator_map_name") else None,
+                        context_opacity_percent=int(settings.get("context_opacity_percent", 100)),
                     )
                     layout = aprx.listLayouts(result.layout_name)[0]
                     outputs = []
@@ -801,6 +868,8 @@ class ReplayRecipe:
                 open_view=bool(settings.get("open_view", True)), export_path=settings.get("export_path") or "",
                 pagx_path=settings.get("pagx_path") or "",
                 dpi=int(settings.get("dpi") or DEFAULT_DPI),
+                locator_map=_map_by_name(aprx, settings.get("locator_map_name")) if settings.get("locator_map_name") else None,
+                context_opacity_percent=int(settings.get("context_opacity_percent", 100)),
             )
             status = f"Recette rejouée — {result.layout_name}"
             parameters[1].value = status

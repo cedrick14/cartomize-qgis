@@ -314,7 +314,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var report = CartomizeDataService.ReportPath(reportName);
         var result = await RunToolAsync("AutopilotMap", SelectedMapName ?? string.Empty, SelectedObjective?.Label ?? "Détection automatique", SelectedLayerName ?? string.Empty,
             SelectedStyleProfile?.Label ?? "Équilibré", proposal.Name, AutomationApplySymbology, AutomationAutoCorrect, AutomationVisibleOnly,
-            AutomationSources, LayoutTitle, proposal.TemplateName, report);
+            AutomationSources, LayoutTitle, proposal.TemplateName, report, ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty, ProposalValidated);
         if (!result.Succeeded) return false;
         using var document = CartomizeDataService.ReadJson(report);
         if (document is not null && document.RootElement.TryGetProperty("recipe", out var recipe)) _lastRecipeJson = recipe.GetRawText();
@@ -345,17 +345,49 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         if (document is null) return;
         var root = document.RootElement;
         if (IsRasterLayer && root.TryGetProperty("diagnosis", out var diagnosis))
+        {
             RecommendationText = $"Type : {CartomizeDataService.Text(diagnosis, "raster_type")}\nThème : {CartomizeDataService.Text(diagnosis, "theme")}\nConfiance : {CartomizeDataService.Number(diagnosis, "confidence"):P0}";
+            var rasterType = CartomizeDataService.Text(diagnosis, "raster_type");
+            SelectedRenderMode = rasterType is "binary" or "categorized" ? "Catégorisé" : rasterType == "rgb" ? "Symbole unique" : "Gradué — quantiles";
+            if (diagnosis.TryGetProperty("classes", out var classes) && classes.ValueKind == JsonValueKind.Array)
+                MaxClasses = Math.Clamp(classes.GetArrayLength(), 2, 12).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (diagnosis.TryGetProperty("inference", out var inference))
+            {
+                var palette = CartomizeDataService.Text(inference, "recommended_palette");
+                SelectedPalette = palette.Contains("diverg", StringComparison.OrdinalIgnoreCase) ? "Divergente" : palette.Contains("sequent", StringComparison.OrdinalIgnoreCase) ? "Séquentielle" : "Qualitative";
+            }
+            LabelsEnabled = false;
+        }
         else if (root.TryGetProperty("profile", out var profile))
+        {
             RecommendationText = $"Rôle : {CartomizeDataService.Text(profile, "role")}\nÉtiquette : {CartomizeDataService.Text(profile, "label_field", "à confirmer")}\nChamp thématique : {CartomizeDataService.Text(profile, "thematic_field", "à confirmer")}";
+            SelectedThematicField = CartomizeDataService.Text(profile, "thematic_field");
+            SelectedLabelField = CartomizeDataService.Text(profile, "label_field");
+            LabelsEnabled = !string.IsNullOrWhiteSpace(SelectedLabelField);
+            var role = "";
+            if (profile.TryGetProperty("fields", out var fields) && fields.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var field in fields.EnumerateArray())
+                    if (CartomizeDataService.Text(field, "name").Equals(SelectedThematicField, StringComparison.OrdinalIgnoreCase))
+                    { role = CartomizeDataService.Text(field, "semantic_role"); break; }
+            }
+            SelectedRenderMode = role is "category" or "coded_category" or "ordinal" ? "Catégorisé" : string.IsNullOrWhiteSpace(SelectedThematicField) ? "Symbole unique" : "Gradué — quantiles";
+            SelectedPalette = SelectedRenderMode == "Catégorisé" ? "Qualitative" : role == "diverging_quantitative" ? "Divergente" : "Séquentielle";
+        }
+        ConfirmStyleParameters = false;
     }
 
     private async Task ApplyRecommendationAsync()
     {
         if (string.IsNullOrWhiteSpace(SelectedLayerName)) return;
         var report = CartomizeDataService.ReportPath(IsRasterLayer ? "raster-style.json" : "vector-style.json");
-        if (IsRasterLayer) await RunToolAsync("RasterIntelligence", SelectedLayerName, true, report);
-        else await RunToolAsync("VectorIntelligence", SelectedLayerName, 1000, true, report);
+        var classes = ParseInt(MaxClasses, 5, 2, 12);
+        var labelSize = ParseDouble(LabelSize, 9.5, 5, 48);
+        var opacity = ParseInt(LayerOpacity, 100, 0, 100);
+        if (IsRasterLayer)
+            await RunToolAsync("RasterIntelligence", SelectedLayerName, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
+        else
+            await RunToolAsync("VectorIntelligence", SelectedLayerName, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
     }
 
     private async Task CreateLayoutAsync() => await ExecuteLayoutAsync("Créer", string.Empty);
@@ -374,7 +406,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         _ = double.TryParse(LayoutMargin.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var margin);
         await RunToolAsync("CreateLayout", SelectedMapName ?? string.Empty, SelectedTemplate.Label, LayoutTitle, LayoutSubtitle, LayoutName, LayoutSources, LayoutVisibleOnly,
             margin <= 0 ? 3.0 : margin, LayoutAddGrid, true, operation == "Créer", exportPath, 600,
-            exportPath.EndsWith(".pagx", StringComparison.OrdinalIgnoreCase) ? exportPath : string.Empty, string.Empty, operation, SelectedLayoutName ?? string.Empty);
+            exportPath.EndsWith(".pagx", StringComparison.OrdinalIgnoreCase) ? exportPath : string.Empty, string.Empty, operation, SelectedLayoutName ?? string.Empty,
+            ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty);
         await RefreshProjectAsync();
     }
 
@@ -627,7 +660,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         visible_only = AutomationVisibleOnly, sources = AutomationSources,
         layout = new { map_name = SelectedMapName, template_id = SelectedProposal?.TemplateId ?? SelectedTemplate?.Id, layout_name = LayoutName, title = LayoutTitle,
             subtitle = LayoutSubtitle, credits = LayoutSources, margin_percent = double.TryParse(LayoutMargin, out var margin) ? margin : 3, add_grid = LayoutAddGrid,
-            remove_basemap_from_legend = true, open_view = true, dpi = 600 }
+            remove_basemap_from_legend = true, open_view = true, dpi = 600, context_opacity_percent = ParseInt(ContextOpacity, 100, 0, 100),
+            locator_map_name = LocatorMapName, proposal_validated = ProposalValidated }
     }, new JsonSerializerOptions { WriteIndented = true });
 
     private static ICommand NativeCommand(string id) => new DelegateCommand(() =>
@@ -637,6 +671,16 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private static void OpenUrl(string url) => Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }
+
+    private static int ParseInt(string value, int fallback, int minimum, int maximum)
+        => Math.Clamp(int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out var parsed) ? parsed : fallback, minimum, maximum);
+
+    private static double ParseDouble(string value, double fallback, double minimum, double maximum)
+    {
+        var normalized = (value ?? string.Empty).Replace(',', '.');
+        var parsed = double.TryParse(normalized, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result) ? result : fallback;
+        return Math.Clamp(parsed, minimum, maximum);
+    }
 
     private static IEnumerable<ChoiceItem> ObjectiveChoices() => new[]
     {

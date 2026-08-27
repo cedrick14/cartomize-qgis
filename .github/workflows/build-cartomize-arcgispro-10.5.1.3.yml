@@ -12,10 +12,14 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate QGIS 10.5.1 parity
+        working-directory: arcgis-build/source
+        run: python scripts/validate.py
 
       - name: Install .NET 10
         uses: actions/setup-dotnet@v4
@@ -39,7 +43,8 @@ jobs:
       - name: Collect compiled outputs
         shell: pwsh
         run: |
-          $project = Join-Path $env:GITHUB_WORKSPACE "arcgis-build\source\src\Cartomize.ArcGISPro"
+          $source = Join-Path $env:GITHUB_WORKSPACE "arcgis-build\source"
+          $project = Join-Path $source "src\Cartomize.ArcGISPro"
           $output = Join-Path $env:GITHUB_WORKSPACE "arcgis-build\output"
           New-Item -ItemType Directory -Force -Path $output | Out-Null
           $dll = Get-ChildItem $project -Recurse -Filter "Cartomize.ArcGISPro.dll" |
@@ -51,14 +56,14 @@ jobs:
           $addin = Get-ChildItem $project -Recurse -Filter "*.esriAddInX" |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
-          if ($addin) {
-            Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.esriAddInX")
-          }
+          if (-not $addin) { throw "Cartomize ArcGIS Pro .esriAddInX not found" }
+          Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.esriAddInX")
+          Compress-Archive -Path (Join-Path $source "*") -DestinationPath (Join-Path $output "cartomize-arcgis-pro-source-10.5.1.zip") -Force
           Get-ChildItem $output | Format-Table Name,Length
 
       - name: Upload compiled artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cartomize-arcgispro-10.5.1-black-text
+          name: cartomize-arcgispro-10.5.1-complet
           path: arcgis-build/output/*
           if-no-files-found: error

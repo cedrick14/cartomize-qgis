@@ -28,14 +28,20 @@ def build_layout(
     export_path: str = "",
     pagx_path: str = "",
     dpi: int = DEFAULT_DPI,
+    locator_map: Any | None = None,
+    context_opacity_percent: int | float = 100,
 ) -> LayoutResult:
     page_width, page_height = spec.page_size_mm
     final_name = _unique_layout_name(aprx, layout_name or f"Cartomize — {spec.name}")
     layout = aprx.createLayout(page_width, page_height, "MILLIMETER", final_name)
     maps: dict[str, Any] = {}
     created: list[Any] = []
+    _set_context_opacity(map_item, context_opacity_percent)
+    if locator_map is not None and locator_map is not map_item:
+        _set_context_opacity(locator_map, context_opacity_percent)
 
     ordered = sorted(spec.elements, key=lambda item: (item["z_index"], item["id"]))
+    map_index = 0
     for item in ordered:
         kind = item["type"]
         if kind in {"legend", "scale_bar", "north_arrow"}:
@@ -44,8 +50,11 @@ def build_layout(
         geometry = _polygon(arcpy, *box)
         element = None
         if kind == "map_frame":
-            element = layout.createMapFrame(geometry, map_item, item["id"])
+            role = str(item.get("content", {}).get("role") or ("main" if map_index == 0 else "locator" if map_index == 1 else "comparison")).casefold()
+            frame_map = locator_map if locator_map is not None and role in {"locator", "overview", "situation"} else map_item
+            element = layout.createMapFrame(geometry, frame_map, item["id"])
             maps[item["id"]] = element
+            map_index += 1
         elif kind in {"title", "subtitle", "text"}:
             content = item.get("content", {})
             raw_text = str(content.get("text") or "")
@@ -276,18 +285,14 @@ def _configure_map_extents(
     visible_only: bool,
     margin_percent: float,
 ) -> None:
-    layers = [
-        layer for layer in map_item.listLayers()
-        if not getattr(layer, "isBroken", False)
-        and not is_basemap_layer(layer)
-        and (not visible_only or bool(getattr(layer, "visible", True)))
-    ]
-    reference = next((layer for layer in layers if getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False)), None)
-    if reference is None:
-        return
     specs = {item["id"]: item for item in spec.elements if item["type"] == "map_frame"}
     for item_id, frame in maps.items():
         try:
+            frame_map = getattr(frame, "map", None) or map_item
+            layers = [layer for layer in frame_map.listLayers() if not getattr(layer, "isBroken", False) and not is_basemap_layer(layer) and (not visible_only or bool(getattr(layer, "visible", True)))]
+            reference = next((layer for layer in layers if getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False)), None)
+            if reference is None:
+                continue
             extent = frame.getLayerExtent(reference, False, True)
             frame.camera.setExtent(extent)
             role = str(specs[item_id].get("content", {}).get("role") or "main").casefold()
@@ -296,9 +301,23 @@ def _configure_map_extents(
             frame.camera.scale *= factor
         except Exception:
             try:
-                frame.camera = map_item.defaultCamera
+                frame.camera = (getattr(frame, "map", None) or map_item).defaultCamera
             except Exception:
                 pass
+
+
+def _set_context_opacity(map_item: Any, percent: int | float) -> int:
+    opacity = max(0, min(100, int(float(percent))))
+    changed = 0
+    for layer in map_item.listLayers():
+        if not is_basemap_layer(layer):
+            continue
+        try:
+            layer.transparency = 100 - opacity
+            changed += 1
+        except Exception:
+            pass
+    return changed
 
 
 def _add_native_grid(aprx: Any, map_frame: Any) -> bool:

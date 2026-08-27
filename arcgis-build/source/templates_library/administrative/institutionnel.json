@@ -1,0 +1,228 @@
+{
+  "name": "Carte administrative: Institutionnel",
+  "category": "administrative",
+  "variant": "institutionnel",
+  "description": "Modèle institutionnel pour carte administrative.",
+  "page_format": "A4 paysage",
+  "layout_json": {
+    "elements": [
+      {
+        "id": "title",
+        "type": "title",
+        "x": 30,
+        "y": 24,
+        "width": 830,
+        "height": 34,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 21,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "CARTE ADMINISTRATIVE DE RÉFÉRENCE"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "subtitle",
+        "x": 30,
+        "y": 62,
+        "width": 830,
+        "height": 20,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "normal"
+        },
+        "content": {
+          "text": "Territoire · thème · période d'étude"
+        }
+      },
+      {
+        "id": "rule",
+        "type": "shape",
+        "x": 30,
+        "y": 86,
+        "width": 831,
+        "height": 3,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#315E63",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 30,
+        "y": 108,
+        "width": 580,
+        "height": 422,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1.15,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 634,
+        "y": 108,
+        "width": 227,
+        "height": 140,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 0.85,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "locator-label",
+        "type": "text",
+        "x": 634,
+        "y": 252,
+        "width": 227,
+        "height": 18,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "center",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "CARTE DE SITUATION"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 634,
+        "y": 288,
+        "width": 227,
+        "height": 174,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "north-634-478",
+        "type": "north_arrow",
+        "x": 634,
+        "y": 478,
+        "width": 43,
+        "height": 43,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale-692-488",
+        "type": "scale_bar",
+        "x": 692,
+        "y": 488,
+        "width": 169,
+        "height": 28,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 30,
+        "y": 555,
+        "width": 831,
+        "height": 32,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection/CRS : …  |  Auteur : …  |  Date : …"
+        }
+      }
+    ],
+    "background_color": "#ffffff",
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A4 paysage"
+  },
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "accent_color": "#315E63",
+  "tags": [
+    "administrative",
+    "institutionnel"
+  ],
+  "design_principles": [
+    "fond blanc et panneaux secondaires légèrement teintés",
+    "une seule couleur d’accent moderne et désaturée",
+    "traits, cadres cartographiques et textes noirs",
+    "hiérarchie typographique sobre et lisible",
+    "marges, espacements et alignements réguliers",
+    "aucune donnée géographique fictive incluse"
+  ],
+  "accent_tint": "#E8F0F0",
+  "palette_mode": "modern-theme"
+}

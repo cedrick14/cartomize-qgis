@@ -11,3 +11,15 @@ class ValidationError(CartomizeError):
 
 class CompatibilityError(CartomizeError):
     pass
+
+
+class TemplateError(CartomizeError):
+    """Maquette absente, invalide ou non sûre."""
+
+
+class LayoutBuildError(CartomizeError):
+    """Échec de création d'une mise en page ArcGIS Pro."""
+
+
+class ExportError(CartomizeError):
+    """Échec d'un export cartographique."""

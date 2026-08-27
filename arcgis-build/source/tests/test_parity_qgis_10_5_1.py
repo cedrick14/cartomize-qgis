@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import importlib
+import json
 import re
+import sys
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -10,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"
 VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
+PUBLIC_API = ROOT / "tests/qgis_public_api_10_5_1.json"
 NS = "{http://schemas.microsoft.com/winfx/2006/xaml/presentation}"
 
 
@@ -47,6 +51,17 @@ class QgisParityTests(unittest.TestCase):
         current = {path.name for path in (ROOT / "toolbox/cartomize_core").glob("*.py")}
         self.assertEqual(QGIS_CORE_MODULES - current, set())
 
+    def test_all_qgis_public_symbols_are_exported_and_importable(self):
+        expected = json.loads(PUBLIC_API.read_text(encoding="utf-8"))
+        sys.path.insert(0, str(ROOT / "toolbox"))
+        try:
+            for module_name, symbols in expected.items():
+                module = importlib.import_module(f"cartomize_core.{module_name}")
+                missing = [symbol for symbol in symbols if not hasattr(module, symbol)]
+                self.assertEqual(missing, [], f"API publique manquante dans {module_name}")
+        finally:
+            sys.path.pop(0)
+
     def test_tab_order_is_identical(self):
         self.assertEqual([item.attrib.get("Header") for item in self.root.iter(NS + "TabItem")], EXPECTED_TABS)
 
@@ -76,6 +91,23 @@ class QgisParityTests(unittest.TestCase):
             self.assertIn("ItemsSource", item.attrib)
         for item in self.root.iter(NS + "CheckBox"):
             self.assertIn("IsChecked", item.attrib)
+
+    def test_advanced_controls_are_consumed_by_processing_commands(self):
+        properties = [
+            "ContextOpacity", "LocatorMapName", "ProposalValidated", "SelectedRenderMode",
+            "SelectedThematicField", "MaxClasses", "SelectedPalette", "SelectedLabelField",
+            "LabelsEnabled", "LabelSize", "SelectedPlacement", "LayerOpacity", "ConfirmStyleParameters",
+        ]
+        for name in properties:
+            self.assertGreater(self.view_model.count(name), 1, f"{name} est affiché mais non consommé")
+        for parameter in (
+            '"render_mode"', '"thematic_field"', '"max_classes"',
+            '"palette"', '"label_field"', '"labels_enabled"',
+            '"label_size"', '"label_placement"', '"opacity_percent"',
+            '"expert_confirmed"', '"context_opacity"', '"locator_map"',
+            '"proposal_validated"',
+        ):
+            self.assertIn(parameter, self.toolbox)
 
     def test_nine_toolbox_tools_are_preserved(self):
         match = re.search(r"self\.tools\s*=\s*\[(.*?)\]", self.toolbox, re.S)
