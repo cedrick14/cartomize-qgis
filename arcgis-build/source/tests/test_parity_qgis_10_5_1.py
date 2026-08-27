@@ -13,6 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"
 VIEW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml.cs"
 VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"
+BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
+COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
+DIAGNOSTIC_LOG = ROOT / "src/Cartomize.ArcGISPro/Services/DiagnosticLog.cs"
+CSPROJ = ROOT / "src/Cartomize.ArcGISPro/Cartomize.ArcGISPro.csproj"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
 PUBLIC_API = ROOT / "tests/qgis_public_api_10_5_1.json"
 NS = "{http://schemas.microsoft.com/winfx/2006/xaml/presentation}"
@@ -47,6 +51,10 @@ class QgisParityTests(unittest.TestCase):
         cls.xaml_text = XAML.read_text(encoding="utf-8")
         cls.view_code = VIEW_CODE.read_text(encoding="utf-8")
         cls.view_model = VIEW_MODEL.read_text(encoding="utf-8")
+        cls.buttons = BUTTONS.read_text(encoding="utf-8")
+        cls.commands = COMMANDS.read_text(encoding="utf-8")
+        cls.diagnostic_log = DIAGNOSTIC_LOG.read_text(encoding="utf-8")
+        cls.csproj = CSPROJ.read_text(encoding="utf-8")
         cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
 
     def test_all_qgis_core_modules_have_arcgis_counterparts(self):
@@ -148,10 +156,25 @@ class QgisParityTests(unittest.TestCase):
     def test_dockpane_load_failure_cannot_stop_arcgis_pro(self):
         self.assertIn("try", self.view_code)
         self.assertIn("catch (Exception exception)", self.view_code)
-        self.assertIn("WriteLoadError(exception)", self.view_code)
-        self.assertIn("ui-load.log", self.view_code)
+        self.assertIn('DiagnosticLog.Write("Chargement XAML du panneau Cartomize", exception)', self.view_code)
+        self.assertIn("DiagnosticLog.FilePath", self.view_code)
+        self.assertIn("try", self.buttons)
+        self.assertIn('DiagnosticLog.Write("Ouverture du panneau Cartomize", exception)', self.buttons)
+        self.assertIn("catch (Exception exception)", self.commands)
+        self.assertIn('DiagnosticLog.Write("Commande asynchrone Cartomize", exception)', self.commands)
+        self.assertIn('"ESRI"', self.diagnostic_log)
+        self.assertIn('"10.5.1"', self.diagnostic_log)
+        self.assertIn('"cartomize.log"', self.diagnostic_log)
+        self.assertIn("protected override async Task InitializeAsync()", self.view_model)
         self.assertIn("RefreshProjectSafelyAsync", self.view_model)
         self.assertIn("RefreshLayerFieldsSafelyAsync", self.view_model)
+
+    def test_arcgis_pro_37_runtime_contract(self):
+        self.assertIn("<TargetFramework>net10.0-windows</TargetFramework>", self.csproj)
+        self.assertIn("<RuntimeIdentifier>win-x64</RuntimeIdentifier>", self.csproj)
+        self.assertIn("<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>", self.csproj)
+        self.assertIn("<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>", self.csproj)
+        self.assertIn("<PlatformTarget>x64</PlatformTarget>", self.csproj)
 
 
 if __name__ == "__main__":

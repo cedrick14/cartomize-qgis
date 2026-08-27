@@ -134,7 +134,6 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         CommunityCommand = new DelegateCommand(() => OpenUrl("https://cartomizeplugin.com/"));
         DiagnosticsCommand = new AsyncDelegateCommand(RunDiagnosticsAsync, () => !IsBusy);
 
-        _ = RefreshProjectSafelyAsync();
     }
 
     public ObservableCollection<string> MapNames { get; } = [];
@@ -222,7 +221,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     }
 
     public bool IsRasterLayer { get => _isRasterLayer; private set => SetProperty(ref _isRasterLayer, value); }
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
+    public override bool IsBusy => _isBusy;
     public bool AutomationVisibleOnly { get => _automationVisibleOnly; set => SetProperty(ref _automationVisibleOnly, value); }
     public bool AutomationApplySymbology { get => _automationApplySymbology; set => SetProperty(ref _automationApplySymbology, value); }
     public bool AutomationAutoCorrect { get => _automationAutoCorrect; set => SetProperty(ref _automationAutoCorrect, value); }
@@ -275,7 +274,18 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public ICommand CommunityCommand { get; }
     public ICommand DiagnosticsCommand { get; }
 
-    public static void Show() => FrameworkApplication.DockPaneManager.Find(DockPaneId)?.Activate();
+    protected override async Task InitializeAsync()
+    {
+        await RefreshProjectSafelyAsync();
+    }
+
+    public static void Show()
+    {
+        var pane = FrameworkApplication.DockPaneManager.Find(DockPaneId)
+                   ?? throw new InvalidOperationException(
+                       "Le panneau Cartomize n’a pas pu être créé par ArcGIS Pro.");
+        pane.Activate();
+    }
 
     private async Task AnalyzeAutomationAsync()
     {
@@ -505,7 +515,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task RefreshCommunityAsync()
     {
-        IsBusy = true;
+        SetBusy(true);
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
@@ -525,7 +535,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             CommunityStatus = $"{CommunityResources.Count} ressource(s) en ligne · 24 maquettes hors ligne";
         }
         catch (Exception exception) { CommunityStatus = $"Catalogue en ligne indisponible. Les 24 maquettes hors ligne restent accessibles. {exception.Message}"; }
-        finally { IsBusy = false; }
+        finally { SetBusy(false); }
     }
 
     private void OpenSelectedCommunityResource() { if (SelectedCommunityResource is not null) OpenUrl(SelectedCommunityResource.DetailUrl); }
@@ -542,7 +552,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task<GeoprocessingService.ExecutionResult> RunToolAsync(string name, params object?[] values)
     {
-        IsBusy = true;
+        SetBusy(true);
         StatusText = $"Exécution : {name}";
         try
         {
@@ -555,7 +565,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             StatusText = $"Erreur : {exception.Message}";
             return new GeoprocessingService.ExecutionResult(false, string.Empty, exception.Message, -1);
         }
-        finally { IsBusy = false; }
+        finally { SetBusy(false); }
     }
 
     private async Task RefreshProjectAsync()
@@ -593,8 +603,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         catch (Exception exception)
         {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                StatusText = $"Projet ArcGIS Pro indisponible : {exception.Message}");
+            DiagnosticLog.Write("Initialisation du projet ArcGIS Pro", exception);
+            await SetStatusSafelyAsync($"Projet ArcGIS Pro indisponible : {exception.Message}");
         }
     }
 
@@ -626,9 +636,32 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         catch (Exception exception)
         {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-                StatusText = $"Champs de la couche indisponibles : {exception.Message}");
+            DiagnosticLog.Write("Lecture des champs de la couche", exception);
+            await SetStatusSafelyAsync($"Champs de la couche indisponibles : {exception.Message}");
         }
+    }
+
+    private async Task SetStatusSafelyAsync(string status)
+    {
+        try
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+                return;
+            await dispatcher.InvokeAsync(() => StatusText = status);
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Mise à jour de l’état du panneau", exception);
+        }
+    }
+
+    private void SetBusy(bool value)
+    {
+        if (_isBusy == value)
+            return;
+        _isBusy = value;
+        NotifyPropertyChanged(nameof(IsBusy));
     }
 
     private void LoadTemplateCatalog()

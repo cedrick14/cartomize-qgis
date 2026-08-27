@@ -1,7 +1,6 @@
-using System;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Cartomize.ArcGISPro.Services;
 
 namespace Cartomize.ArcGISPro.Views;
 
@@ -15,35 +14,16 @@ public partial class CartomizeDockPaneView : UserControl
         }
         catch (Exception exception)
         {
-            WriteLoadError(exception);
+            DiagnosticLog.Write("Chargement XAML du panneau Cartomize", exception);
             Content = new Border
             {
                 Padding = new Thickness(16),
                 Child = new TextBlock
                 {
-                    Text = "Impossible de charger l’interface Cartomize. Consultez le journal Cartomize.",
+                    Text = $"Impossible de charger l’interface Cartomize.\n\nJournal : {DiagnosticLog.FilePath}\n\nErreur : {exception.Message}",
                     TextWrapping = TextWrapping.Wrap,
                 },
             };
-        }
-    }
-
-    private static void WriteLoadError(Exception exception)
-    {
-        try
-        {
-            var directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Cartomize",
-                "Logs");
-            Directory.CreateDirectory(directory);
-            File.AppendAllText(
-                Path.Combine(directory, "ui-load.log"),
-                $"{DateTimeOffset.Now:O}{Environment.NewLine}{exception}{Environment.NewLine}{Environment.NewLine}");
-        }
-        catch
-        {
-            // Une erreur de journalisation ne doit jamais arrêter ArcGIS Pro.
         }
     }
 }

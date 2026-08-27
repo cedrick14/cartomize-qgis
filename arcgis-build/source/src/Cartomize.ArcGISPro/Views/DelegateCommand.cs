@@ -1,4 +1,6 @@
 using System.Windows.Input;
+using ArcGIS.Desktop.Framework.Dialogs;
+using Cartomize.ArcGISPro.Services;
 
 namespace Cartomize.ArcGISPro.Views;
 
@@ -13,7 +15,20 @@ internal sealed class DelegateCommand(Action execute) : ICommand
 
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-    public void Execute(object? parameter) => execute();
+    public void Execute(object? parameter)
+    {
+        try
+        {
+            execute();
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Commande Cartomize", exception);
+            MessageBox.Show(
+                $"La commande n’a pas pu être exécutée.\n\nJournal : {DiagnosticLog.FilePath}\n\nErreur : {exception.Message}",
+                "Cartomize 10.5.1");
+        }
+    }
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
@@ -42,6 +57,13 @@ internal sealed class AsyncDelegateCommand : ICommand
         try
         {
             await _execute();
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Commande asynchrone Cartomize", exception);
+            MessageBox.Show(
+                $"La commande n’a pas pu être exécutée.\n\nJournal : {DiagnosticLog.FilePath}\n\nErreur : {exception.Message}",
+                "Cartomize 10.5.1");
         }
         finally
         {
