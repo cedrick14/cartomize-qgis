@@ -115,6 +115,21 @@ class QgisParityTests(unittest.TestCase):
         tools = [value.strip() for value in match.group(1).replace("\n", " ").split(",") if value.strip()]
         self.assertEqual(tools, ["AuditProject", "AutopilotMap", "CreateLayout", "VectorIntelligence", "RasterIntelligence", "GeoIntelligence", "BatchMaps", "ReplayRecipe", "MapOpsCheck"])
 
+    def test_context_basemap_contract_is_preserved(self):
+        sys.path.insert(0, str(ROOT / "toolbox"))
+        try:
+            from cartomize_core.project_service import ProjectService
+
+            definitions = ProjectService.context_basemap_definitions()
+            self.assertEqual([item.key for item in definitions], ["osm", "terrain", "satellite"])
+            self.assertEqual(
+                [item.label for item in definitions],
+                ["OpenStreetMap", "Terrain (OpenTopoMap)", "Imagerie satellitaire"],
+            )
+            self.assertEqual([item.max_zoom for item in definitions], [19, 17, 19])
+        finally:
+            sys.path.pop(0)
+
     def test_version_and_native_arcgis_theme(self):
         self.assertIn('VersionText => "Cartomize 10.5.1"', self.view_model)
         self.assertNotIn("Foreground=", self.xaml_text)

@@ -20,11 +20,14 @@ class CommunityClient:
     def __init__(self, settings: CartomizeSettings | None = None):
         self.settings = settings or CartomizeSettings.load()
 
-    def open_in_browser(self) -> bool:
+    def open_in_browser(self, value: str | None = None) -> None:
         try:
-            url = validate_community_url(self.settings.community_url or DEFAULT_COMMUNITY_URL)
+            url = validate_community_url(
+                value if value is not None else self.settings.community_url or DEFAULT_COMMUNITY_URL
+            )
         except ValueError as exc:
             raise CartomizeError(str(exc)) from exc
         if not url:
             raise CartomizeError("Le portail Cartomize n'est pas configuré.")
-        return bool(webbrowser.open(url, new=2))
+        if not webbrowser.open(url, new=2):
+            raise CartomizeError("Le navigateur n'a pas pu ouvrir la communauté Cartomize.")

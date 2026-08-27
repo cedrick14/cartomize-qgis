@@ -225,7 +225,7 @@ class MapOpsService:
         layouts = tuple(sorted(current.layouts if changes else ()))
         return MapOpsReport(_utc_now(), previous.fingerprint, current.fingerprint, tuple(changes), layouts, "Modifications détectées" if changes else "À jour")
     @staticmethod
-    def save_snapshot(value: MapOpsSnapshot, path: str | Path): return write_json(path, value.to_dict())
+    def save_snapshot(snapshot: MapOpsSnapshot, path: str | Path): return write_json(path, snapshot.to_dict())
     @staticmethod
     def load_snapshot(path: str | Path): return MapOpsSnapshot.from_dict(read_json(path))
     @staticmethod

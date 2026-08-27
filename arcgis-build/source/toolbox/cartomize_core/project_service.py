@@ -52,14 +52,21 @@ class ProjectService:
 
     def layers_from_ids(self, layer_ids: Iterable[str]):
         by_id = {_id(layer): layer for layer in self.ordered_layers()}; return [by_id[value] for value in layer_ids if value in by_id]
-    def background_candidates(self): return [layer for layer in self.ordered_layers() if self.is_basemap_layer(layer)]
+    def background_candidates(self):
+        layers = self.layout_ordered_layers()
+        remote = [layer for layer in layers if self.is_basemap_layer(layer)]
+        local_rasters = [
+            layer for layer in layers
+            if bool(getattr(layer, "isRasterLayer", False)) and not self.is_basemap_layer(layer)
+        ]
+        return remote + local_rasters
 
     @staticmethod
     def context_basemap_definitions():
         return (
-            ContextBasemap("topographic", "World Topographic Map", "https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer", 23, "Esri"),
-            ContextBasemap("imagery", "World Imagery", "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer", 23, "Esri"),
-            ContextBasemap("osm", "OpenStreetMap", "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer", 23, "Esri, OpenStreetMap contributors"),
+            ContextBasemap("osm", "OpenStreetMap", "https://basemaps.arcgis.com/arcgis/rest/services/OpenStreetMap_v2/VectorTileServer", 19, "© OpenStreetMap contributors"),
+            ContextBasemap("terrain", "Terrain (OpenTopoMap)", "https://services.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer", 17, "© OpenStreetMap contributors, SRTM | OpenTopoMap"),
+            ContextBasemap("satellite", "Imagerie satellitaire", "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer", 19, "Sources: Esri, Maxar, Earthstar Geographics and contributors"),
         )
 
     def active_context_basemap_key(self):
