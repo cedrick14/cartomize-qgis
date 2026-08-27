@@ -24,7 +24,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         CommunityCommand = new DelegateCommand(OpenCommunityPortal);
     }
 
-    public string VersionText => "Cartomize 10.5.1-arcgispro.3 · ArcGIS Pro 3.7";
+    public string VersionText => "Cartomize 10.5.1";
     public ICommand AuditCommand { get; }
     public ICommand AutopilotCommand { get; }
     public ICommand VectorCommand { get; }

@@ -1,4 +1,4 @@
-name: Build Cartomize ArcGIS Pro 10.5.1.3
+name: Build Cartomize ArcGIS Pro 10.5.1
 
 on:
   push:
@@ -52,13 +52,13 @@ jobs:
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
           if ($addin) {
-            Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.3.esriAddInX")
+            Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.esriAddInX")
           }
           Get-ChildItem $output | Format-Table Name,Length
 
       - name: Upload compiled artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cartomize-arcgispro-10.5.1.3
+          name: cartomize-arcgispro-10.5.1-black-text
           path: arcgis-build/output/*
           if-no-files-found: error

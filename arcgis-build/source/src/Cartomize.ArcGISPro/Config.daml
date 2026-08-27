@@ -4,7 +4,7 @@
         xmlns="http://schemas.esri.com/DADF/Registry"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <AddInInfo id="{8D473903-AE50-4C2B-A11C-E54CD231C051}"
-             version="10.5.1.3"
+             version="10.5.1"
              desktopVersion="3.7.0">
     <Name>Cartomize for ArcGIS Pro</Name>
     <Description>Assistant professionnel de cartographie, diagnostic, mise en page et production par lots.</Description>

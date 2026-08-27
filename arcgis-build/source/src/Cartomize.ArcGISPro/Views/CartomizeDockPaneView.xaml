@@ -8,9 +8,12 @@
     <!-- Palette officielle utilisée par Cartomize QGIS 10.5.1. -->
     <SolidColorBrush x:Key="PrimaryBrush" Color="#0F6CBD" />
     <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#0B5CA8" />
-    <SolidColorBrush x:Key="NavyBrush" Color="#132C56" />
-    <SolidColorBrush x:Key="TextBrush" Color="#1F2937" />
-    <SolidColorBrush x:Key="MutedBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#DCEEFF" />
+    <SolidColorBrush x:Key="SelectionHoverBrush" Color="#C7E2FF" />
+    <!-- Tous les textes restent noirs ; le bleu est réservé à la sélection. -->
+    <SolidColorBrush x:Key="NavyBrush" Color="#000000" />
+    <SolidColorBrush x:Key="TextBrush" Color="#000000" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#000000" />
     <SolidColorBrush x:Key="LineBrush" Color="#DDE4EF" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="#F5F7FB" />
 
@@ -59,31 +62,34 @@
       <Setter Property="Cursor" Value="Hand" />
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
           <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
-          <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+          <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         </Trigger>
       </Style.Triggers>
     </Style>
     <Style x:Key="PrimaryActionButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-      <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
-      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
-          <Setter Property="BorderBrush" Value="{StaticResource PrimaryHoverBrush}" />
-          <Setter Property="Foreground" Value="#FFFFFF" />
+          <Setter Property="Background" Value="{StaticResource SelectionHoverBrush}" />
+          <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+          <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
         </Trigger>
       </Style.Triggers>
     </Style>
     <Style TargetType="TabItem">
-      <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
       <Setter Property="Background" Value="#FFFFFF" />
       <Setter Property="Padding" Value="10,6" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Style.Triggers>
         <Trigger Property="IsSelected" Value="True">
-          <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+          <Setter Property="Background" Value="{StaticResource SelectionBrush}" />
+          <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+          <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
           <Setter Property="FontWeight" Value="Bold" />
         </Trigger>
       </Style.Triggers>
