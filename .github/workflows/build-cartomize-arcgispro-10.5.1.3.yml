@@ -22,15 +22,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore ArcGIS Pro SDK
+      - name: Build with Visual Studio MSBuild
         shell: pwsh
         working-directory: arcgis-build/source
-        run: dotnet restore .\Cartomize.ArcGISPro.sln --configfile .\NuGet.Config
-
-      - name: Build ArcGIS Pro add-in
-        shell: pwsh
-        working-directory: arcgis-build/source
-        run: dotnet build .\Cartomize.ArcGISPro.sln -c Release --no-restore
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" |
+            Select-Object -First 1
+          if (-not $msbuild) { throw "Visual Studio MSBuild.exe not found" }
+          Write-Host "Using MSBuild: $msbuild"
+          & $msbuild .\Cartomize.ArcGISPro.sln /restore /p:RestoreConfigFile="$PWD\NuGet.Config" /p:Configuration=Release /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $msbuild .\Cartomize.ArcGISPro.sln /t:Build /p:Configuration=Release /p:RestorePackages=false /m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Collect compiled outputs
         shell: pwsh
