@@ -30,7 +30,7 @@
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
           <TextBlock Text="Cartomize"
                      Style="{DynamicResource Esri_TextBlockDockPaneHeading}" />
-          <TextBlock Text="Automatisation et mise en page pour ArcGIS Pro"
+          <TextBlock Text="Outils cartographiques pour ArcGIS Pro"
                      Style="{DynamicResource Esri_TextBlockRegular}"
                      TextWrapping="Wrap" />
         </StackPanel>
@@ -44,20 +44,17 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Automatisation" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Analysez le projet et créez une carte ArcGIS Pro native en suivant un flux explicable."
+            <TextBlock Text="Créez une carte à partir du projet actif."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Automatisation cartographique" Style="{DynamicResource Esri_TextBlockH3}" />
-                <TextBlock Text="Les outils utilisent les cartes, couches et maquettes du projet courant."
-                           Style="{DynamicResource Esri_TextBlockRegular}"
-                           TextWrapping="Wrap" Margin="0,4,0,8" />
-                <Button Content="Créer automatiquement une carte" Command="{Binding AutopilotCommand}"
+                <TextBlock Text="Création de carte" Style="{DynamicResource Esri_TextBlockH3}" />
+                <Button Content="Créer une carte" Command="{Binding AutopilotCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
-                        HorizontalContentAlignment="Left" Margin="0,0,0,4" />
-                <Button Content="Rejouer une recette Cartomize" Command="{Binding ReplayCommand}"
+                        HorizontalContentAlignment="Left" Margin="0,6,0,4" />
+                <Button Content="Rejouer une recette" Command="{Binding ReplayCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" />
               </StackPanel>
@@ -70,23 +67,20 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Projet" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Consultez le projet, analysez une couche et appliquez des traitements Cartomize réversibles."
+            <TextBlock Text="Analysez les couches du projet."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Intelligence cartographique" Style="{DynamicResource Esri_TextBlockH3}" />
-                <TextBlock Text="Sélectionnez les données dans les outils ArcGIS Pro avant l’exécution."
-                           Style="{DynamicResource Esri_TextBlockRegular}"
-                           TextWrapping="Wrap" Margin="0,4,0,8" />
-                <Button Content="Analyser une couche avec Vector Intelligence" Command="{Binding VectorCommand}"
+                <TextBlock Text="Analyse des données" Style="{DynamicResource Esri_TextBlockH3}" />
+                <Button Content="Analyser une couche vectorielle" Command="{Binding VectorCommand}"
+                        Style="{DynamicResource Esri_ButtonBorderless}"
+                        HorizontalContentAlignment="Left" Margin="0,6,0,4" />
+                <Button Content="Analyser un raster" Command="{Binding RasterCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" Margin="0,0,0,4" />
-                <Button Content="Analyser un raster avec Raster Engine" Command="{Binding RasterCommand}"
-                        Style="{DynamicResource Esri_ButtonBorderless}"
-                        HorizontalContentAlignment="Left" Margin="0,0,0,4" />
-                <Button Content="Analyser l’intelligence cartographique du projet" Command="{Binding GeoCommand}"
+                <Button Content="Analyser le projet" Command="{Binding GeoCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" />
               </StackPanel>
@@ -99,17 +93,17 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Mise en page" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Choisissez une maquette et produisez une mise en page ArcGIS Pro native entièrement modifiable."
+            <TextBlock Text="Créez une mise en page à partir d’une maquette."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Catalogue de maquettes" Style="{DynamicResource Esri_TextBlockH3}" />
+                <TextBlock Text="Maquettes" Style="{DynamicResource Esri_TextBlockH3}" />
                 <TextBlock Text="24 maquettes Cartomize sont disponibles hors connexion."
                            Style="{DynamicResource Esri_TextBlockRegular}"
                            TextWrapping="Wrap" Margin="0,4,0,8" />
-                <Button Content="Créer une mise en page Cartomize" Command="{Binding LayoutCommand}"
+                <Button Content="Créer une mise en page" Command="{Binding LayoutCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" />
               </StackPanel>
@@ -122,17 +116,17 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Qualité" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Contrôlez la cohérence du projet et surveillez les changements avant publication."
+            <TextBlock Text="Contrôlez le projet avant publication."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Contrôle de la qualité" Style="{DynamicResource Esri_TextBlockH3}" />
-                <Button Content="Contrôler la qualité cartographique du projet" Command="{Binding AuditCommand}"
+                <TextBlock Text="Contrôles" Style="{DynamicResource Esri_TextBlockH3}" />
+                <Button Content="Contrôler le projet" Command="{Binding AuditCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" Margin="0,6,0,4" />
-                <Button Content="Vérifier les changements MapOps" Command="{Binding MapOpsCommand}"
+                <Button Content="Vérifier les changements" Command="{Binding MapOpsCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" />
               </StackPanel>
@@ -145,17 +139,17 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Production" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Produisez des séries de cartes et rejouez les décisions cartographiques enregistrées."
+            <TextBlock Text="Produisez plusieurs cartes."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Production en série" Style="{DynamicResource Esri_TextBlockH3}" />
-                <Button Content="Produire une série de cartes Cartomize" Command="{Binding BatchCommand}"
+                <TextBlock Text="Production" Style="{DynamicResource Esri_TextBlockH3}" />
+                <Button Content="Produire une série de cartes" Command="{Binding BatchCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" Margin="0,6,0,4" />
-                <Button Content="Rejouer une recette Cartomize" Command="{Binding ReplayCommand}"
+                <Button Content="Rejouer une recette" Command="{Binding ReplayCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
                         HorizontalContentAlignment="Left" />
               </StackPanel>
@@ -168,19 +162,16 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Communauté" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Accédez au portail officiel Cartomize et aux ressources de la communauté."
+            <TextBlock Text="Accédez aux ressources Cartomize."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Portail Cartomize" Style="{DynamicResource Esri_TextBlockH3}" />
-                <TextBlock Text="Aucune donnée du projet ArcGIS Pro n’est transmise au portail."
-                           Style="{DynamicResource Esri_TextBlockRegular}"
-                           TextWrapping="Wrap" Margin="0,4,0,8" />
-                <Button Content="Ouvrir le portail Cartomize" Command="{Binding CommunityCommand}"
+                <TextBlock Text="Ressources" Style="{DynamicResource Esri_TextBlockH3}" />
+                <Button Content="Ouvrir le portail" Command="{Binding CommunityCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}"
-                        HorizontalContentAlignment="Left" />
+                        HorizontalContentAlignment="Left" Margin="0,6,0,0" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -191,13 +182,13 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="12">
             <TextBlock Text="Système" Style="{DynamicResource Esri_TextBlockH1}" />
-            <TextBlock Text="Vérifiez la disponibilité des composants requis et l’état technique de Cartomize."
+            <TextBlock Text="Vérifiez les composants Cartomize."
                        Style="{DynamicResource Esri_TextBlockRegular}"
                        TextWrapping="Wrap" Margin="0,4,0,14" />
             <Border BorderBrush="{DynamicResource Esri_BorderBrush}"
                     BorderThickness="0,1,0,0" Padding="0,12,0,6">
               <StackPanel>
-                <TextBlock Text="Diagnostic" Style="{DynamicResource Esri_TextBlockH3}" />
+                <TextBlock Text="Environnement" Style="{DynamicResource Esri_TextBlockH3}" />
                 <TextBlock Text="ArcGIS Pro 3.7&#x0a;.NET 10&#x0a;24 maquettes hors ligne&#x0a;Boîte à outils Python Cartomize"
                            Style="{DynamicResource Esri_TextBlockRegular}"
                            TextWrapping="Wrap" Margin="0,6,0,0" />
