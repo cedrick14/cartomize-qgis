@@ -136,6 +136,12 @@ class QgisParityTests(unittest.TestCase):
         self.assertNotIn("FontFamily=", self.xaml_text)
         self.assertNotIn("Background=\"#", self.xaml_text)
 
+    def test_style_inheritance_is_loadable_by_wpf(self):
+        # Style.BasedOn is not a dependency property.  A DynamicResource here
+        # compiles to BAML but fails when ArcGIS Pro constructs the dock pane,
+        # leaving an empty white client area.
+        self.assertNotRegex(self.xaml_text, r'BasedOn="\{DynamicResource\s+')
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -89,8 +89,13 @@ def main() -> int:
         "Esri_TextBlockDockPaneHeading",
     )
     for resource in native_resources:
-        if f"DynamicResource {resource}" not in xaml_text:
+        if resource not in xaml_text:
             errors.append(f"Ressource de thème ArcGIS Pro absente : {resource}")
+    if re.search(r'BasedOn="\{DynamicResource\s+', xaml_text):
+        errors.append(
+            "Style.BasedOn doit utiliser StaticResource : DynamicResource provoque "
+            "un échec de chargement du DockPane WPF."
+        )
     for forbidden in ("Foreground=", "FontFamily=", "FontWeight=", "Color=\"#", "Background=\"#"):
         if forbidden in xaml_text:
             errors.append(

@@ -4,7 +4,7 @@
              MinWidth="420">
   <UserControl.Resources>
     <!-- ArcGIS Pro fournit les couleurs, les polices et les états bleus de sélection. -->
-    <Style TargetType="TextBlock" BasedOn="{DynamicResource Esri_TextBlockRegular}" />
+    <Style TargetType="TextBlock" BasedOn="{StaticResource Esri_TextBlockRegular}" />
     <Style TargetType="Label">
       <Setter Property="Padding" Value="0" />
     </Style>
@@ -28,16 +28,16 @@
       <Setter Property="CanUserAddRows" Value="False" />
     </Style>
     <Style x:Key="PageTitleStyle" TargetType="TextBlock"
-           BasedOn="{DynamicResource Esri_TextBlockH1}">
+           BasedOn="{StaticResource Esri_TextBlockH1}">
       <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
     <Style x:Key="DescriptionStyle" TargetType="TextBlock"
-           BasedOn="{DynamicResource Esri_TextBlockRegular}">
+           BasedOn="{StaticResource Esri_TextBlockRegular}">
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
     <Style x:Key="SectionTitleStyle" TargetType="TextBlock"
-           BasedOn="{DynamicResource Esri_TextBlockH3}">
+           BasedOn="{StaticResource Esri_TextBlockH3}">
       <Setter Property="Margin" Value="0,0,0,5" />
     </Style>
     <Style x:Key="CardStyle" TargetType="Border">
@@ -49,7 +49,7 @@
       <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
     <Style x:Key="SecondaryButtonStyle" TargetType="Button"
-           BasedOn="{DynamicResource Esri_ButtonBorderless}">
+           BasedOn="{StaticResource Esri_ButtonBorderless}">
       <Setter Property="Padding" Value="10,5" />
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
