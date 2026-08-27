@@ -6,7 +6,7 @@ namespace Cartomize.ArcGISPro.Services;
 
 internal static class GeoprocessingService
 {
-    public static void Open(string toolName)
+    public static void Open(string toolName, params object[] values)
     {
         var toolbox = Module.ToolboxPath;
         if (!File.Exists(toolbox))
@@ -18,6 +18,6 @@ internal static class GeoprocessingService
         }
 
         var toolPath = $"{toolbox}\\{toolName}";
-        Geoprocessing.OpenToolDialog(toolPath, Geoprocessing.MakeValueArray());
+        Geoprocessing.OpenToolDialog(toolPath, Geoprocessing.MakeValueArray(values));
     }
 }
