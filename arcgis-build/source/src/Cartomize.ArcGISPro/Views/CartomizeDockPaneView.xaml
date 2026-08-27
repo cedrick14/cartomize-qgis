@@ -3,155 +3,86 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              MinWidth="420">
   <UserControl.Resources>
-    <SolidColorBrush x:Key="CartomizeBlue" Color="#0F6CBD" />
-    <SolidColorBrush x:Key="CartomizeBlueHover" Color="#0B5CA8" />
-    <SolidColorBrush x:Key="CartomizeBorder" Color="#B8C0CC" />
-    <SolidColorBrush x:Key="CartomizeMuted" Color="#6B7280" />
-    <SolidColorBrush x:Key="CartomizePanel" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CartomizeWindow" Color="#F7F8FA" />
-
-    <Style TargetType="TextBlock">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
-      <Setter Property="FontSize" Value="13" />
-    </Style>
+    <!-- ArcGIS Pro fournit les couleurs, les polices et les états bleus de sélection. -->
+    <Style TargetType="TextBlock" BasedOn="{DynamicResource Esri_TextBlockRegular}" />
     <Style TargetType="Label">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
-      <Setter Property="FontSize" Value="13" />
       <Setter Property="Padding" Value="0" />
     </Style>
     <Style TargetType="CheckBox">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="FontFamily" Value="Segoe UI" />
-      <Setter Property="FontSize" Value="13" />
       <Setter Property="Margin" Value="0,3" />
     </Style>
     <Style TargetType="TextBox">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBorder}" />
       <Setter Property="Padding" Value="5" />
       <Setter Property="MinHeight" Value="30" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style TargetType="ComboBox">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBorder}" />
       <Setter Property="Padding" Value="4" />
       <Setter Property="MinHeight" Value="30" />
     </Style>
-    <Style TargetType="ListBox">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBorder}" />
-    </Style>
     <Style TargetType="DataGrid">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="White" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBorder}" />
       <Setter Property="SelectionMode" Value="Single" />
       <Setter Property="SelectionUnit" Value="FullRow" />
-      <Setter Property="AlternatingRowBackground" Value="#F3F4F6" />
       <Setter Property="HeadersVisibility" Value="Column" />
       <Setter Property="AutoGenerateColumns" Value="False" />
       <Setter Property="CanUserAddRows" Value="False" />
     </Style>
-    <Style x:Key="PageTitleStyle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="17" />
-      <Setter Property="FontWeight" Value="Bold" />
+    <Style x:Key="PageTitleStyle" TargetType="TextBlock"
+           BasedOn="{DynamicResource Esri_TextBlockH1}">
       <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
-    <Style x:Key="DescriptionStyle" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource CartomizeMuted}" />
+    <Style x:Key="DescriptionStyle" TargetType="TextBlock"
+           BasedOn="{DynamicResource Esri_TextBlockRegular}">
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
-    <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
-      <Setter Property="FontWeight" Value="Bold" />
-      <Setter Property="FontSize" Value="13" />
+    <Style x:Key="SectionTitleStyle" TargetType="TextBlock"
+           BasedOn="{DynamicResource Esri_TextBlockH3}">
       <Setter Property="Margin" Value="0,0,0,5" />
     </Style>
     <Style x:Key="CardStyle" TargetType="Border">
-      <Setter Property="Background" Value="{StaticResource CartomizePanel}" />
-      <Setter Property="BorderBrush" Value="#D3DAE5" />
+      <Setter Property="Background" Value="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource Esri_BorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="Padding" Value="12,11,12,12" />
       <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
-    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="#F3F4F6" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBorder}" />
-      <Setter Property="BorderThickness" Value="1" />
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button"
+           BasedOn="{DynamicResource Esri_ButtonBorderless}">
       <Setter Property="Padding" Value="10,5" />
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="Margin" Value="0,3" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="BorderBrush" Value="{StaticResource CartomizeBlue}" />
-          <Setter Property="Background" Value="#EAF3FB" />
-        </Trigger>
-        <Trigger Property="IsEnabled" Value="False">
-          <Setter Property="Foreground" Value="#858585" />
-          <Setter Property="Background" Value="#F2F2F2" />
-          <Setter Property="Opacity" Value="1" />
-        </Trigger>
-      </Style.Triggers>
     </Style>
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-      <Setter Property="Foreground" Value="White" />
-      <Setter Property="Background" Value="{StaticResource CartomizeBlue}" />
-      <Setter Property="BorderBrush" Value="{StaticResource CartomizeBlue}" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Foreground" Value="White" />
-          <Setter Property="Background" Value="{StaticResource CartomizeBlueHover}" />
-          <Setter Property="BorderBrush" Value="{StaticResource CartomizeBlueHover}" />
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-    <Style TargetType="TabItem">
-      <Setter Property="Foreground" Value="Black" />
-      <Setter Property="Background" Value="#F7F8FA" />
-      <Setter Property="Padding" Value="10,6" />
-      <Setter Property="MinHeight" Value="34" />
-      <Setter Property="FontSize" Value="12" />
-      <Style.Triggers>
-        <Trigger Property="IsSelected" Value="True">
-          <Setter Property="Foreground" Value="Black" />
-          <Setter Property="Background" Value="White" />
-          <Setter Property="FontWeight" Value="Bold" />
-        </Trigger>
-      </Style.Triggers>
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
   </UserControl.Resources>
 
-  <Grid Background="{StaticResource CartomizeWindow}">
+  <Grid Background="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
-    <Border Grid.Row="0" Background="White" BorderBrush="#D3DAE5"
+    <Border Grid.Row="0"
+            Background="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}"
+            BorderBrush="{DynamicResource Esri_BorderBrush}"
             BorderThickness="0,0,0,1" Padding="12,10">
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="66" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
         <Image Grid.Column="0" Width="56" Height="56"
                Source="/Cartomize.ArcGISPro;component/Images/Cartomize.png" Stretch="Uniform" />
         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-          <TextBlock Text="Cartomize" FontSize="18" FontWeight="Bold" />
+          <TextBlock Text="Cartomize" Style="{DynamicResource Esri_TextBlockDockPaneHeading}" />
           <TextBlock Text="Automatisation et mise en page pour ArcGIS Pro"
-                     Foreground="{StaticResource CartomizeMuted}" TextWrapping="Wrap" />
+                     Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
         </StackPanel>
       </Grid>
     </Border>
 
-    <TabControl Grid.Row="1" Background="{StaticResource CartomizeWindow}"
+    <TabControl Grid.Row="1" Background="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}"
                 BorderThickness="0" TabStripPlacement="Top">
       <TabItem Header="Automatisation">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -375,7 +306,7 @@
                   </ComboBox>
                 </Grid>
                 <ListBox MinHeight="190" Margin="0,8,0,8" />
-                <TextBlock Text="Détails de la maquette" Foreground="{StaticResource CartomizeMuted}" />
+                <TextBlock Text="Détails de la maquette" Style="{DynamicResource Esri_TextBlockRegular}" />
                 <TextBox IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
               </StackPanel>
             </Border>
@@ -417,7 +348,7 @@
                   <Button Content="Actualiser l’aperçu HD" Command="{Binding RefreshPreviewCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,3,4,3" />
                   <Button Grid.Column="1" Content="Améliorer la lisibilité" Command="{Binding OptimizeLayoutCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="4,3,0,3" />
                 </Grid>
-                <TextBlock Text="Formats de sortie" Foreground="{StaticResource CartomizeMuted}" Margin="0,6,0,2" />
+                <TextBlock Text="Formats de sortie" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,6,0,2" />
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -440,10 +371,10 @@
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
                 <TextBlock Text="Résultat du contrôle" Style="{StaticResource SectionTitleStyle}" />
-                <TextBlock Text="Score non évalué" FontSize="22" FontWeight="Bold" />
+                <TextBlock Text="Score non évalué" Style="{DynamicResource Esri_TextBlockH1}" />
                 <Button Content="Lancer le contrôle de la qualité" Command="{Binding AuditCommand}" Style="{StaticResource PrimaryButtonStyle}" />
                 <Button Content="Vérifier le placement des étiquettes" Command="{Binding LabelAuditCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <TextBlock Text="Étiquettes non évaluées" Foreground="{StaticResource CartomizeMuted}" TextWrapping="Wrap" />
+                <TextBlock Text="Étiquettes non évaluées" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -511,7 +442,7 @@
                   <Label Content="Réviseur" Margin="0,6,12,0" /><TextBox Grid.Column="1" ToolTip="Nom du cartographe responsable" />
                   <Label Grid.Row="1" Content="Organisation" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" ToolTip="Organisation" />
                 </Grid>
-                <TextBlock Text="Liste de contrôle obligatoire" Foreground="{StaticResource CartomizeMuted}" Margin="0,8,0,2" />
+                <TextBlock Text="Liste de contrôle obligatoire" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,8,0,2" />
                 <CheckBox Content="Les sources, dates et limites des données sont vérifiées." />
                 <CheckBox Content="Le CRS, l’emprise et l’échelle correspondent à l’objectif de la carte." />
                 <CheckBox Content="La symbologie représente correctement les variables et les classes." />
@@ -519,12 +450,12 @@
                 <CheckBox Content="Le titre, la légende, l’échelle, le nord et les crédits sont cohérents." />
                 <CheckBox Content="Le contraste, la taille des textes et les couleurs sont accessibles." />
                 <CheckBox Content="Le fichier exporté a été ouvert et contrôlé au niveau de zoom requis." />
-                <TextBlock Text="Notes et réserves" Foreground="{StaticResource CartomizeMuted}" Margin="0,8,0,2" />
+                <TextBlock Text="Notes et réserves" Style="{DynamicResource Esri_TextBlockRegular}" Margin="0,8,0,2" />
                 <TextBox ToolTip="Précisez les limites des données, les réserves ou les corrections demandées."
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" />
                 <Button Content="Approuver la mise en page" Command="{Binding ApproveLayoutCommand}" Style="{StaticResource PrimaryButtonStyle}" />
                 <Button Content="Exporter le certificat" Command="{Binding ExportCertificateCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                <TextBlock Text="Statut : en attente de validation humaine" Foreground="{StaticResource CartomizeMuted}" TextWrapping="Wrap" />
+                <TextBlock Text="Statut : en attente de validation humaine" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
           </StackPanel>
@@ -544,7 +475,7 @@
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Maquettes hors ligne" Style="{StaticResource SectionTitleStyle}" />
               <TextBlock Text="24 maquettes disponibles hors ligne." Style="{StaticResource DescriptionStyle}" />
-              <TextBlock Text="Elles restent accessibles lorsque le portail ou Internet est indisponible." Foreground="{StaticResource CartomizeMuted}" TextWrapping="Wrap" />
+              <TextBlock Text="Elles restent accessibles lorsque le portail ou Internet est indisponible." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
             </StackPanel></Border>
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Ressources en ligne" Style="{StaticResource SectionTitleStyle}" />
@@ -573,11 +504,13 @@
       </TabItem>
     </TabControl>
 
-    <Border Grid.Row="2" Background="{StaticResource CartomizeWindow}" BorderBrush="#D3DAE5"
+    <Border Grid.Row="2"
+            Background="{DynamicResource Esri_DockPaneClientAreaBackgroundBrush}"
+            BorderBrush="{DynamicResource Esri_BorderBrush}"
             BorderThickness="0,1,0,0" Padding="10,5">
       <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-        <TextBlock Text="{Binding FooterStatus}" Foreground="{StaticResource CartomizeMuted}" TextWrapping="Wrap" />
-        <TextBlock Grid.Column="1" Text="{Binding VersionText}" Foreground="{StaticResource CartomizeMuted}" Margin="8,0,0,0" />
+        <TextBlock Text="{Binding FooterStatus}" Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" />
+        <TextBlock Grid.Column="1" Text="{Binding VersionText}" Style="{DynamicResource Esri_TextBlockH7}" Margin="8,0,0,0" />
       </Grid>
     </Border>
   </Grid>
