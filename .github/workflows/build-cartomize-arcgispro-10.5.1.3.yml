@@ -1,0 +1,60 @@
+name: Build Cartomize ArcGIS Pro 10.5.1.3
+
+on:
+  push:
+    branches:
+      - arcgispro-build-10.5.1.3
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore ArcGIS Pro SDK
+        shell: pwsh
+        working-directory: arcgis-build/source
+        run: dotnet restore .\Cartomize.ArcGISPro.sln --configfile .\NuGet.Config
+
+      - name: Build ArcGIS Pro add-in
+        shell: pwsh
+        working-directory: arcgis-build/source
+        run: dotnet build .\Cartomize.ArcGISPro.sln -c Release --no-restore
+
+      - name: Collect compiled outputs
+        shell: pwsh
+        run: |
+          $project = Join-Path $env:GITHUB_WORKSPACE "arcgis-build\source\src\Cartomize.ArcGISPro"
+          $output = Join-Path $env:GITHUB_WORKSPACE "arcgis-build\output"
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          $dll = Get-ChildItem $project -Recurse -Filter "Cartomize.ArcGISPro.dll" |
+            Where-Object { $_.FullName -match "\\bin\\Release\\" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $dll) { throw "Cartomize.ArcGISPro.dll not found" }
+          Copy-Item $dll.FullName (Join-Path $output "Cartomize.ArcGISPro.dll")
+          $addin = Get-ChildItem $project -Recurse -Filter "*.esriAddInX" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if ($addin) {
+            Copy-Item $addin.FullName (Join-Path $output "Cartomize-ArcGISPro-10.5.1.3.esriAddInX")
+          }
+          Get-ChildItem $output | Format-Table Name,Length
+
+      - name: Upload compiled artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cartomize-arcgispro-10.5.1.3
+          path: arcgis-build/output/*
+          if-no-files-found: error

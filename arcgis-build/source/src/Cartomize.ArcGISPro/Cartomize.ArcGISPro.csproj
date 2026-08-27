@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Cartomize.ArcGISPro</RootNamespace>
+    <AssemblyName>Cartomize.ArcGISPro</AssemblyName>
+    <Version>10.5.1.3</Version>
+    <FileVersion>10.5.1.3</FileVersion>
+    <AssemblyVersion>10.5.1.3</AssemblyVersion>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Esri.ArcGISPro.Extensions30" Version="3.7.0.1901" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Le SDK Esri doit placer Config.daml à la racine du .esriAddInX.
+      Ne pas définir CopyToOutputDirectory ici : avec PreserveNewest, le fichier
+      est déplacé sous Install\ et le SDK ne génère aucun paquet d'add-in.
+    -->
+    <Content Include="Config.daml" />
+    <Resource Include="Images\Cartomize.png" />
+    <!-- Conserver aussi les images comme contenu du paquet pour les références DAML. -->
+    <Content Include="Images\Cartomize.png" />
+  </ItemGroup>
+</Project>
