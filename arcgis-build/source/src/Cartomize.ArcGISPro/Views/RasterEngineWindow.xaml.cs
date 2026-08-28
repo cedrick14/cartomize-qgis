@@ -42,7 +42,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     private string _maximum = "1";
     private string _outlineWidth = "1.2";
     private bool _maskNoDataAutomatically = true;
-    private bool _addBlackOutline = true;
+    private bool _addBlackOutline;
     private bool _expertConfirmed;
     private string _lastReportPath = string.Empty;
     private bool _busy;
@@ -53,7 +53,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         _layer = layer;
         InitializeComponent();
         DataContext = this;
-        Title = $"Analyse raster · {layer.Name}";
+        Title = $"Analyse raster : {layer.Name}";
         Loaded += async (_, _) => await AnalyzeAsync(false);
     }
 
@@ -198,8 +198,8 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             $"Minimum valide : {sample.Minimum:G15}\nMaximum valide : {sample.Maximum:G15}\nMoyenne : {sample.Mean:G15}\nMédiane : {sample.Median:G15}\n" +
             $"Nomenclature : {sample.Nomenclature.Name} ({sample.Nomenclature.Confidence:P0})\n" +
             $"NoData masqué automatiquement : {FormatValues(sample.AutomaticNoDataValues)}";
-        ThemeEvidenceText = $"{ThemeLabel(sample.Theme)} · confiance {sample.ThemeConfidence:P0}\n" +
-            $"Schéma proposé : {sample.Nomenclature.Name} · confiance {sample.Nomenclature.Confidence:P0}\n" +
+        ThemeEvidenceText = $"{ThemeLabel(sample.Theme)}, confiance {sample.ThemeConfidence:P0}\n" +
+            $"Schéma proposé : {sample.Nomenclature.Name}, confiance {sample.Nomenclature.Confidence:P0}\n" +
             string.Join("\n", sample.ThemeRationale.Concat(sample.Nomenclature.Rationale).Distinct());
         MetadataText = JsonSerializer.Serialize(new
         {
@@ -286,7 +286,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                     PixelCount = count,
                     Percentage = 100d * count / total,
                     BorderPercentage = sample.BorderPercentages.GetValueOrDefault(proposal.Value),
-                    Status = $"{proposal.Source} · {proposal.Confidence:P0}",
+                    Status = $"{proposal.Source}, confiance {proposal.Confidence:P0}",
                     ShowInLegend = true,
                 });
             }
@@ -321,7 +321,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                     Label = range.Label,
                     Color = range.Color,
                     OpacityPercent = 100,
-                    Status = $"{range.Source} · {range.Confidence:P0}",
+                    Status = $"{range.Source}, confiance {range.Confidence:P0}",
                     ShowInLegend = true,
                 });
             }
@@ -347,7 +347,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         var semantics = ReadObjects(diagnosis, "band_semantics")
             .Select(item => $"Bande {CartomizeDataService.Text(item, "band")} : {CartomizeDataService.Text(item, "role")} ({CartomizeDataService.Number(item, "confidence"):P0})");
         var indices = ReadObjects(diagnosis, "spectral_indices")
-            .Select(item => $"{CartomizeDataService.Text(item, "name")} — {CartomizeDataService.Text(item, "formula")} ({CartomizeDataService.Number(item, "confidence"):P0})");
+            .Select(item => $"{CartomizeDataService.Text(item, "name")} : {CartomizeDataService.Text(item, "formula")} ({CartomizeDataService.Number(item, "confidence"):P0})");
         SummaryText = string.Join(Environment.NewLine, new[]
         {
             $"Type : {rasterType}", $"Thème : {theme}", $"Confiance : {confidence:P0}",
@@ -356,7 +356,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             "", "Rôles de bandes détectés", string.Join(Environment.NewLine, semantics.Select(item => $"• {item}")),
             "", "Indices spectraux calculables", string.Join(Environment.NewLine, indices.Select(item => $"• {item}")),
         });
-        ThemeEvidenceText = $"Type recommandé : {ThemeLabel(theme)} · Confiance : {confidence:P0}" +
+        ThemeEvidenceText = $"Type recommandé : {ThemeLabel(theme)}, confiance : {confidence:P0}" +
             (rationale.Any() ? Environment.NewLine + string.Join(" ", rationale.TakeLast(3)) : string.Empty);
 
         NoDataCandidates.Clear();
@@ -477,10 +477,12 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                 non_destructive = true,
             });
             StatusText = preview
-                ? "Aperçu actif · NoData transparent · pixels source inchangés."
+                ? "Aperçu actif. Le NoData est transparent et les pixels source restent inchangés."
                 : AddBlackOutline && !outlineApplied
-                    ? "Symbologie appliquée; contour indisponible hors d’une carte 2D active."
-                    : "Symbologie appliquée · NoData masqué · contour noir actualisé · pixels source inchangés.";
+                    ? "Symbologie appliquée. Le contour est indisponible hors d’une carte 2D active."
+                    : AddBlackOutline
+                        ? "Symbologie appliquée. Le NoData est masqué et le contour noir est actualisé."
+                        : "Symbologie appliquée. Le NoData est masqué et aucun contour d’emprise n’est ajouté.";
         }
         catch (Exception exception)
         {

@@ -68,7 +68,8 @@
                            ToolTip="Sources, année et crédits cartographiques" />
                 </Grid>
                 <CheckBox Content="Utiliser les couches affichées dans ArcGIS Pro" IsChecked="{Binding AutomationVisibleOnly}" />
-                <CheckBox Content="Harmoniser la symbologie du projet (peut remplacer les styles actuels)" IsChecked="{Binding AutomationApplySymbology}" />
+                <TextBlock Text="La création applique automatiquement la symbologie recommandée, masque le NoData et actualise la légende."
+                           Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,4,0,4" />
                 <CheckBox Content="Corriger automatiquement la lisibilité" IsChecked="{Binding AutomationAutoCorrect}" />
                 <Button Content="Analyser le projet" Command="{Binding AnalyzeAutomationCommand}"
                         Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
@@ -188,7 +189,7 @@
                         Visibility="{Binding HasRasterClassRecommendation, Converter={StaticResource BooleanToVisibilityConverter}}">
                   <StackPanel>
                     <TextBlock Text="Classes détectées et symbologie proposée" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
-                    <TextBlock Text="Les libellés de la table attributaire sont prioritaires; les schémas non certains restent signalés à confirmer."
+                    <TextBlock Text="Les libellés de la table attributaire sont prioritaires. Les schémas incertains restent signalés à confirmer."
                                Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <DataGrid Height="220" ItemsSource="{Binding RasterRecommendationClasses}"
                               Style="{DynamicResource Esri_DataGrid}" IsReadOnly="True"

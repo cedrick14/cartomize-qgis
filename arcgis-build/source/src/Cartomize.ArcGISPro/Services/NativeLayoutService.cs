@@ -21,7 +21,11 @@ internal sealed record NativeLayoutRequest(
     double MarginPercent,
     bool RemoveBasemapFromLegend,
     Map? LocatorMap = null,
-    int ContextOpacityPercent = 100);
+    int ContextOpacityPercent = 100,
+    IReadOnlyList<NativeLayoutLegendClass>? LegendClasses = null,
+    string LegendTitle = "");
+
+internal sealed record NativeLayoutLegendClass(string Label, string Color);
 
 internal sealed record NativeLayoutResult(
     Layout Layout,
@@ -186,16 +190,14 @@ internal static class NativeLayoutService
                     created++;
                     break;
                 case "shape":
-                case "chart":
-                case "table":
                     CreateShape(layout, item, envelope);
                     created++;
-                    if (item.Type is "chart" or "table")
-                    {
-                        var label = item.Type == "chart" ? "ZONE DE GRAPHIQUE" : "ZONE DE TABLEAU";
-                        CreatePlaceholderLabel(layout, item.Id, envelope, label);
-                        created++;
-                    }
+                    break;
+                // Une zone de graphique ou de tableau vide n'est pas dessinée.
+                // Elle reste disponible dans la maquette source, sans produire
+                // de cadre ni de libellé technique inutile sur la carte finale.
+                case "chart":
+                case "table":
                     break;
             }
         }
@@ -209,6 +211,7 @@ internal static class NativeLayoutService
             ?? throw new InvalidOperationException("La maquette ne contient aucun cadre cartographique exploitable.");
 
         ConfigureMapFrames(request, template, frames);
+        var smartLegendCreated = false;
         foreach (var item in template.Elements.OrderBy(item => item.ZIndex).ThenBy(item => item.Id, StringComparer.Ordinal))
         {
             if (item.Type is not ("legend" or "scale_bar" or "north_arrow")) continue;
@@ -216,6 +219,19 @@ internal static class NativeLayoutService
             var linked = frames.GetValueOrDefault(linkedId) ?? primary;
             try
             {
+                if (item.Type == "legend" && request.LegendClasses is { Count: > 0 })
+                {
+                    if (!smartLegendCreated)
+                    {
+                        created += CreateClassLegend(
+                            layout,
+                            ItemEnvelope(item, template),
+                            request.LegendTitle,
+                            request.LegendClasses);
+                        smartLegendCreated = true;
+                    }
+                    continue;
+                }
                 CreateSurround(layout, item, ItemEnvelope(item, template), linked);
                 created++;
             }
@@ -287,16 +303,98 @@ internal static class NativeLayoutService
         ElementFactory.Instance.CreateGraphicElement(layout, envelope, symbol, item.Id);
     }
 
-    private static void CreatePlaceholderLabel(Layout layout, string id, Envelope envelope, string label)
+    private static int CreateClassLegend(
+        Layout layout,
+        Envelope envelope,
+        string layerName,
+        IReadOnlyList<NativeLayoutLegendClass> classes)
     {
-        var symbol = SymbolFactory.Instance.ConstructTextSymbol(ColorFactory.Instance.BlackRGB, 7, "Arial", "Regular");
+        var values = classes
+            .Where(item => !string.IsNullOrWhiteSpace(item.Label))
+            .Take(64)
+            .ToArray();
+        if (values.Length == 0)
+            return 0;
+
+        const double padding = 0.06;
+        var titleHeight = Math.Min(0.48, Math.Max(0.28, envelope.Height * 0.18));
+        var titleEnvelope = EnvelopeBuilderEx.CreateEnvelope(
+            envelope.XMin + padding,
+            envelope.YMax - titleHeight,
+            envelope.XMax - padding,
+            envelope.YMax - padding);
+        var titleSymbol = SymbolFactory.Instance.ConstructTextSymbol(
+            ColorFactory.Instance.BlackRGB,
+            8.5,
+            "Arial",
+            "Bold");
+        var title = string.IsNullOrWhiteSpace(layerName)
+            ? "LÉGENDE"
+            : $"LÉGENDE\n{layerName}";
         ElementFactory.Instance.CreateTextGraphicElement(
             layout,
-            TextType.PointText,
-            new Coordinate2D(envelope.XMin + ToInches(3), envelope.YMin + ToInches(3)).ToMapPoint(),
-            symbol,
-            label,
-            $"{id}-label");
+            TextType.RectangleParagraph,
+            titleEnvelope,
+            titleSymbol,
+            title,
+            "legend-title");
+
+        var contentTop = titleEnvelope.YMin - padding;
+        var contentHeight = Math.Max(0.2, contentTop - envelope.YMin - padding);
+        var maximumRows = Math.Max(1, (int)Math.Floor(contentHeight / 0.18));
+        var columns = Math.Clamp((int)Math.Ceiling(values.Length / (double)maximumRows), 1, 3);
+        var rows = (int)Math.Ceiling(values.Length / (double)columns);
+        var rowHeight = Math.Clamp(contentHeight / Math.Max(1, rows), 0.14, 0.25);
+        var columnWidth = Math.Max(0.45, (envelope.Width - 2 * padding) / columns);
+        var textSymbol = SymbolFactory.Instance.ConstructTextSymbol(
+            ColorFactory.Instance.BlackRGB,
+            values.Length > 12 ? 6.5 : 7.5,
+            "Arial",
+            "Regular");
+        var noStroke = SymbolFactory.Instance.ConstructStroke(
+            CIMColor.CreateRGBColor(0, 0, 0, 0),
+            0,
+            SimpleLineStyle.Solid);
+        var created = 1;
+        for (var index = 0; index < values.Length; index++)
+        {
+            var column = index / rows;
+            var row = index % rows;
+            var left = envelope.XMin + padding + column * columnWidth;
+            var top = contentTop - row * rowHeight;
+            var swatchSize = Math.Min(0.14, rowHeight * 0.70);
+            var swatch = EnvelopeBuilderEx.CreateEnvelope(
+                left,
+                top - swatchSize,
+                left + swatchSize,
+                top);
+            var fill = SymbolFactory.Instance.ConstructPolygonSymbol(
+                ParseColor(values[index].Color),
+                SimpleFillStyle.Solid,
+                noStroke);
+            ElementFactory.Instance.CreateGraphicElement(
+                layout,
+                swatch,
+                fill,
+                $"legend-swatch-{index + 1}");
+
+            var textLeft = left + swatchSize + 0.05;
+            var textRight = Math.Min(envelope.XMax - padding, left + columnWidth - padding);
+            var textEnvelope = EnvelopeBuilderEx.CreateEnvelope(
+                textLeft,
+                top - rowHeight,
+                Math.Max(textLeft + 0.05, textRight),
+                top);
+            ElementFactory.Instance.CreateTextGraphicElement(
+                layout,
+                TextType.RectangleParagraph,
+                textEnvelope,
+                textSymbol,
+                values[index].Label,
+                $"legend-class-{index + 1}");
+            created += 2;
+        }
+        return created;
     }
 
     private static void CreateSurround(Layout layout, TemplateElement item, Envelope envelope, MapFrame frame)
@@ -372,7 +470,7 @@ internal static class NativeLayoutService
 
     private static string UniqueLayoutName(string requested)
     {
-        var baseName = string.IsNullOrWhiteSpace(requested) ? "Cartomize — Mise en page" : requested.Trim();
+        var baseName = string.IsNullOrWhiteSpace(requested) ? "Cartomize Mise en page" : requested.Trim();
         var names = Project.Current?.GetItems<LayoutProjectItem>()
             .Select(item => item.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];

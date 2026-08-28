@@ -94,10 +94,10 @@ internal static class NativeRasterRecommendationService
             : string.Join(", ", sample.AutomaticNoDataValues.Select(Pretty));
         var summary =
             $"Moteur : Raster Engine intelligent\n" +
-            $"Type : {RasterTypeLabel(sample.RasterType)} · {sample.BandCount} bande(s)\n" +
+            $"Type : {RasterTypeLabel(sample.RasterType)}, {sample.BandCount} bande(s)\n" +
             $"Dimensions : {sample.Width:N0} × {sample.Height:N0}\n" +
-            $"Thème : {ThemeLabel(sample.Theme)} · confiance {sample.ThemeConfidence:P0}\n" +
-            $"Nomenclature : {sample.Nomenclature.Name} · confiance {sample.Nomenclature.Confidence:P0}\n" +
+            $"Thème : {ThemeLabel(sample.Theme)}, confiance {sample.ThemeConfidence:P0}\n" +
+            $"Nomenclature : {sample.Nomenclature.Name}, confiance {sample.Nomenclature.Confidence:P0}\n" +
             $"Classes visibles : {classes.Count(item => item.Visible)}\n" +
             $"NoData transparent : {noData}\n" +
             "Le rectangle de remplissage et tout ancien contour d’emprise Cartomize seront retirés à l’application.";
@@ -139,7 +139,7 @@ internal static class NativeRasterRecommendationService
                 100,
                 count,
                 100d * count / total,
-                $"{proposal.Source} · {proposal.Confidence:P0}"));
+                $"{proposal.Source}, confiance {proposal.Confidence:P0}"));
         }
 
         var allTotal = Math.Max(1, sample.AllFrequencies.Values.Sum());
@@ -150,7 +150,7 @@ internal static class NativeRasterRecommendationService
             result.Add(new NativeRasterRecommendedClass(
                 value,
                 Pretty(value),
-                "NoData détecté — masqué",
+                "NoData détecté et masqué",
                 "#FFFFFF",
                 false,
                 0,
@@ -171,7 +171,7 @@ internal static class NativeRasterRecommendationService
             100,
             0,
             0,
-            $"{range.Source} · {range.Confidence:P0}"))
+            $"{range.Source}, confiance {range.Confidence:P0}"))
             .ToArray();
 
     private static string RasterTypeLabel(string value) => value switch

@@ -122,7 +122,7 @@
               <Label Grid.Row="2" Grid.Column="2" Content="Bande bleue" /><ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding BlueBand}" />
               <CheckBox Grid.Row="7" Grid.ColumnSpan="4" Content="Masquer automatiquement le NoData détecté (transparence réversible)" IsChecked="{Binding MaskNoDataAutomatically}" Margin="4" />
               <StackPanel Grid.Row="8" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="4">
-                <CheckBox Content="Ajouter un contour noir autour de l’emprise du raster" IsChecked="{Binding AddBlackOutline}" VerticalAlignment="Center" />
+                <CheckBox Content="Ajouter manuellement un contour noir autour de l’emprise" IsChecked="{Binding AddBlackOutline}" VerticalAlignment="Center" />
                 <Label Content="Épaisseur (pt)" Margin="12,0,0,0" />
                 <TextBox Text="{Binding OutlineWidth}" Width="70" VerticalAlignment="Center" />
               </StackPanel>

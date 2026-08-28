@@ -48,7 +48,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     private string _layoutTitle = "TITRE DE LA CARTE";
     private string _layoutSubtitle = string.Empty;
     private string _layoutSources = string.Empty;
-    private string _layoutName = "Cartomize — Mise en page";
+    private string _layoutName = "Cartomize Mise en page";
     private string _layoutMargin = "3";
     private string _auditScoreText = "Score non évalué";
     private string _labelAuditText = "Étiquettes non évaluées";
@@ -83,7 +83,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     private bool _hasRasterClassRecommendation;
     private bool _isBusy;
     private bool _automationVisibleOnly = true;
-    private bool _automationApplySymbology;
+    private bool _automationApplySymbology = true;
     private bool _automationAutoCorrect = true;
     private bool _layoutVisibleOnly = true;
     private bool _layoutAddGrid;
@@ -106,7 +106,7 @@ internal class CartomizeDockPaneViewModel : DockPane
         foreach (var item in ObjectiveChoices()) Objectives.Add(item);
         foreach (var item in StyleProfileChoices()) StyleProfiles.Add(item);
         foreach (var item in DefaultContextChoices()) ContextChoices.Add(item);
-        foreach (var item in new[] { "Symbole unique", "Catégorisé", "Gradué — quantiles" }) RenderModes.Add(item);
+        foreach (var item in new[] { "Symbole unique", "Catégorisé", "Gradué par quantiles" }) RenderModes.Add(item);
         foreach (var item in new[]
         {
             "Qualitative", "Séquentielle", "Divergente", "Land Cover", "Forest Dynamics",
@@ -263,7 +263,7 @@ internal class CartomizeDockPaneViewModel : DockPane
         set
         {
             if (!SetProperty(ref _selectedTemplate, value)) return;
-            _templateDetails = value is null ? "Sélectionnez une maquette Cartomize." : $"{value.Name}\n{value.Category} · {value.PageFormat}\n\n{value.Description}";
+            _templateDetails = value is null ? "Sélectionnez une maquette Cartomize." : $"{value.Name}\n{value.Category}, {value.PageFormat}\n\n{value.Description}";
             NotifyPropertyChanged(nameof(TemplateDetails));
             CommandManager.InvalidateRequerySuggested();
         }
@@ -428,14 +428,14 @@ internal class CartomizeDockPaneViewModel : DockPane
         var selectedLayer = await ResolveSelectedLayerAsync();
         var lines = new List<string>
         {
-            $"Carte : {SelectedMapName ?? "—"}",
+            $"Carte : {SelectedMapName ?? "non renseignée"}",
             $"Objectif : {SelectedObjective?.Label ?? "Détection automatique"}",
             $"Couches : {LayerChoices.Count}",
         };
         if (selectedLayer is not null)
         {
             var baselineProfile = await NativeLayerService.AnalyzeAsync(selectedLayer);
-            lines.Add($"Profil natif : {baselineProfile.Role} · {baselineProfile.RecommendedRenderer}");
+            lines.Add($"Profil natif : {baselineProfile.Role}, rendu {baselineProfile.RecommendedRenderer}");
         }
         if (selectedLayer is RasterLayer rasterLayer)
         {
@@ -457,9 +457,9 @@ internal class CartomizeDockPaneViewModel : DockPane
         AutomationReportText = string.Join(Environment.NewLine, lines);
         BuildProposals();
         StatusText = selectedLayer is RasterLayer
-            ? "Projet analysé automatiquement par Raster Engine; classes et NoData sont prêts."
+            ? "Projet analysé par Raster Engine. Les classes, la légende et le masque NoData sont prêts."
             : selectedLayer is BasicFeatureLayer
-                ? "Projet analysé automatiquement par Vector Engine multi-couches."
+                ? "Projet analysé par Vector Engine multi-couches. Les superpositions et la maquette sont prêtes."
                 : "Analyse terminée sans couche principale exploitable.";
     }
 
@@ -488,11 +488,8 @@ internal class CartomizeDockPaneViewModel : DockPane
             SelectedTemplate = _allTemplates.FirstOrDefault(item => item.Id.Equals(proposal.TemplateId, StringComparison.OrdinalIgnoreCase));
             if (SelectedTemplate is null)
                 throw new InvalidOperationException($"Maquette introuvable : {proposal.TemplateId}");
-            if (AutomationApplySymbology && SelectedLayerChoice is not null && !IsBasemapLayer)
-            {
-                await AnalyzeSelectedLayerAsync();
+            if (SelectedLayerChoice is not null && !IsBasemapLayer)
                 await ApplyRecommendationAsync();
-            }
             await ExecuteLayoutAsync("Créer", string.Empty);
             _lastRecipeJson = BuildCurrentRecipeJson();
             using var recipeDocument = JsonDocument.Parse(_lastRecipeJson);
@@ -574,7 +571,7 @@ internal class CartomizeDockPaneViewModel : DockPane
         if (selectedLayer is RasterLayer rasterLayer)
         {
             await AnalyzeRasterRecommendationAsync(rasterLayer, false);
-            StatusText = "Couche analysée par Raster Engine; classes, nomenclature et NoData sont prêts.";
+            StatusText = "Couche analysée par Raster Engine. Les classes, la nomenclature et le masque NoData sont prêts.";
         }
         else if (selectedLayer is BasicFeatureLayer vectorLayer)
         {
@@ -700,7 +697,7 @@ internal class CartomizeDockPaneViewModel : DockPane
         {
             "Catégoriel" => "Catégorisé",
             "Composition RGB" => "Symbole unique",
-            _ => "Gradué — quantiles",
+            _ => "Gradué par quantiles",
         };
         SelectedPalette = recommendation.Palette;
         LabelsEnabled = false;
@@ -742,8 +739,8 @@ internal class CartomizeDockPaneViewModel : DockPane
         HasRasterClassRecommendation = false;
         var profile = analysis.Profiles.FirstOrDefault(item => item.LayerId.Equals(analysis.PrimaryLayerId, StringComparison.Ordinal))
                       ?? analysis.Profiles.First();
-        var labelField = string.IsNullOrWhiteSpace(profile.LabelField) ? "—" : profile.LabelField;
-        var thematicField = string.IsNullOrWhiteSpace(profile.ThematicField) ? "—" : profile.ThematicField;
+        var labelField = string.IsNullOrWhiteSpace(profile.LabelField) ? "non défini" : profile.LabelField;
+        var thematicField = string.IsNullOrWhiteSpace(profile.ThematicField) ? "non défini" : profile.ThematicField;
         RecommendationText =
             $"Moteur : Vector Engine multi-couches\n" +
             $"Couche principale : {profile.Name}\nRôle : {profile.Role}\nGéométrie : {profile.GeometryType}\n" +
@@ -947,7 +944,9 @@ internal class CartomizeDockPaneViewModel : DockPane
                     margin,
                     true,
                     locator,
-                    ParseInt(ContextOpacity, 100, 0, 100)));
+                    ParseInt(ContextOpacity, 100, 0, 100),
+                    CurrentRasterLegendClasses(),
+                    SelectedLayerChoice?.Name ?? string.Empty));
                 layout = result.Layout;
                 SelectedLayoutName = result.LayoutName;
                 StatusText = result.Warnings.Count == 0
@@ -1463,22 +1462,82 @@ internal class CartomizeDockPaneViewModel : DockPane
     {
         if (_allTemplates.Count == 0) return;
         var objective = SelectedObjective?.Id ?? "auto";
-        var preferred = objective switch
-        {
-            "occupation_sol" => "occupation_sol/institutionnel", "environnement" => "environnement/fragmentation-forestiere-a3",
-            "transport" => "transport/accessibilite-reseau-a4", "sante" => "sante/couverture-services-a4", "agriculture" => "agriculture/aptitude-agricole-a3",
-            "humanitaire" => "humanitaire/situation-urgence-a3", "biodiversite" => "biodiversite/connectivite-ecologique-a4", _ => "administrative/institutionnel",
-        };
-        TemplateItem Get(string id) => _allTemplates.FirstOrDefault(item => item.Id == id) ?? _allTemplates[0];
-        var options = new[] { ("institutional", "Institutionnelle", Get(preferred), 3d, objective is "topographique" or "atlas"),
-            ("analytical", "Analytique", Get("professionnelles/13-planche-analyse-multi-blocs"), 4d, false),
-            ("minimal", "Minimaliste", Get("professionnelles/03-localisation-hierarchique"), 5d, false) };
+        var raster = _lastRasterRecommendation;
+        var vector = _lastVectorRecommendation;
+        var profile = new NativeTemplateProjectProfile(
+            objective,
+            raster is not null || SelectedLayerChoice?.IsRaster == true,
+            raster?.Sample.Theme ?? string.Empty,
+            raster?.Sample.RasterType ?? string.Empty,
+            vector?.Profiles.FirstOrDefault(item => item.LayerId.Equals(vector.PrimaryLayerId, StringComparison.Ordinal))?.Role ?? string.Empty,
+            raster?.Classes.Count(item => item.Visible) ?? 0,
+            LayerChoices.Count(item => item.IsRaster && !item.IsBasemap),
+            LayerChoices.Count(item => !item.IsRaster && !item.IsBasemap),
+            vector?.Relations.Count ?? 0);
+        var recommendations = NativeTemplateRecommendationService.Recommend(_allTemplates, profile);
+        var names = new[] { "Recommandée", "Analyse détaillée", "Alternative compacte" };
+        var title = ProposalTitle(raster);
+        var subtitle = ProposalSubtitle(raster, vector);
         Proposals.Clear();
-        var score = 92;
-        foreach (var option in options) { Proposals.Add(new AutomationProposal(option.Item1, option.Item2, option.Item3.Id, option.Item3.Name, option.Item3.PageFormat,
-            SelectedObjective?.Label.ToUpperInvariant() ?? "TITRE DE LA CARTE", SelectedObjective?.Label ?? string.Empty, option.Item4, option.Item5,
-            $"Marge {option.Item4:0}% · grille {(option.Item5 ? "oui" : "non")}") { Score = score }); score -= 4; }
+        foreach (var (recommendation, index) in recommendations.Select((value, index) => (value, index)))
+        {
+            Proposals.Add(new AutomationProposal(
+                $"smart-{index + 1}",
+                names.ElementAtOrDefault(index) ?? $"Variante {index + 1}",
+                recommendation.Template.Id,
+                recommendation.Template.Name,
+                recommendation.Template.PageFormat,
+                title,
+                subtitle,
+                recommendation.MarginPercent,
+                recommendation.AddGrid,
+                recommendation.Explanation)
+            { Score = recommendation.Score });
+        }
         SelectedProposal = Proposals.FirstOrDefault();
+    }
+
+    private IReadOnlyList<NativeLayoutLegendClass> CurrentRasterLegendClasses()
+    {
+        var selectedId = SelectedLayerChoice?.Id;
+        var recommendation = _lastRasterRecommendation;
+        if (recommendation is null
+            || selectedId is null
+            || !recommendation.LayerId.Equals(selectedId, StringComparison.Ordinal))
+            return [];
+        return recommendation.Classes
+            .Where(item => item.Visible && !string.IsNullOrWhiteSpace(item.Label))
+            .Select(item => new NativeLayoutLegendClass(item.Label, item.Color))
+            .ToArray();
+    }
+
+    private string ProposalTitle(NativeRasterRecommendation? raster)
+    {
+        if (SelectedObjective is not null && SelectedObjective.Id != "auto")
+            return SelectedObjective.Label.ToUpperInvariant();
+        return raster?.Sample.Theme switch
+        {
+            "land_cover" => "OCCUPATION DU SOL",
+            "forest_dynamics" => "DYNAMIQUE FORESTIÈRE",
+            "deforestation" => "DÉFORESTATION",
+            "forest_degradation" => "DÉGRADATION FORESTIÈRE",
+            "land_cover_change" => "CHANGEMENT D’OCCUPATION DU SOL",
+            "elevation" => "RELIEF ET ALTITUDE",
+            "slope" => "CARTE DES PENTES",
+            "risk" => "CARTE DES RISQUES",
+            _ => "TITRE DE LA CARTE",
+        };
+    }
+
+    private static string ProposalSubtitle(
+        NativeRasterRecommendation? raster,
+        NativeVectorWorkspaceAnalysis? vector)
+    {
+        if (raster is not null)
+            return $"{raster.Sample.Nomenclature.Name}. {raster.Classes.Count(item => item.Visible)} classes détectées";
+        if (vector is not null)
+            return $"{vector.Profiles.Count} couches et {vector.Relations.Count} relations spatiales analysées";
+        return string.Empty;
     }
 
     private bool LoadAutomationProposals(JsonElement root)

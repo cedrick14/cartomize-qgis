@@ -28,6 +28,13 @@ internal static class CartomizeDataService
             using var document = JsonDocument.Parse(File.ReadAllText(fullPath));
             var item = document.RootElement;
             var layout = item.TryGetProperty("layout_json", out var layoutElement) ? layoutElement : default;
+            var elementTypes = layout.ValueKind == JsonValueKind.Object
+                && layout.TryGetProperty("elements", out var elements)
+                && elements.ValueKind == JsonValueKind.Array
+                    ? elements.EnumerateArray()
+                        .Select(value => Text(value, "type"))
+                        .ToArray()
+                    : [];
             var id = Path.ChangeExtension(relative.Replace('\\', '/'), null) ?? relative;
             templates.Add(new TemplateItem(
                 id,
@@ -35,7 +42,13 @@ internal static class CartomizeDataService
                 Text(item, "category", id.Split('/')[0]),
                 Text(item, "description", string.Empty),
                 Text(item, "page_format", layout.ValueKind == JsonValueKind.Object ? Text(layout, "page_format", string.Empty) : string.Empty),
-                fullPath));
+                fullPath)
+            {
+                MapFrameCount = elementTypes.Count(value => value == "map_frame"),
+                LegendCount = elementTypes.Count(value => value == "legend"),
+                ChartCount = elementTypes.Count(value => value == "chart"),
+                TableCount = elementTypes.Count(value => value == "table"),
+            });
         }
         return templates
             .OrderBy(item => item.Category, StringComparer.CurrentCultureIgnoreCase)

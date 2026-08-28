@@ -13,8 +13,8 @@ internal sealed class ProjectRasterClassItem
         Value = value;
         Label = label;
         Color = color;
-        PercentageText = percentage > 0 ? $"{percentage:0.##} %" : "—";
-        State = visible ? state : "Masqué · " + state;
+        PercentageText = percentage > 0 ? $"{percentage:0.##} %" : "Non calculée";
+        State = visible ? state : "Masqué. " + state;
     }
 
     public string Value { get; }
@@ -64,7 +64,11 @@ internal sealed record TemplateItem(
     string PageFormat,
     string Path)
 {
-    public string Label => $"{Category} — {Name}";
+    public int MapFrameCount { get; init; }
+    public int LegendCount { get; init; }
+    public int ChartCount { get; init; }
+    public int TableCount { get; init; }
+    public string Label => $"{Category} : {Name}";
     public override string ToString() => Label;
 }
 
@@ -90,7 +94,7 @@ internal sealed record AuditFindingItem(
     string Message,
     string Remediation)
 {
-    public string Summary => string.IsNullOrWhiteSpace(Remediation) ? Message : $"{Message} — {Remediation}";
+    public string Summary => string.IsNullOrWhiteSpace(Remediation) ? Message : $"{Message} : {Remediation}";
 }
 
 internal sealed record CommunityResourceItem(
