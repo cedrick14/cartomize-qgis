@@ -111,7 +111,7 @@
                   <Label Grid.Row="1" Content="Titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LayoutTitle, UpdateSourceTrigger=PropertyChanged}" />
                   <Label Grid.Row="2" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LayoutSubtitle, UpdateSourceTrigger=PropertyChanged}" />
                   <Label Grid.Row="3" Content="Marge d’emprise" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LayoutMargin, UpdateSourceTrigger=PropertyChanged}" />
-                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding SelectedMapName}" />
+                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding ContextChoices}" SelectedItem="{Binding SelectedContextChoice}" />
                   <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ContextOpacity, UpdateSourceTrigger=PropertyChanged}" />
                   <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding LocatorMapName}" />
                   <Label Grid.Row="7" Content="Grille" Margin="0,6,12,0" /><CheckBox Grid.Row="7" Grid.Column="1" Content="Afficher une grille de coordonnées" IsChecked="{Binding LayoutAddGrid}" />
@@ -258,7 +258,7 @@
                   <Label Grid.Row="1" Content="Sous-titre" Margin="0,6,12,0" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding LayoutSubtitle, UpdateSourceTrigger=PropertyChanged}" ToolTip="Sous-titre ou période d’analyse" />
                   <Label Grid.Row="2" Content="Sources" Margin="0,6,12,0" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding LayoutSources, UpdateSourceTrigger=PropertyChanged}" ToolTip="Sources, auteur et date" />
                   <Label Grid.Row="3" Content="Marge cartographique" Margin="0,6,12,0" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding LayoutMargin, UpdateSourceTrigger=PropertyChanged}" />
-                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding SelectedMapName}" />
+                  <Label Grid.Row="4" Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding ContextChoices}" SelectedItem="{Binding SelectedContextChoice}" />
                   <Label Grid.Row="5" Content="Opacité du contexte" Margin="0,6,12,0" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ContextOpacity, UpdateSourceTrigger=PropertyChanged}" />
                   <Label Grid.Row="6" Content="Carte de situation" Margin="0,6,12,0" /><ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding MapNames}" SelectedItem="{Binding LocatorMapName}" />
                 </Grid>

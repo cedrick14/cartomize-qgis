@@ -23,6 +23,8 @@ internal sealed record AutomationProposal(
     string TemplateId,
     string TemplateName,
     string PageFormat,
+    string Title,
+    string Subtitle,
     double MarginPercent,
     bool AddGrid,
     string Decisions)

@@ -196,7 +196,7 @@ class QgisParityTests(unittest.TestCase):
             '"palette"', '"label_field"', '"labels_enabled"',
             '"label_size"', '"label_placement"', '"opacity_percent"',
             '"expert_confirmed"', '"context_opacity"', '"locator_map"',
-            '"proposal_validated"',
+            '"proposal_validated"', '"background_choice"',
         ):
             self.assertIn(parameter, self.toolbox)
 
@@ -211,10 +211,10 @@ class QgisParityTests(unittest.TestCase):
             _run_tool_input_counts(self.view_model),
             {
                 "AuditProject": {2},
-                "AutopilotMap": {15},
+                "AutopilotMap": {16},
                 "BatchMaps": {2},
-                "CreateLayout": {19},
-                "GeoIntelligence": {2},
+                "CreateLayout": {20},
+                "GeoIntelligence": {6},
                 "MapOpsCheck": {4},
                 "RasterIntelligence": {3, 13},
                 "ReplayRecipe": {1},
@@ -236,6 +236,40 @@ class QgisParityTests(unittest.TestCase):
             self.assertEqual([item.max_zoom for item in definitions], [19, 17, 19])
         finally:
             sys.path.pop(0)
+
+    def test_operations_are_wired_to_equivalent_actions_not_placeholders(self):
+        self.assertIn("UndoStyleCommand = new AsyncDelegateCommand(RestorePreviousStyleAsync", self.view_model)
+        self.assertNotIn('UndoStyleCommand = CoreCommand("esri_core_undoButton"', self.view_model)
+        self.assertIn('proposal.TemplateId, report', self.view_model)
+        self.assertNotIn('proposal.TemplateName, report', self.view_model)
+        self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer.Name', self.view_model)
+        self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer.Name', self.view_model)
+        self.assertIn('operation is "Créer" or "Synchroniser" or "Optimiser"', self.view_model)
+        self.assertNotIn("Activez la régénération automatique avant de rejouer la recette.", self.view_model)
+
+    def test_project_analysis_consumes_the_same_decisions_as_qgis(self):
+        for name in ('"objective"', '"main_layer"', '"style_profile"', '"visible_only"'):
+            self.assertIn(name, self.toolbox)
+        self.assertIn('"proposals": _automation_proposals', self.toolbox)
+        self.assertIn("LoadAutomationProposals(root)", self.view_model)
+
+    def test_context_choice_matches_qgis_and_is_not_the_map_selector(self):
+        self.assertEqual(self.xaml_text.count('ItemsSource="{Binding ContextChoices}"'), 2)
+        self.assertEqual(self.xaml_text.count('SelectedItem="{Binding SelectedContextChoice}"'), 2)
+        self.assertNotIn('Content="Contexte cartographique" Margin="0,6,12,0" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding MapNames}"', self.xaml_text)
+        for value in ("automatic", "none", "catalog:osm", "catalog:terrain", "catalog:satellite"):
+            self.assertIn(f'new ChoiceItem("{value}"', self.view_model)
+        self.assertIn("_apply_context_choice", self.toolbox)
+
+    def test_recipe_dependent_actions_require_a_generated_or_loaded_recipe(self):
+        self.assertGreaterEqual(
+            self.view_model.count('if (string.IsNullOrWhiteSpace(_lastRecipeJson))'),
+            3,
+        )
+        self.assertIn("_lastRecipeJson = File.ReadAllText(dialog.FileName);", self.view_model)
+
+    def test_active_layer_list_excludes_groups_and_other_non_data_layers(self):
+        self.assertIn("layer is BasicFeatureLayer or RasterLayer", self.view_model)
 
     def test_version_and_native_arcgis_theme(self):
         self.assertIn('VersionText => "Cartomize 10.5.1"', self.view_model)
@@ -293,7 +327,7 @@ class QgisParityTests(unittest.TestCase):
             "LayersRemovedEvent.Subscribe(OnLayersChanged)",
         ):
             self.assertIn(event_name, self.view_model)
-        self.assertIn("GetSelectedLayers().FirstOrDefault()", self.view_model)
+        self.assertIn("GetSelectedLayers().FirstOrDefault(layer =>", self.view_model)
         self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer', self.view_model)
         self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer', self.view_model)
         self.assertIn('GeoprocessingService.Open("RasterIntelligence", selectedLayer', self.view_model)
@@ -340,10 +374,18 @@ class QgisParityTests(unittest.TestCase):
             '"esri_mapping_selectedLayerPropertiesButton"',
             "FrameworkApplication.Panes.CreateLayoutPaneAsync(layout)",
             "layoutView.Refresh",
+            "ZoomToWholePage",
             "ExecuteCoreCommand(id, successMessage)",
             "Commande ArcGIS Pro introuvable",
         ):
             self.assertIn(required, self.view_model)
+
+    def test_human_approval_runs_quality_control_and_blocks_critical_findings(self):
+        self.assertIn("ApproveLayoutCommand = new AsyncDelegateCommand(ApproveLayoutAsync", self.view_model)
+        self.assertIn("await RunAuditAsync();", self.view_model)
+        self.assertIn('item.Severity.Equals("critical"', self.view_model)
+        self.assertIn('human_status = "Approuvée"', self.view_model)
+        self.assertIn("fingerprint", self.view_model)
 
     def test_arcgis_dockpane_uses_a_lightweight_initial_visual_tree(self):
         self.assertEqual(len(list(self.host_root.iter(NS + "ContentControl"))), 1)

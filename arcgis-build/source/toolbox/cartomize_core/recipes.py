@@ -12,7 +12,7 @@ def make_recipe(**values):
         "map_name", "template_id", "layout_name", "title", "subtitle", "credits",
         "remove_basemap_from_legend", "open_view", "export_path", "dpi",
         "visible_only", "margin_percent", "add_grid", "pagx_path",
-        "context_opacity_percent", "locator_map_name", "proposal_validated",
+        "background_choice", "context_opacity_percent", "locator_map_name", "proposal_validated",
     }
     layout = {key: values[key] for key in allowed if key in values}
     template_id = str(values.get("template_id") or "")
@@ -46,6 +46,7 @@ def make_recipe(**values):
         "sources": str(values.get("sources") or values.get("credits") or "")[:2000],
         "background_mode": str(values.get("background_mode") or "automatic"),
         "background_layer_id": str(values.get("background_layer_id") or ""),
+        "background_choice": str(values.get("background_choice") or values.get("background_mode") or "automatic"),
         "locator_mode": str(values.get("locator_mode") or "automatic"),
         "layout": layout,
     }

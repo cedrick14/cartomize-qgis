@@ -23,6 +23,7 @@ from cartomize_core.mapops import save as save_snapshot
 from cartomize_core.mapops import snapshot
 from cartomize_core.raster import analyze_raster, raster_type_label
 from cartomize_core.project_graph import ProjectRelationshipEngine
+from cartomize_core.project_service import ProjectService
 from cartomize_core.recipes import load_recipe, make_recipe, save_recipe
 from cartomize_core.symbology import apply_raster_symbology, apply_vector_symbology
 from cartomize_core.templates import TemplateCatalog, discover_template_root
@@ -231,6 +232,121 @@ def _choice_key(value, choices, fallback):
     return fallback
 
 
+def _context_choices(map_item):
+    choices = [
+        ("automatic", "Selon l’affichage ArcGIS Pro"),
+        ("none", "Couches thématiques uniquement"),
+    ]
+    choices.extend(
+        (f"catalog:{item.key}", item.label)
+        for item in ProjectService.context_basemap_definitions()
+    )
+    if map_item is not None:
+        for layer in map_item.listLayers():
+            if getattr(layer, "isBroken", False):
+                continue
+            if not (is_basemap_layer(layer) or getattr(layer, "isRasterLayer", False)):
+                continue
+            layer_id = str(getattr(layer, "URI", "") or getattr(layer, "longName", "") or layer.name)
+            choices.append((f"layer:{layer_id}", str(layer.name)))
+    return choices
+
+
+def _context_parameter():
+    parameter = arcpy.Parameter(
+        displayName="Contexte cartographique",
+        name="background_choice",
+        datatype="GPString",
+        parameterType="Optional",
+        direction="Input",
+    )
+    try:
+        choices = _context_choices(_map_by_name(_project(), None))
+        parameter.filter.type = "ValueList"
+        parameter.filter.list = [label for _key, label in choices]
+        parameter.value = choices[0][1]
+    except Exception:
+        parameter.value = "Selon l’affichage ArcGIS Pro"
+    return parameter
+
+
+def _context_key(value, map_item):
+    text = str(value or "automatic")
+    for key, label in _context_choices(map_item):
+        if text == key or text == label:
+            return key
+    return "automatic"
+
+
+def _apply_context_choice(map_item, value, opacity_percent=100):
+    choice = _context_key(value, map_item)
+    percent = max(0, min(100, int(opacity_percent or 100)))
+    managed_prefix = ProjectService.MANAGED_PREFIX
+    managed = [
+        layer for layer in map_item.listLayers()
+        if str(getattr(layer, "name", "")).startswith(managed_prefix)
+    ]
+
+    if choice == "none":
+        for layer in managed:
+            map_item.removeLayer(layer)
+        return "none", ""
+
+    if choice.startswith("catalog:"):
+        key = choice.split(":", 1)[1]
+        definition = next(
+            (item for item in ProjectService.context_basemap_definitions() if item.key == key),
+            None,
+        )
+        if definition is None:
+            raise RuntimeError(f"Fond cartographique inconnu : {key}")
+        expected_name = f"{managed_prefix}{key}"
+        layer = next((item for item in managed if str(item.name) == expected_name), None)
+        for item in managed:
+            if item is not layer:
+                map_item.removeLayer(item)
+        if layer is None:
+            layer = map_item.addDataFromPath(definition.url)
+            try:
+                layer.name = expected_name
+            except Exception:
+                pass
+        try:
+            layer.transparency = 100 - percent
+        except Exception:
+            pass
+        return "layer", str(getattr(layer, "URI", "") or getattr(layer, "longName", "") or layer.name)
+
+    if choice.startswith("layer:"):
+        layer_id = choice.split(":", 1)[1]
+        layer = next(
+            (
+                item for item in map_item.listLayers()
+                if layer_id in {
+                    str(getattr(item, "URI", "")),
+                    str(getattr(item, "longName", "")),
+                    str(getattr(item, "name", "")),
+                }
+            ),
+            None,
+        )
+        if layer is None:
+            raise RuntimeError("La couche de contexte sélectionnée n’est plus disponible.")
+        try:
+            layer.transparency = 100 - percent
+        except Exception:
+            pass
+        return "layer", layer_id
+
+    for layer in map_item.listLayers():
+        if is_basemap_layer(layer):
+            try:
+                layer.transparency = 100 - percent
+            except Exception:
+                pass
+    return "automatic", ""
+
+
 def _text(parameter):
     if parameter is None:
         return ""
@@ -331,6 +447,8 @@ class VectorIntelligence:
                 aprx = _project()
                 active_map = _map_by_name(aprx, None)
                 layer = source if hasattr(source, "symbology") else _layer_by_name(active_map, profile["layer_name"], lambda item: getattr(item, "isFeatureLayer", False))
+                if is_basemap_layer(layer):
+                    raise RuntimeError("Le rendu du fond cartographique est protégé. Sélectionnez une couche thématique pour la symbologie.")
                 style_result = apply_vector_symbology(aprx, layer, profile, int(parameters[6].value or 5), mode=_text(parameters[4]), field_name=_text(parameters[5]), palette=_text(parameters[7]), label_field=_text(parameters[8]), labels_enabled=bool(parameters[9].value), label_size=float(parameters[10].value or 9.5), label_placement=_text(parameters[11]), opacity_percent=int(parameters[12].value or 100), expert_confirmed=bool(parameters[13].value))
             expert = {"render_mode": _text(parameters[4]), "thematic_field": profile.get("thematic_field", ""), "max_classes": int(parameters[6].value or 5), "palette": _text(parameters[7]), "label_field": profile.get("label_field", ""), "labels_enabled": bool(parameters[9].value), "label_size": float(parameters[10].value or 9.5), "label_placement": _text(parameters[11]), "opacity_percent": int(parameters[12].value or 100), "expert_confirmed": bool(parameters[13].value)}
             payload = {"kind": "vector_intelligence", "profile": profile, "expert_parameters": expert, "styling": style_result}
@@ -384,6 +502,8 @@ class RasterIntelligence:
                         "reason": "Le diagnostic est terminé, mais la source n’est pas une couche de la carte active.",
                     }
                 else:
+                    if is_basemap_layer(layer):
+                        raise RuntimeError("Le rendu du fond cartographique est protégé. Sélectionnez une couche thématique pour la symbologie.")
                     style_result = apply_raster_symbology(aprx, layer, diagnosis, int(parameters[5].value or 5), palette=_text(parameters[6]), opacity_percent=int(parameters[11].value or 100), expert_confirmed=bool(parameters[12].value))
             expert = {"render_mode": _text(parameters[3]), "max_classes": int(parameters[5].value or 5), "palette": _text(parameters[6]), "opacity_percent": int(parameters[11].value or 100), "expert_confirmed": bool(parameters[12].value)}
             payload = {"kind": "raster_intelligence", "diagnosis": diagnosis, "expert_parameters": expert, "styling": style_result}
@@ -436,6 +556,7 @@ class CreateLayout:
             existing_layout.filter.list = names
         except Exception:
             pass
+        background_choice = _context_parameter()
         context_opacity = _integer_parameter("Opacité du contexte (%)", "context_opacity", 100, 0, 100)
         locator_map = arcpy.Parameter(displayName="Carte de situation", name="locator_map", datatype="GPString", parameterType="Optional", direction="Input")
         try:
@@ -446,7 +567,8 @@ class CreateLayout:
         return [
             map_parameter, template, title, subtitle, layout_name, credits,
             visible_only, margin, add_grid, hide_basemap, open_view,
-            export, dpi, pagx, recipe, operation, existing_layout, context_opacity, locator_map, _status_parameter(),
+            export, dpi, pagx, recipe, operation, existing_layout, background_choice,
+            context_opacity, locator_map, _status_parameter(),
         ]
 
     def execute(self, parameters, messages):
@@ -457,7 +579,10 @@ class CreateLayout:
             spec = _catalog().get(template_id)
             operation = _text(parameters[15]) or "Créer"
             existing_name = _text(parameters[16]) or _text(parameters[4])
-            locator_map = _map_by_name(aprx, _text(parameters[18])) if _text(parameters[18]) else None
+            background_mode, background_layer_id = _apply_context_choice(
+                map_item, _text(parameters[17]), int(parameters[18].value or 100)
+            )
+            locator_map = _map_by_name(aprx, _text(parameters[19])) if _text(parameters[19]) else None
             result = None
             status = ""
             if operation == "Créer":
@@ -474,7 +599,7 @@ class CreateLayout:
                     dpi=int(parameters[12].value or DEFAULT_DPI),
                     pagx_path=_text(parameters[13]),
                     locator_map=locator_map,
-                    context_opacity_percent=int(parameters[17].value or 100),
+                    context_opacity_percent=int(parameters[18].value or 100),
                 )
                 status = f"{result.layout_name} créée — {result.element_count} éléments — {result.map_frame_count} cadre(s)"
             else:
@@ -514,9 +639,13 @@ class CreateLayout:
                     remove_basemap_from_legend=bool(parameters[9].value), open_view=bool(parameters[10].value),
                     export_path=_text(parameters[11]), dpi=int(parameters[12].value or DEFAULT_DPI),
                     pagx_path=_text(parameters[13]), sources=_text(parameters[5]),
+                    background_mode=background_mode,
+                    background_layer_id=background_layer_id,
+                    background_choice=_context_key(_text(parameters[17]), map_item),
+                    locator_mode="automatic",
                 )
                 save_recipe(_text(parameters[14]), recipe)
-            parameters[19].value = status
+            parameters[20].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -531,18 +660,43 @@ class GeoIntelligence:
 
     def getParameterInfo(self):
         map_parameter = _map_parameter()
+        objective = _choice_parameter("Objectif cartographique", "objective", OBJECTIVES, "auto")
+        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPString", parameterType="Optional", direction="Input")
+        try:
+            active_map = _map_by_name(_project(), None)
+            main_layer.filter.type = "ValueList"
+            main_layer.filter.list = [
+                layer.name for layer in active_map.listLayers()
+                if not getattr(layer, "isBroken", False)
+                and not is_basemap_layer(layer)
+                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
+            ]
+        except Exception:
+            pass
+        style_profile = _choice_parameter("Profil cartographique", "style_profile", STYLE_PROFILES, "balanced")
+        visible_only = _bool_parameter("Utiliser uniquement les couches visibles", "visible_only", True)
         output = _file_parameter("Rapport JSON", "output_report")
-        return [map_parameter, output, _status_parameter()]
+        return [map_parameter, objective, main_layer, style_profile, visible_only, output, _status_parameter()]
 
     def execute(self, parameters, messages):
         try:
             aprx = _project()
             map_item = _map_by_name(aprx, _text(parameters[0]))
+            objective = _choice_key(_text(parameters[1]), OBJECTIVES, "auto")
+            objective_label = dict(OBJECTIVES).get(objective, "Détection automatique")
+            requested_main = _text(parameters[2])
+            style_profile = _choice_key(_text(parameters[3]), STYLE_PROFILES, "balanced")
+            visible_only = bool(parameters[4].value)
             audit = audit_project(arcpy, aprx)
             layers = []
-            layer_objects = list(map_item.listLayers())
+            layer_objects = [
+                layer for layer in map_item.listLayers()
+                if not getattr(layer, "isBroken", False)
+                and (not visible_only or bool(getattr(layer, "visible", True)))
+            ]
             roles = {}
             main_layer_id = ""
+            main_analysis = {}
             for layer in layer_objects:
                 layer_id = str(getattr(layer, "URI", "") or getattr(layer, "longName", layer.name))
                 record = {
@@ -575,8 +729,17 @@ class GeoIntelligence:
                         record.update({"kind": "raster", "error": str(exc)})
                 else:
                     record["kind"] = "other"
-                if not main_layer_id and not record["basemap"] and record.get("kind") in {"vector", "raster"}:
+                if (
+                    requested_main
+                    and str(layer.name).casefold() == requested_main.casefold()
+                    and not record["basemap"]
+                    and record.get("kind") in {"vector", "raster"}
+                ):
                     main_layer_id = layer_id
+                    main_analysis = dict(record)
+                elif not main_layer_id and not record["basemap"] and record.get("kind") in {"vector", "raster"}:
+                    main_layer_id = layer_id
+                    main_analysis = dict(record)
                 layers.append(record)
 
             graph = ProjectRelationshipEngine(arcpy).analyze(
@@ -600,11 +763,16 @@ class GeoIntelligence:
                 "relationship_graph": graph.to_dict(),
                 "layer_stack": asdict(stack),
                 "recommendations": _geo_recommendations(audit, layers),
+                "objective": objective,
+                "objective_label": objective_label,
+                "style_profile": style_profile,
+                "main_layer_id": main_layer_id,
+                "proposals": _automation_proposals(objective, objective_label.upper(), main_analysis),
             }
-            if _text(parameters[1]):
-                write_json(_text(parameters[1]), payload)
+            if _text(parameters[5]):
+                write_json(_text(parameters[5]), payload)
             status = f"{len(layers)} couche(s) analysée(s) · score projet {audit.score}/100"
-            parameters[2].value = status
+            parameters[6].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -642,6 +810,7 @@ class AutopilotMap:
         title = arcpy.Parameter(displayName="Titre", name="title", datatype="GPString", parameterType="Optional", direction="Input")
         template = _template_parameter(required=False)
         report = _file_parameter("Rapport et recette JSON", "output_report")
+        background_choice = _context_parameter()
         context_opacity = _integer_parameter("Opacité du contexte (%)", "context_opacity", 100, 0, 100)
         locator_map = arcpy.Parameter(displayName="Carte de situation", name="locator_map", datatype="GPString", parameterType="Optional", direction="Input")
         try:
@@ -653,7 +822,8 @@ class AutopilotMap:
         return [
             map_parameter, objective, main_layer, style_profile, variant,
             apply_style, auto_correct, visible_only, sources, title,
-            template, report, context_opacity, locator_map, validated, _status_parameter(),
+            template, report, background_choice, context_opacity, locator_map,
+            validated, _status_parameter(),
         ]
 
     def execute(self, parameters, messages):
@@ -679,13 +849,10 @@ class AutopilotMap:
             )
             if primary is None:
                 raise RuntimeError("Aucune couche thématique valide n'a été trouvée.")
-            context_opacity = int(parameters[12].value or 100)
-            for context_layer in map_item.listLayers():
-                if is_basemap_layer(context_layer):
-                    try:
-                        context_layer.transparency = 100 - max(0, min(100, context_opacity))
-                    except Exception:
-                        pass
+            context_opacity = int(parameters[13].value or 100)
+            background_mode, background_layer_id = _apply_context_choice(
+                map_item, _text(parameters[12]), context_opacity
+            )
             analysis = {}
             styling = {"applied": False}
             if getattr(primary, "isFeatureLayer", False):
@@ -697,7 +864,7 @@ class AutopilotMap:
                 if bool(parameters[5].value):
                     styling = apply_raster_symbology(aprx, primary, analysis)
             confidence = float(analysis.get("role_confidence", analysis.get("confidence", 0.6)) or 0.6)
-            if confidence < 0.70 and not bool(parameters[14].value):
+            if confidence < 0.70 and not bool(parameters[15].value):
                 raise RuntimeError("La confiance de la composition est limitée. Vérifiez les paramètres puis confirmez la décision du cartographe.")
             requested = _template_id(_text(parameters[10])) if _text(parameters[10]) else ""
             spec = _catalog().get(requested or _choose_template(objective_label, analysis))
@@ -710,7 +877,7 @@ class AutopilotMap:
                 visible_only=bool(parameters[7].value), margin_percent=margin,
                 add_grid=objective in {"topographique", "atlas"},
                 remove_basemap_from_legend=True, open_view=True,
-                locator_map=_map_by_name(aprx, _text(parameters[13])) if _text(parameters[13]) else None,
+                locator_map=_map_by_name(aprx, _text(parameters[14])) if _text(parameters[14]) else None,
                 context_opacity_percent=context_opacity,
             )
             layer_ids = [str(getattr(layer, "URI", "") or layer.name) for layer in candidates]
@@ -729,7 +896,11 @@ class AutopilotMap:
                 add_grid=objective in {"topographique", "atlas"},
                 remove_basemap_from_legend=True, open_view=True, dpi=DEFAULT_DPI,
                 context_opacity_percent=context_opacity,
-                locator_map_name=_text(parameters[13]), proposal_validated=bool(parameters[14].value),
+                background_mode=background_mode,
+                background_layer_id=background_layer_id,
+                background_choice=_context_key(_text(parameters[12]), map_item),
+                locator_mode="automatic",
+                locator_map_name=_text(parameters[14]), proposal_validated=bool(parameters[15].value),
             )
             final_score = max(0, min(100, round((audit.score + 100 * confidence) / 2)))
             payload = {
@@ -739,15 +910,17 @@ class AutopilotMap:
                 "primary_layer": primary.name, "analysis": analysis, "styling": styling,
                 "layout": result_dict(result), "final_score": final_score,
                 "proposals": _automation_proposals(objective, title, analysis),
+                "background_mode": background_mode,
+                "background_layer_id": background_layer_id,
                 "context_opacity_percent": context_opacity,
-                "locator_map_name": _text(parameters[13]),
-                "proposal_validated": bool(parameters[14].value),
+                "locator_map_name": _text(parameters[14]),
+                "proposal_validated": bool(parameters[15].value),
                 "recipe": recipe,
             }
             if _text(parameters[11]):
                 write_json(_text(parameters[11]), payload)
             status = f"{result.layout_name} — score {final_score}/100"
-            parameters[15].value = status
+            parameters[16].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)
@@ -780,6 +953,18 @@ class BatchMaps:
                 layout = None
                 try:
                     map_item = _map_by_name(aprx, settings.get("map_name"))
+                    background_choice = recipe.get("background_choice")
+                    if not background_choice:
+                        background_choice = (
+                            f"layer:{recipe.get('background_layer_id')}"
+                            if recipe.get("background_mode") == "layer" and recipe.get("background_layer_id")
+                            else recipe.get("background_mode", "automatic")
+                        )
+                    _apply_context_choice(
+                        map_item,
+                        background_choice,
+                        int(settings.get("context_opacity_percent", 100)),
+                    )
                     title = job.title or settings.get("title") or "TITRE DE LA CARTE"
                     subtitle = job.subtitle or settings.get("subtitle") or ""
                     credits = job.sources or settings.get("credits") or recipe.get("sources") or ""
@@ -854,6 +1039,18 @@ class ReplayRecipe:
             settings = recipe["layout"]
             aprx = _project()
             map_item = _map_by_name(aprx, settings.get("map_name"))
+            background_choice = recipe.get("background_choice")
+            if not background_choice:
+                background_choice = (
+                    f"layer:{recipe.get('background_layer_id')}"
+                    if recipe.get("background_mode") == "layer" and recipe.get("background_layer_id")
+                    else recipe.get("background_mode", "automatic")
+                )
+            _apply_context_choice(
+                map_item,
+                background_choice,
+                int(settings.get("context_opacity_percent", 100)),
+            )
             spec = _catalog().get(settings["template_id"])
             result = build_layout(
                 arcpy, aprx, map_item, spec,
@@ -953,7 +1150,7 @@ def _automation_proposals(objective, title, analysis):
         ("minimal", "Minimaliste", "professionnelles/03-localisation-hierarchique", 5.0, False),
     )
     proposals = []
-    for variant_id, name, template_id, margin, add_grid in options:
+    for index, (variant_id, name, template_id, margin, add_grid) in enumerate(options):
         try:
             spec = _catalog().get(template_id)
         except Exception:
@@ -965,8 +1162,11 @@ def _automation_proposals(objective, title, analysis):
             "template_name": spec.name,
             "page_format": spec.page_format,
             "title": title,
+            "subtitle": dict(OBJECTIVES).get(objective, objective),
             "margin_percent": margin,
             "add_grid": add_grid,
+            "score": 92 - index * 4,
+            "decisions": f"Marge {margin:g}% · grille {'oui' if add_grid else 'non'}",
         })
     return proposals
 

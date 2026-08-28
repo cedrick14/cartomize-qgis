@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using ArcGIS.Core.CIM;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Framework;
 using ArcGIS.Desktop.Framework.Contracts;
@@ -23,11 +24,14 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 {
     internal const string DockPaneId = "Cartomize_ArcGISPro_DockPane";
     private readonly HashSet<string> _rasterLayerNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _basemapLayerNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CIMBaseLayer> _styleHistory = new(StringComparer.Ordinal);
     private readonly List<TemplateItem> _allTemplates = [];
     private string? _selectedMapName;
     private string? _selectedLayerName;
     private ChoiceItem? _selectedObjective;
     private ChoiceItem? _selectedStyleProfile;
+    private ChoiceItem? _selectedContextChoice;
     private AutomationProposal? _selectedProposal;
     private TemplateItem? _selectedTemplate;
     private string _selectedTemplateCategory = "Toutes les catégories";
@@ -71,6 +75,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private bool _confirmStyleParameters;
     private string _batchStatusText = "Sélectionnez ou créez un manifeste. Cartomize peut produire jusqu’à 5 000 cartes par série.";
     private bool _isRasterLayer;
+    private bool _isBasemapLayer;
     private bool _isBusy;
     private bool _automationVisibleOnly = true;
     private bool _automationApplySymbology;
@@ -95,11 +100,13 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         StartupGuard.Stage("Initialisation des listes");
         foreach (var item in ObjectiveChoices()) Objectives.Add(item);
         foreach (var item in StyleProfileChoices()) StyleProfiles.Add(item);
+        foreach (var item in DefaultContextChoices()) ContextChoices.Add(item);
         foreach (var item in new[] { "Symbole unique", "Catégorisé", "Gradué — quantiles" }) RenderModes.Add(item);
         foreach (var item in new[] { "Qualitative", "Séquentielle", "Divergente" }) PaletteChoices.Add(item);
         foreach (var item in new[] { "Automatique selon la géométrie", "Autour du point", "Sur le point", "Le long de la ligne", "Courbe", "Horizontal", "Libre" }) PlacementChoices.Add(item);
         _selectedObjective = Objectives.FirstOrDefault();
         _selectedStyleProfile = StyleProfiles.FirstOrDefault();
+        _selectedContextChoice = ContextChoices.FirstOrDefault();
 
         StartupGuard.Stage("Initialisation des commandes");
         AnalyzeAutomationCommand = new AsyncDelegateCommand(AnalyzeAutomationAsync, () => !IsBusy);
@@ -107,22 +114,22 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         GenerateAllCommand = new AsyncDelegateCommand(GenerateAllVariantsAsync, () => Proposals.Count > 0 && !IsBusy);
         SaveRecipeCommand = new DelegateCommand(SaveRecipe);
         ReplayCommand = new AsyncDelegateCommand(ReplayRecipeAsync, () => !IsBusy);
-        AnalyzeLayerCommand = new AsyncDelegateCommand(AnalyzeSelectedLayerAsync, () => SelectedLayerName is not null && !IsBusy);
-        ApplyRecommendationCommand = new AsyncDelegateCommand(ApplyRecommendationAsync, () => SelectedLayerName is not null && !IsBusy);
-        UndoStyleCommand = CoreCommand("esri_core_undoButton", "Style précédent restauré");
+        AnalyzeLayerCommand = new AsyncDelegateCommand(AnalyzeSelectedLayerAsync, () => SelectedLayerName is not null && !IsBasemapLayer && !IsBusy);
+        ApplyRecommendationCommand = new AsyncDelegateCommand(ApplyRecommendationAsync, () => SelectedLayerName is not null && !IsBasemapLayer && !IsBusy);
+        UndoStyleCommand = new AsyncDelegateCommand(RestorePreviousStyleAsync, () => SelectedLayerName is not null && !IsBasemapLayer && !IsBusy);
         ImportDataCommand = CoreCommand("esri_mapping_addDataButton", "Ajout de données ouvert");
         ZoomLayerCommand = new AsyncDelegateCommand(ZoomSelectedLayerAsync, () => SelectedLayerName is not null && !IsBusy);
         LayerPropertiesCommand = new AsyncDelegateCommand(OpenSelectedLayerPropertiesAsync, () => SelectedLayerName is not null && !IsBusy);
-        RasterCommand = new AsyncDelegateCommand(OpenRasterEngineAsync, () => SelectedLayerName is not null && !IsBusy);
+        RasterCommand = new AsyncDelegateCommand(OpenRasterEngineAsync, () => IsRasterLayer && !IsBasemapLayer && SelectedLayerName is not null && !IsBusy);
         LayoutCommand = new AsyncDelegateCommand(CreateLayoutAsync, () => SelectedTemplate is not null && !IsBusy);
         SynchronizeLayoutCommand = new AsyncDelegateCommand(SynchronizeLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
-        OpenLayoutCommand = new AsyncDelegateCommand(OpenSelectedLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
+        OpenLayoutCommand = new AsyncDelegateCommand(OpenSelectedLayoutAsync, () => (SelectedLayoutName is not null || SelectedTemplate is not null) && !IsBusy);
         RefreshPreviewCommand = new AsyncDelegateCommand(RefreshLayoutPreviewAsync, () => SelectedLayoutName is not null && !IsBusy);
         OptimizeLayoutCommand = new AsyncDelegateCommand(OptimizeLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
-        ExportPdfCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("pdf"), () => SelectedLayoutName is not null && !IsBusy);
-        ExportSvgCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("svg"), () => SelectedLayoutName is not null && !IsBusy);
-        ExportPngCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("png"), () => SelectedLayoutName is not null && !IsBusy);
-        ExportPagxCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("pagx"), () => SelectedLayoutName is not null && !IsBusy);
+        ExportPdfCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("pdf"), () => (SelectedLayoutName is not null || SelectedTemplate is not null) && !IsBusy);
+        ExportSvgCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("svg"), () => (SelectedLayoutName is not null || SelectedTemplate is not null) && !IsBusy);
+        ExportPngCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("png"), () => (SelectedLayoutName is not null || SelectedTemplate is not null) && !IsBusy);
+        ExportPagxCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("pagx"), () => (SelectedLayoutName is not null || SelectedTemplate is not null) && !IsBusy);
         AuditCommand = new AsyncDelegateCommand(RunAuditAsync, () => !IsBusy);
         LabelAuditCommand = new AsyncDelegateCommand(RunLabelAuditAsync, () => !IsBusy);
         CopyReportCommand = new DelegateCommand(() => Clipboard.SetText(AuditReportText));
@@ -133,7 +140,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         CheckMapOpsCommand = new AsyncDelegateCommand(CheckMapOpsAsync, () => !IsBusy);
         AcceptMapOpsCommand = new AsyncDelegateCommand(AcceptMapOpsAsync, () => !IsBusy);
         RegenerateMapOpsCommand = new AsyncDelegateCommand(RegenerateAfterMapOpsAsync, () => !IsBusy);
-        ApproveLayoutCommand = new DelegateCommand(ApproveLayout);
+        ApproveLayoutCommand = new AsyncDelegateCommand(ApproveLayoutAsync, () => !IsBusy);
         ExportCertificateCommand = new DelegateCommand(ExportCertificate);
         RefreshCommunityCommand = new AsyncDelegateCommand(RefreshCommunityAsync, () => !IsBusy);
         OpenCommunityResourceCommand = new DelegateCommand(OpenSelectedCommunityResource);
@@ -157,6 +164,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public ObservableCollection<string> PlacementChoices { get; } = [];
     public ObservableCollection<ChoiceItem> Objectives { get; } = [];
     public ObservableCollection<ChoiceItem> StyleProfiles { get; } = [];
+    public ObservableCollection<ChoiceItem> ContextChoices { get; } = [];
     public ObservableCollection<AutomationProposal> Proposals { get; } = [];
     public ObservableCollection<TemplateItem> FilteredTemplates { get; } = [];
     public ObservableCollection<string> TemplateCategories { get; } = [];
@@ -213,6 +221,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public string? SelectedMapName { get => _selectedMapName; set => SetProperty(ref _selectedMapName, value); }
     public ChoiceItem? SelectedObjective { get => _selectedObjective; set { if (SetProperty(ref _selectedObjective, value)) BuildProposals(); } }
     public ChoiceItem? SelectedStyleProfile { get => _selectedStyleProfile; set => SetProperty(ref _selectedStyleProfile, value); }
+    public ChoiceItem? SelectedContextChoice { get => _selectedContextChoice; set => SetProperty(ref _selectedContextChoice, value); }
     public AutomationProposal? SelectedProposal { get => _selectedProposal; set { if (SetProperty(ref _selectedProposal, value)) ApplyProposalSelection(); } }
     public string? SelectedLayoutName
     {
@@ -244,13 +253,19 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         {
             if (!SetProperty(ref _selectedLayerName, value)) return;
             IsRasterLayer = !string.IsNullOrWhiteSpace(value) && _rasterLayerNames.Contains(value);
-            RecommendationText = string.IsNullOrWhiteSpace(value) ? "Sélectionnez une couche vectorielle ou raster valide." : "Cliquez sur « Analyser la couche sélectionnée » pour obtenir une proposition.";
+            IsBasemapLayer = !string.IsNullOrWhiteSpace(value) && _basemapLayerNames.Contains(value);
+            RecommendationText = string.IsNullOrWhiteSpace(value)
+                ? "Sélectionnez une couche vectorielle ou raster valide."
+                : IsBasemapLayer
+                    ? "Cette couche est un fond cartographique. Son rendu d’origine est protégé."
+                    : "Cliquez sur « Analyser la couche sélectionnée » pour obtenir une proposition.";
             CommandManager.InvalidateRequerySuggested();
             _ = RefreshLayerFieldsSafelyAsync();
         }
     }
 
     public bool IsRasterLayer { get => _isRasterLayer; private set => SetProperty(ref _isRasterLayer, value); }
+    public bool IsBasemapLayer { get => _isBasemapLayer; private set => SetProperty(ref _isBasemapLayer, value); }
     public override bool IsBusy => _isBusy;
     public bool AutomationVisibleOnly { get => _automationVisibleOnly; set => SetProperty(ref _automationVisibleOnly, value); }
     public bool AutomationApplySymbology { get => _automationApplySymbology; set => SetProperty(ref _automationApplySymbology, value); }
@@ -381,16 +396,26 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task AnalyzeAutomationAsync()
     {
         var path = CartomizeDataService.ReportPath("automation-analysis.json");
-        var result = await RunToolAsync("GeoIntelligence", SelectedMapName ?? string.Empty, path);
+        var result = await RunToolAsync(
+            "GeoIntelligence",
+            SelectedMapName ?? string.Empty,
+            SelectedObjective?.Label ?? "Détection automatique",
+            SelectedLayerName ?? string.Empty,
+            SelectedStyleProfile?.Label ?? "Équilibré",
+            AutomationVisibleOnly,
+            path);
         if (!result.Succeeded) return;
         using var document = CartomizeDataService.ReadJson(path);
+        var proposalsLoaded = false;
         if (document is not null)
         {
             var root = document.RootElement;
             var recommendations = root.TryGetProperty("recommendations", out var items) ? string.Join("\n", items.EnumerateArray().Select(item => $"• {item.GetString()}")) : "Analyse terminée.";
             AutomationReportText = $"Carte : {CartomizeDataService.Text(root, "map")}\n{recommendations}";
+            proposalsLoaded = LoadAutomationProposals(root);
         }
-        BuildProposals();
+        if (!proposalsLoaded)
+            BuildProposals();
     }
 
     private async Task GenerateSelectedVariantAsync()
@@ -415,7 +440,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var report = CartomizeDataService.ReportPath(reportName);
         var result = await RunToolAsync("AutopilotMap", SelectedMapName ?? string.Empty, SelectedObjective?.Label ?? "Détection automatique", SelectedLayerName ?? string.Empty,
             SelectedStyleProfile?.Label ?? "Équilibré", proposal.Name, AutomationApplySymbology, AutomationAutoCorrect, AutomationVisibleOnly,
-            AutomationSources, LayoutTitle, proposal.TemplateName, report, ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty, ProposalValidated);
+            AutomationSources, LayoutTitle, proposal.TemplateId, report, SelectedContextChoice?.Id ?? "automatic",
+            ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty, ProposalValidated);
         if (!result.Succeeded) return false;
         using var document = CartomizeDataService.ReadJson(report);
         if (document is not null && document.RootElement.TryGetProperty("recipe", out var recipe)) _lastRecipeJson = recipe.GetRawText();
@@ -424,16 +450,28 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private void SaveRecipe()
     {
+        if (string.IsNullOrWhiteSpace(_lastRecipeJson))
+        {
+            StatusText = "Créez d’abord une proposition afin d’enregistrer sa recette.";
+            return;
+        }
         var dialog = new SaveFileDialog { Filter = "Recette Cartomize (*.cartomize.json)|*.cartomize.json|JSON (*.json)|*.json", FileName = "recette.cartomize.json" };
         if (dialog.ShowDialog() != true) return;
-        File.WriteAllText(dialog.FileName, string.IsNullOrWhiteSpace(_lastRecipeJson) ? BuildCurrentRecipeJson() : _lastRecipeJson);
+        File.WriteAllText(dialog.FileName, _lastRecipeJson);
         StatusText = $"Recette enregistrée : {dialog.FileName}";
     }
 
     private async Task ReplayRecipeAsync()
     {
         var dialog = new OpenFileDialog { Filter = "Recette Cartomize (*.cartomize.json;*.json)|*.cartomize.json;*.json" };
-        if (dialog.ShowDialog() == true) await RunToolAsync("ReplayRecipe", dialog.FileName);
+        if (dialog.ShowDialog() != true) return;
+        var result = await RunToolAsync("ReplayRecipe", dialog.FileName);
+        if (result.Succeeded)
+        {
+            _lastRecipeJson = File.ReadAllText(dialog.FileName);
+            ValidationStatus = "Statut : une nouvelle validation humaine est requise";
+            await RefreshProjectAsync();
+        }
     }
 
     private async Task AnalyzeSelectedLayerAsync()
@@ -446,7 +484,9 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         SelectedLayerName = selectedLayer.Name;
         var path = CartomizeDataService.ReportPath(IsRasterLayer ? "raster-analysis.json" : "vector-analysis.json");
-        var result = IsRasterLayer ? await RunToolAsync("RasterIntelligence", selectedLayer, false, path) : await RunToolAsync("VectorIntelligence", selectedLayer, 1000, false, path);
+        var result = IsRasterLayer
+            ? await RunToolAsync("RasterIntelligence", selectedLayer.Name, false, path)
+            : await RunToolAsync("VectorIntelligence", selectedLayer.Name, 1000, false, path);
         if (!result.Succeeded) return;
         using var document = CartomizeDataService.ReadJson(path);
         if (document is null) return;
@@ -493,14 +533,38 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return;
         }
         SelectedLayerName = selectedLayer.Name;
+        var snapshot = await QueuedTask.Run(() => (Key: selectedLayer.URI, Definition: selectedLayer.GetDefinition()));
         var report = CartomizeDataService.ReportPath(IsRasterLayer ? "raster-style.json" : "vector-style.json");
         var classes = ParseInt(MaxClasses, 5, 2, 12);
         var labelSize = ParseDouble(LabelSize, 9.5, 5, 48);
         var opacity = ParseInt(LayerOpacity, 100, 0, 100);
-        if (IsRasterLayer)
-            await RunToolAsync("RasterIntelligence", selectedLayer, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
-        else
-            await RunToolAsync("VectorIntelligence", selectedLayer, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
+        var result = IsRasterLayer
+            ? await RunToolAsync("RasterIntelligence", selectedLayer.Name, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters)
+            : await RunToolAsync("VectorIntelligence", selectedLayer.Name, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
+        if (result.Succeeded)
+            _styleHistory[snapshot.Key] = snapshot.Definition;
+    }
+
+    private async Task RestorePreviousStyleAsync()
+    {
+        var selectedLayer = await ResolveSelectedLayerAsync();
+        if (selectedLayer is null)
+        {
+            StatusText = "Sélectionnez une couche vectorielle ou raster valide.";
+            return;
+        }
+
+        var restored = await QueuedTask.Run(() =>
+        {
+            var key = selectedLayer.URI;
+            if (!_styleHistory.Remove(key, out var definition))
+                return false;
+            selectedLayer.SetDefinition(definition);
+            return true;
+        });
+        StatusText = restored
+            ? "Le style précédent a été restauré."
+            : "Aucun style précédent n’est disponible pour cette couche.";
     }
 
     private async Task ZoomSelectedLayerAsync()
@@ -548,7 +612,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return;
         }
         SelectedLayerName = selectedLayer.Name;
-        GeoprocessingService.Open("RasterIntelligence", selectedLayer, false);
+        GeoprocessingService.Open("RasterIntelligence", selectedLayer.Name, false);
     }
 
     private async Task CreateLayoutAsync() => await ExecuteLayoutAsync("Créer", string.Empty);
@@ -557,9 +621,18 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task OpenSelectedLayoutAsync()
     {
+        if (string.IsNullOrWhiteSpace(SelectedLayoutName))
+        {
+            await CreateLayoutAsync();
+            if (string.IsNullOrWhiteSpace(SelectedLayoutName))
+                return;
+        }
         var pane = await ActivateSelectedLayoutPaneAsync();
         if (pane is not null)
+        {
+            await QueuedTask.Run(pane.LayoutView.ZoomToWholePage);
             StatusText = $"Mise en page ouverte : {SelectedLayoutName}";
+        }
     }
 
     private async Task RefreshLayoutPreviewAsync()
@@ -569,7 +642,11 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return;
 
         var layoutView = pane.LayoutView;
-        await QueuedTask.Run(layoutView.Refresh);
+        await QueuedTask.Run(() =>
+        {
+            layoutView.Refresh();
+            layoutView.ZoomToWholePage();
+        });
         StatusText = $"Aperçu actualisé : {SelectedLayoutName}";
     }
 
@@ -609,6 +686,12 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task ExportLayoutAsync(string extension)
     {
+        if (string.IsNullOrWhiteSpace(SelectedLayoutName))
+        {
+            await CreateLayoutAsync();
+            if (string.IsNullOrWhiteSpace(SelectedLayoutName))
+                return;
+        }
         var dialog = new SaveFileDialog { Filter = $"{extension.ToUpperInvariant()} (*.{extension})|*.{extension}", FileName = $"carte.{extension}" };
         if (dialog.ShowDialog() == true) await ExecuteLayoutAsync("Exporter", dialog.FileName);
     }
@@ -618,9 +701,9 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         if (SelectedTemplate is null) return;
         _ = double.TryParse(LayoutMargin.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var margin);
         await RunToolAsync("CreateLayout", SelectedMapName ?? string.Empty, SelectedTemplate.Label, LayoutTitle, LayoutSubtitle, LayoutName, LayoutSources, LayoutVisibleOnly,
-            margin <= 0 ? 3.0 : margin, LayoutAddGrid, true, operation == "Créer", exportPath, 600,
+            margin <= 0 ? 3.0 : margin, LayoutAddGrid, true, operation is "Créer" or "Synchroniser" or "Optimiser", exportPath, 600,
             exportPath.EndsWith(".pagx", StringComparison.OrdinalIgnoreCase) ? exportPath : string.Empty, string.Empty, operation, SelectedLayoutName ?? string.Empty,
-            ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty);
+            SelectedContextChoice?.Id ?? "automatic", ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty);
         await RefreshProjectAsync();
     }
 
@@ -662,10 +745,15 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private void CreateManifest()
     {
+        if (string.IsNullOrWhiteSpace(_lastRecipeJson))
+        {
+            BatchStatusText = "Créez d’abord une proposition afin de disposer d’une recette.";
+            return;
+        }
         var dialog = new SaveFileDialog { Filter = "Manifeste Cartomize (*.json)|*.json", FileName = "manifeste-cartomize.json" };
         if (dialog.ShowDialog() != true) return;
         var recipePath = Path.ChangeExtension(dialog.FileName, ".cartomize.json");
-        File.WriteAllText(recipePath, string.IsNullOrWhiteSpace(_lastRecipeJson) ? BuildCurrentRecipeJson() : _lastRecipeJson);
+        File.WriteAllText(recipePath, _lastRecipeJson);
         CartomizeDataService.WriteJson(dialog.FileName, new { schema_version = 1, recipe_path = recipePath,
             output_directory = Path.Combine(Path.GetDirectoryName(dialog.FileName)!, "exports"), dpi = 600, keep_layouts = false, require_human_validation = true,
             jobs = new[] { new { job_id = "carte-001", output_name = "carte-001", title = LayoutTitle, subtitle = LayoutSubtitle, sources = LayoutSources, output_formats = new[] { "pdf", "png" } } } });
@@ -680,7 +768,18 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     }
     private string MapOpsPath => CartomizeDataService.ReportPath("mapops-baseline.json");
     private async Task CreateMapOpsBaselineAsync() => await RunMapOpsAsync("Créer référence", string.Empty, MapOpsPath);
-    private async Task CheckMapOpsAsync() => await RunMapOpsAsync("Vérifier", MapOpsPath, CartomizeDataService.ReportPath("mapops-current.json"));
+    private async Task CheckMapOpsAsync()
+    {
+        var comparisonPath = CartomizeDataService.ReportPath("mapops-report.json");
+        await RunMapOpsAsync("Vérifier", MapOpsPath, CartomizeDataService.ReportPath("mapops-current.json"));
+        if (!MapOpsAutoRegenerate || string.IsNullOrWhiteSpace(_lastRecipeJson))
+            return;
+        using var document = CartomizeDataService.ReadJson(comparisonPath);
+        if (document is not null
+            && document.RootElement.TryGetProperty("changed", out var changed)
+            && changed.ValueKind == JsonValueKind.True)
+            await RegenerateAfterMapOpsAsync();
+    }
     private async Task AcceptMapOpsAsync() => await RunMapOpsAsync("Accepter", MapOpsPath, MapOpsPath);
 
     private async Task RunMapOpsAsync(string action, string previous, string output)
@@ -691,22 +790,97 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task RegenerateAfterMapOpsAsync()
     {
-        if (!MapOpsAutoRegenerate) { StatusText = "Activez la régénération automatique avant de rejouer la recette."; return; }
-        await ReplayRecipeAsync();
+        if (string.IsNullOrWhiteSpace(_lastRecipeJson))
+        {
+            StatusText = "Aucune recette récente n’est disponible.";
+            return;
+        }
+        var path = CartomizeDataService.ReportPath("mapops-last-recipe.cartomize.json");
+        File.WriteAllText(path, _lastRecipeJson);
+        var result = await RunToolAsync("ReplayRecipe", path);
+        if (!result.Succeeded)
+            return;
+        await RunMapOpsAsync("Accepter", MapOpsPath, MapOpsPath);
+        await RefreshProjectAsync();
         ValidationStatus = "Statut : une nouvelle validation humaine est requise";
+        StatusText = "La dernière recette a été régénérée avec les données actuelles.";
     }
 
-    private void ApproveLayout()
+    private async Task ApproveLayoutAsync()
     {
-        if (new[] { CheckSources, CheckCrs, CheckSymbology, CheckLabels, CheckLayout, CheckAccessibility, CheckExport }.Any(value => !value)) { ValidationStatus = "Statut : checklist incomplète"; return; }
-        if (string.IsNullOrWhiteSpace(ValidationReviewer)) { ValidationStatus = "Statut : nom du réviseur requis"; return; }
-        var payload = new { schema_version = 1, plugin = "Cartomize", version = "10.5.1", layout = SelectedLayoutName ?? LayoutName,
-            reviewer = ValidationReviewer.Trim(), organization = ValidationOrganization.Trim(), notes = ValidationNotes.Trim(),
-            approved_at = DateTimeOffset.UtcNow.ToString("O"), checks = new[] { "sources", "crs", "symbology", "labels", "layout", "accessibility", "export" } };
-        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
-        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
-        _validationCertificateJson = json.TrimEnd('}', '\r', '\n', ' ') + $",\n  \"sha256\": \"{digest}\"\n}}";
-        ValidationStatus = $"Statut : approuvée par {ValidationReviewer.Trim()}";
+        if (string.IsNullOrWhiteSpace(SelectedLayoutName))
+        {
+            ValidationStatus = "Statut : sélectionnez une mise en page";
+            return;
+        }
+        if (new[] { CheckSources, CheckCrs, CheckSymbology, CheckLabels, CheckLayout, CheckAccessibility, CheckExport }.Any(value => !value))
+        {
+            ValidationStatus = "Statut : checklist incomplète";
+            return;
+        }
+        if (ValidationReviewer.Trim().Length < 3)
+        {
+            ValidationStatus = "Statut : nom du réviseur requis";
+            return;
+        }
+
+        await RunAuditAsync();
+        var blockers = AuditFindings
+            .Where(item => item.Severity.Equals("critical", StringComparison.OrdinalIgnoreCase))
+            .Select(item => string.IsNullOrWhiteSpace(item.Layer) ? item.Message : $"{item.Layer} : {item.Message}")
+            .ToArray();
+        if (blockers.Length > 0)
+        {
+            ValidationStatus = "Statut : corrigez les anomalies critiques avant approbation";
+            return;
+        }
+
+        var scoreText = AuditScoreText.Split('/', 2)[0].Trim();
+        var score = int.TryParse(scoreText, out var parsedScore) ? parsedScore : 0;
+        var checks = new Dictionary<string, bool>
+        {
+            ["data_sources"] = CheckSources,
+            ["crs_scale"] = CheckCrs,
+            ["symbology"] = CheckSymbology,
+            ["labels"] = CheckLabels,
+            ["layout_elements"] = CheckLayout,
+            ["accessibility"] = CheckAccessibility,
+            ["export"] = CheckExport,
+        };
+        var core = new
+        {
+            schema_version = 1,
+            cartomize_version = "10.5.1",
+            layout_name = SelectedLayoutName,
+            automatic_score = Math.Clamp(score, 0, 100),
+            automatic_status = score >= 85 ? "Fort" : score >= 65 ? "À améliorer" : "Insuffisant",
+            human_status = "Approuvée",
+            reviewer = ValidationReviewer.Trim(),
+            organization = ValidationOrganization.Trim(),
+            reviewed_at = DateTimeOffset.UtcNow.ToString("O"),
+            checks,
+            notes = ValidationNotes.Trim(),
+            blockers,
+        };
+        var compact = JsonSerializer.Serialize(core);
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(compact))).ToLowerInvariant();
+        _validationCertificateJson = JsonSerializer.Serialize(new
+        {
+            core.schema_version,
+            core.cartomize_version,
+            core.layout_name,
+            core.automatic_score,
+            core.automatic_status,
+            core.human_status,
+            core.reviewer,
+            core.organization,
+            core.reviewed_at,
+            core.checks,
+            core.notes,
+            core.blockers,
+            fingerprint,
+        }, new JsonSerializerOptions { WriteIndented = true });
+        ValidationStatus = $"Statut : approuvée par {ValidationReviewer.Trim()} · empreinte {fingerprint[..16]}…";
     }
 
     private void ExportCertificate()
@@ -775,7 +949,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task RefreshProjectAsync(MapView? requestedView = null, bool preferTocSelection = true)
     {
         var activeView = requestedView ?? MapView.Active;
-        var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault();
+        var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault(layer => layer is BasicFeatureLayer or RasterLayer);
         var activeLayerName = tocLayer?.Name;
         var requestedMap = activeView?.Map;
         var requestedMapName = SelectedMapName;
@@ -787,8 +961,18 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             var map = requestedMap
                 ?? mapItems.FirstOrDefault(item => item.Name.Equals(requestedMapName, StringComparison.OrdinalIgnoreCase))?.GetMap()
                 ?? mapItems.FirstOrDefault()?.GetMap();
-            var layers = map?.GetLayersAsFlattenedList() ?? [];
-            var entries = layers.Select(layer => new { layer.Name, Visible = layer.IsVisible, Raster = layer is RasterLayer }).ToArray();
+            var layers = map?.GetLayersAsFlattenedList()
+                .Where(layer => layer is BasicFeatureLayer or RasterLayer)
+                .ToArray() ?? [];
+            var entries = layers.Select(layer => new
+            {
+                layer.Name,
+                Id = layer.URI,
+                Visible = layer.IsVisible,
+                Raster = layer is RasterLayer,
+                Basemap = IsLikelyBasemap(layer.Name),
+                ContextCandidate = layer is RasterLayer || IsLikelyBasemap(layer.Name),
+            }).ToArray();
             return new { Maps = maps, Layouts = layouts, Entries = entries, MapName = map?.Name };
         });
         await InvokeOnUiAsync(() =>
@@ -798,7 +982,20 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             var oldLayer = SelectedLayerName;
             LayerNames.Clear();
             _rasterLayerNames.Clear();
-            foreach (var entry in state.Entries) { LayerNames.Add(entry.Name); if (entry.Raster) _rasterLayerNames.Add(entry.Name); }
+            _basemapLayerNames.Clear();
+            foreach (var entry in state.Entries)
+            {
+                LayerNames.Add(entry.Name);
+                if (entry.Raster) _rasterLayerNames.Add(entry.Name);
+                if (entry.Basemap) _basemapLayerNames.Add(entry.Name);
+            }
+            var previousContext = SelectedContextChoice?.Id ?? "automatic";
+            ContextChoices.Clear();
+            foreach (var item in DefaultContextChoices()) ContextChoices.Add(item);
+            foreach (var entry in state.Entries.Where(item => item.ContextCandidate))
+                ContextChoices.Add(new ChoiceItem($"layer:{entry.Id}", entry.Name));
+            SelectedContextChoice = ContextChoices.FirstOrDefault(item => item.Id.Equals(previousContext, StringComparison.Ordinal))
+                ?? ContextChoices.FirstOrDefault();
             SelectedMapName = state.MapName ?? (MapNames.Contains(SelectedMapName ?? string.Empty) ? SelectedMapName : MapNames.FirstOrDefault());
             LocatorMapName = MapNames.Contains(LocatorMapName ?? string.Empty) ? LocatorMapName : MapNames.FirstOrDefault();
             SelectedLayoutName = LayoutNames.Contains(SelectedLayoutName ?? string.Empty) ? SelectedLayoutName : LayoutNames.FirstOrDefault();
@@ -828,7 +1025,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     {
         var selected = SelectedLayerName;
         var activeView = MapView.Active;
-        var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault();
+        var tocLayer = activeView?.GetSelectedLayers()
+            .FirstOrDefault(layer => layer.Name.Equals(selected, StringComparison.OrdinalIgnoreCase) && (layer is BasicFeatureLayer or RasterLayer));
         var requestedMap = activeView?.Map;
         var requestedMapName = SelectedMapName;
         var fields = await QueuedTask.Run(() =>
@@ -856,8 +1054,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private Task<Layer?> ResolveSelectedLayerAsync()
     {
         var activeView = MapView.Active;
-        var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault();
-        if (tocLayer is not null)
+        var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault(layer => layer is BasicFeatureLayer or RasterLayer);
+        if (tocLayer is not null && tocLayer.Name.Equals(SelectedLayerName, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult<Layer?>(tocLayer);
 
         var selected = SelectedLayerName;
@@ -963,15 +1161,56 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             ("minimal", "Minimaliste", Get("professionnelles/03-localisation-hierarchique"), 5d, false) };
         Proposals.Clear();
         var score = 92;
-        foreach (var option in options) { Proposals.Add(new AutomationProposal(option.Item1, option.Item2, option.Item3.Id, option.Item3.Name, option.Item3.PageFormat, option.Item4, option.Item5,
+        foreach (var option in options) { Proposals.Add(new AutomationProposal(option.Item1, option.Item2, option.Item3.Id, option.Item3.Name, option.Item3.PageFormat,
+            SelectedObjective?.Label.ToUpperInvariant() ?? "TITRE DE LA CARTE", SelectedObjective?.Label ?? string.Empty, option.Item4, option.Item5,
             $"Marge {option.Item4:0}% · grille {(option.Item5 ? "oui" : "non")}") { Score = score }); score -= 4; }
         SelectedProposal = Proposals.FirstOrDefault();
+    }
+
+    private bool LoadAutomationProposals(JsonElement root)
+    {
+        if (!root.TryGetProperty("proposals", out var values) || values.ValueKind != JsonValueKind.Array)
+            return false;
+
+        var loaded = new List<AutomationProposal>();
+        var fallbackScore = 92;
+        foreach (var item in values.EnumerateArray().Take(3))
+        {
+            var templateId = CartomizeDataService.Text(item, "template_id");
+            var template = _allTemplates.FirstOrDefault(candidate => candidate.Id.Equals(templateId, StringComparison.OrdinalIgnoreCase));
+            if (template is null)
+                continue;
+            var score = item.TryGetProperty("score", out var scoreValue) && scoreValue.TryGetInt32(out var parsedScore)
+                ? parsedScore
+                : fallbackScore;
+            loaded.Add(new AutomationProposal(
+                CartomizeDataService.Text(item, "variant_id"),
+                CartomizeDataService.Text(item, "name"),
+                template.Id,
+                template.Name,
+                template.PageFormat,
+                CartomizeDataService.Text(item, "title", LayoutTitle),
+                CartomizeDataService.Text(item, "subtitle", LayoutSubtitle),
+                CartomizeDataService.Number(item, "margin_percent"),
+                item.TryGetProperty("add_grid", out var grid) && grid.ValueKind == JsonValueKind.True,
+                CartomizeDataService.Text(item, "decisions", "Paramètres issus de l’analyse du projet."))
+            { Score = score });
+            fallbackScore -= 4;
+        }
+        if (loaded.Count == 0)
+            return false;
+
+        Replace(Proposals, loaded);
+        SelectedProposal = Proposals.FirstOrDefault();
+        return true;
     }
 
     private void ApplyProposalSelection()
     {
         if (SelectedProposal is null) return;
         SelectedTemplate = _allTemplates.FirstOrDefault(item => item.Id == SelectedProposal.TemplateId) ?? SelectedTemplate;
+        LayoutTitle = SelectedProposal.Title;
+        LayoutSubtitle = SelectedProposal.Subtitle;
         LayoutMargin = SelectedProposal.MarginPercent.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
         LayoutAddGrid = SelectedProposal.AddGrid;
     }
@@ -983,7 +1222,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         layout = new { map_name = SelectedMapName, template_id = SelectedProposal?.TemplateId ?? SelectedTemplate?.Id, layout_name = LayoutName, title = LayoutTitle,
             subtitle = LayoutSubtitle, credits = LayoutSources, margin_percent = double.TryParse(LayoutMargin, out var margin) ? margin : 3, add_grid = LayoutAddGrid,
             remove_basemap_from_legend = true, open_view = true, dpi = 600, context_opacity_percent = ParseInt(ContextOpacity, 100, 0, 100),
-            locator_map_name = LocatorMapName, proposal_validated = ProposalValidated }
+            background_choice = SelectedContextChoice?.Id ?? "automatic", locator_map_name = LocatorMapName, proposal_validated = ProposalValidated }
     }, new JsonSerializerOptions { WriteIndented = true });
 
     private ICommand CoreCommand(string id, string successMessage) => new DelegateCommand(() =>
@@ -1044,4 +1283,20 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         new ChoiceItem("balanced", "Équilibré"), new ChoiceItem("institutional", "Institutionnel"),
         new ChoiceItem("analytical", "Analytique"), new ChoiceItem("minimal", "Minimaliste")
     };
+
+    private static IEnumerable<ChoiceItem> DefaultContextChoices() => new[]
+    {
+        new ChoiceItem("automatic", "Selon l’affichage ArcGIS Pro"),
+        new ChoiceItem("none", "Couches thématiques uniquement"),
+        new ChoiceItem("catalog:osm", "OpenStreetMap"),
+        new ChoiceItem("catalog:terrain", "Terrain (OpenTopoMap)"),
+        new ChoiceItem("catalog:satellite", "Imagerie satellitaire"),
+    };
+
+    private static bool IsLikelyBasemap(string name)
+    {
+        var value = name.ToLowerInvariant();
+        return new[] { "basemap", "fond de carte", "world topo", "world imagery", "hillshade", "openstreetmap", "cartomize — contexte" }
+            .Any(value.Contains);
+    }
 }
