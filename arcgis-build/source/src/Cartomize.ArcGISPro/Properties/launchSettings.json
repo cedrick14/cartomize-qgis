@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Cartomize.ArcGISPro": {
+      "commandName": "Project"
+    },
+    "Profil 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\¿\\AppData\\Local\\Programs\\ArcGIS\\Pro\\bin\\ArcGISPro.exe",
+      "workingDirectory": "C:\\Users\\¿\\AppData\\Local\\Programs\\ArcGIS\\Pro\\bin"
+    }
+  }
+}

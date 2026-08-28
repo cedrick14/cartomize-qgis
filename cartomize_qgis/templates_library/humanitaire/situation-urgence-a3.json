@@ -1,0 +1,293 @@
+{
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "name": "Situation humanitaire et accès",
+  "category": "humanitaire",
+  "variant": "professionnel",
+  "description": "Carte opérationnelle A3 des incidents, populations affectées, accès et services essentiels.",
+  "page_format": "A3 paysage",
+  "accent_color": "#934B46",
+  "tags": [
+    "humanitaire",
+    "urgence",
+    "incidents",
+    "accès"
+  ],
+  "purpose": "humanitaire",
+  "recommended_layers": [],
+  "cartographic_notes": [
+    "Adapter la projection au territoire",
+    "Limiter la légende aux classes visibles",
+    "Citer les sources et la date"
+  ],
+  "layout_json": {
+    "elements": [
+      {
+        "id": "alert-rule",
+        "type": "shape",
+        "x": 0,
+        "y": 0,
+        "width": 1260,
+        "height": 15,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      },
+      {
+        "id": "kicker",
+        "type": "text",
+        "x": 44,
+        "y": 38,
+        "width": 1172,
+        "height": 22,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "CARTOGRAPHIE OPÉRATIONNELLE · RAPPORT DE SITUATION"
+        }
+      },
+      {
+        "id": "title",
+        "type": "title",
+        "x": 44,
+        "y": 70,
+        "width": 900,
+        "height": 42,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 24,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "Situation humanitaire"
+        }
+      },
+      {
+        "id": "date",
+        "type": "text",
+        "x": 1016.0,
+        "y": 84,
+        "width": 220,
+        "height": 20,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "right",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "MISE À JOUR · …"
+        }
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 44,
+        "y": 140,
+        "width": 790,
+        "height": 590,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1.15,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 868,
+        "y": 140,
+        "width": 348,
+        "height": 190,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 0.85,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 868,
+        "y": 364,
+        "width": 220,
+        "height": 250,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "key-figures",
+        "type": "table",
+        "x": 1110,
+        "y": 364,
+        "width": 106,
+        "height": 250,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "fill": "#ffffff",
+          "strokeWidth": 0.65
+        },
+        "content": {
+          "title": "Chiffres"
+        }
+      },
+      {
+        "id": "north-1140-650",
+        "type": "north_arrow",
+        "x": 1140,
+        "y": 650,
+        "width": 60,
+        "height": 60,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale-870-680",
+        "type": "scale_bar",
+        "x": 870,
+        "y": 680,
+        "width": 220,
+        "height": 28,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "notes",
+        "type": "text",
+        "x": 44,
+        "y": 770,
+        "width": 1172,
+        "height": 52,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 10,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "MESSAGE CLÉ · Décrire ici les faits confirmés, les limites des données et la période d'observation."
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 24,
+        "y": 865,
+        "width": 1212,
+        "height": 14,
+        "angle": 0,
+        "z_index": 3,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection/CRS : …  |  Auteur : …  |  Date : …"
+        }
+      },
+      {
+        "id": "title-rule",
+        "type": "shape",
+        "x": 24,
+        "y": 126.0,
+        "width": 1212,
+        "height": 1.5,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#934B46",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      }
+    ],
+    "background_color": "#ffffff",
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A3 paysage"
+  },
+  "design_principles": [
+    "fond blanc et panneaux secondaires légèrement teintés",
+    "une seule couleur d’accent moderne et désaturée",
+    "traits, cadres cartographiques et textes noirs",
+    "hiérarchie typographique sobre et lisible",
+    "marges, espacements et alignements réguliers",
+    "aucune donnée géographique fictive incluse"
+  ],
+  "accent_tint": "#F5E9E7",
+  "palette_mode": "modern-theme"
+}

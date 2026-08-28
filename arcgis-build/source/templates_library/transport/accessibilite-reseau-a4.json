@@ -1,0 +1,253 @@
+{
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "name": "Accessibilité et réseau de transport",
+  "category": "transport",
+  "variant": "professionnel",
+  "description": "Réseau routier, temps d’accès, pôles et zones de desserte avec légende hiérarchisée.",
+  "page_format": "A4 paysage",
+  "accent_color": "#4A6573",
+  "tags": [
+    "transport",
+    "accessibilité",
+    "routes",
+    "temps de parcours"
+  ],
+  "purpose": "transport",
+  "recommended_layers": [],
+  "cartographic_notes": [
+    "Adapter la projection au territoire",
+    "Limiter la légende aux classes visibles",
+    "Citer les sources et la date"
+  ],
+  "layout_json": {
+    "elements": [
+      {
+        "id": "title",
+        "type": "title",
+        "x": 30,
+        "y": 28,
+        "width": 830,
+        "height": 34,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 21,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "Accessibilité du réseau"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "text",
+        "x": 30,
+        "y": 66,
+        "width": 830,
+        "height": 18,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Temps de parcours · hiérarchie · desserte"
+        }
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 30,
+        "y": 102,
+        "width": 645,
+        "height": 380,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1.15,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 705,
+        "y": 102,
+        "width": 156,
+        "height": 108,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 0.85,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 705,
+        "y": 240,
+        "width": 156,
+        "height": 180,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "travel-profile",
+        "type": "chart",
+        "x": 30,
+        "y": 514,
+        "width": 420,
+        "height": 80,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "fill": "#ffffff",
+          "strokeWidth": 0.65
+        },
+        "content": {
+          "title": "Profil de temps de parcours"
+        }
+      },
+      {
+        "id": "network-summary",
+        "type": "table",
+        "x": 474,
+        "y": 514,
+        "width": 387,
+        "height": 80,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "fill": "#ffffff",
+          "strokeWidth": 0.65
+        },
+        "content": {
+          "title": "Synthèse du réseau"
+        }
+      },
+      {
+        "id": "north-600-410",
+        "type": "north_arrow",
+        "x": 600,
+        "y": 410,
+        "width": 45,
+        "height": 45,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale-382-446",
+        "type": "scale_bar",
+        "x": 382,
+        "y": 446,
+        "width": 180,
+        "height": 28,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 24,
+        "y": 604,
+        "width": 843,
+        "height": 14,
+        "angle": 0,
+        "z_index": 3,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection/CRS : …  |  Auteur : …  |  Date : …"
+        }
+      },
+      {
+        "id": "title-rule",
+        "type": "shape",
+        "x": 24,
+        "y": 93.0,
+        "width": 843,
+        "height": 1.5,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#4A6573",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      }
+    ],
+    "background_color": "#ffffff",
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A4 paysage"
+  },
+  "design_principles": [
+    "fond blanc et panneaux secondaires légèrement teintés",
+    "une seule couleur d’accent moderne et désaturée",
+    "traits, cadres cartographiques et textes noirs",
+    "hiérarchie typographique sobre et lisible",
+    "marges, espacements et alignements réguliers",
+    "aucune donnée géographique fictive incluse"
+  ],
+  "accent_tint": "#E7EDF0",
+  "palette_mode": "modern-theme"
+}

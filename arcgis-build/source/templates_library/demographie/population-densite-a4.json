@@ -1,0 +1,235 @@
+{
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "name": "Population et densité: Choroplèthe",
+  "category": "demographie",
+  "variant": "professionnel",
+  "description": "Carte choroplèthe de population, densité et structure démographique avec indicateur de synthèse.",
+  "page_format": "A4 paysage",
+  "accent_color": "#6A5578",
+  "tags": [
+    "population",
+    "densité",
+    "recensement",
+    "choroplèthe"
+  ],
+  "purpose": "demographie",
+  "recommended_layers": [],
+  "cartographic_notes": [
+    "Adapter la projection au territoire",
+    "Limiter la légende aux classes visibles",
+    "Citer les sources et la date"
+  ],
+  "layout_json": {
+    "elements": [
+      {
+        "id": "title",
+        "type": "title",
+        "x": 30,
+        "y": 24,
+        "width": 830,
+        "height": 34,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 21,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "bold"
+        },
+        "content": {
+          "text": "POPULATION ET DENSITÉ"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "subtitle",
+        "x": 30,
+        "y": 62,
+        "width": 830,
+        "height": 20,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 9,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "textAlign": "left",
+          "fontWeight": "normal"
+        },
+        "content": {
+          "text": "Territoire · thème · période d'étude"
+        }
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 30,
+        "y": 100,
+        "width": 520,
+        "height": 430,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 1.15,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "distribution",
+        "type": "chart",
+        "x": 580,
+        "y": 100,
+        "width": 281,
+        "height": 140,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "fill": "#ffffff",
+          "strokeWidth": 0.65
+        },
+        "content": {
+          "title": "Distribution"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 580,
+        "y": 270,
+        "width": 281,
+        "height": 150,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 580,
+        "y": 442,
+        "width": 160,
+        "height": 100,
+        "angle": 0,
+        "z_index": 1,
+        "locked": false,
+        "style": {
+          "stroke": "#000000",
+          "strokeWidth": 0.85,
+          "fill": "#ffffff"
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "north-800-442",
+        "type": "north_arrow",
+        "x": 800,
+        "y": 442,
+        "width": 48,
+        "height": 48,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale-350-548",
+        "type": "scale_bar",
+        "x": 350,
+        "y": 548,
+        "width": 200,
+        "height": 28,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000",
+          "strokeWidth": 0.75
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 30,
+        "y": 582,
+        "width": 831,
+        "height": 20,
+        "angle": 0,
+        "z_index": 2,
+        "locked": false,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "DejaVu Sans, Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection/CRS : …  |  Auteur : …  |  Date : …"
+        }
+      },
+      {
+        "id": "title-rule",
+        "type": "shape",
+        "x": 24,
+        "y": 91.0,
+        "width": 843,
+        "height": 1.5,
+        "angle": 0,
+        "z_index": 0,
+        "locked": true,
+        "style": {
+          "fill": "#6A5578",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      }
+    ],
+    "background_color": "#ffffff",
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A4 paysage"
+  },
+  "design_principles": [
+    "fond blanc et panneaux secondaires légèrement teintés",
+    "une seule couleur d’accent moderne et désaturée",
+    "traits, cadres cartographiques et textes noirs",
+    "hiérarchie typographique sobre et lisible",
+    "marges, espacements et alignements réguliers",
+    "aucune donnée géographique fictive incluse"
+  ],
+  "accent_tint": "#EFEAF2",
+  "palette_mode": "modern-theme"
+}

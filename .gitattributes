@@ -1,0 +1,12 @@
+arcgis-build/source/**/*.py text eol=lf
+arcgis-build/source/**/*.pyt text eol=lf
+arcgis-build/source/**/*.json text eol=lf
+arcgis-build/source/**/*.md text eol=lf
+arcgis-build/source/**/*.txt text eol=lf
+arcgis-build/source/**/*.xml text eol=lf
+arcgis-build/source/**/*.xaml text eol=lf
+arcgis-build/source/**/*.cs text eol=lf
+arcgis-build/source/**/*.csproj text eol=lf
+arcgis-build/source/**/*.sln text eol=crlf
+arcgis-build/source/**/*.svg text eol=lf
+arcgis-build/source/**/*.yml text eol=lf

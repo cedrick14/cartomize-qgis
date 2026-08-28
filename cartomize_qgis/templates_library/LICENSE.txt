@@ -1,0 +1,10 @@
+Cartomize bundled map templates
+
+The 24 original Cartomize template definitions contained in this directory are licensed under the Creative Commons Attribution 4.0 International license (CC BY 4.0).
+
+You may share and adapt these templates, including for commercial use, provided appropriate attribution is given to Cartomize / ONDON NKOUA Cédrick Belmich.
+
+License information:
+https://creativecommons.org/licenses/by/4.0/
+
+This template license is separate from the GNU GPL v3 license that applies to the Cartomize plugin source code.
