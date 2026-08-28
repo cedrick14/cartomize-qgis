@@ -18,6 +18,7 @@ VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs
 BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
 COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
 DIAGNOSTIC_LOG = ROOT / "src/Cartomize.ArcGISPro/Services/DiagnosticLog.cs"
+GEOPROCESSING = ROOT / "src/Cartomize.ArcGISPro/Services/GeoprocessingService.cs"
 STARTUP_GUARD = ROOT / "src/Cartomize.ArcGISPro/Services/StartupGuard.cs"
 CSPROJ = ROOT / "src/Cartomize.ArcGISPro/Cartomize.ArcGISPro.csproj"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
@@ -47,6 +48,67 @@ EXPECTED_BUTTONS = [
 ]
 
 
+def _run_tool_input_counts(source: str) -> dict[str, set[int]]:
+    """Compte les arguments C# de chaque appel RunToolAsync, parenthèses incluses."""
+
+    result: dict[str, set[int]] = {}
+    needle = "RunToolAsync("
+    position = 0
+    while (start := source.find(needle, position)) >= 0:
+        cursor = start + len(needle)
+        expression_start = cursor
+        depth = 0
+        quote = None
+        escaped = False
+        while cursor < len(source):
+            character = source[cursor]
+            if quote:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == quote:
+                    quote = None
+            elif character in {'"', "'"}:
+                quote = character
+            elif character == "(":
+                depth += 1
+            elif character == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+            cursor += 1
+        expression = source[expression_start:cursor]
+        arguments = []
+        last = 0
+        depth = 0
+        quote = None
+        escaped = False
+        for index, character in enumerate(expression):
+            if quote:
+                if escaped:
+                    escaped = False
+                elif character == "\\":
+                    escaped = True
+                elif character == quote:
+                    quote = None
+            elif character in {'"', "'"}:
+                quote = character
+            elif character in "([{":
+                depth += 1
+            elif character in ")]}":
+                depth -= 1
+            elif character == "," and depth == 0:
+                arguments.append(expression[last:index].strip())
+                last = index + 1
+        arguments.append(expression[last:].strip())
+        if arguments and re.fullmatch(r'"[A-Za-z0-9_]+"', arguments[0]):
+            tool_name = arguments[0].strip('"')
+            result.setdefault(tool_name, set()).add(len(arguments) - 1)
+        position = cursor + 1
+    return result
+
+
 class QgisParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -60,6 +122,7 @@ class QgisParityTests(unittest.TestCase):
         cls.buttons = BUTTONS.read_text(encoding="utf-8")
         cls.commands = COMMANDS.read_text(encoding="utf-8")
         cls.diagnostic_log = DIAGNOSTIC_LOG.read_text(encoding="utf-8")
+        cls.geoprocessing = GEOPROCESSING.read_text(encoding="utf-8")
         cls.startup_guard = STARTUP_GUARD.read_text(encoding="utf-8")
         cls.csproj = CSPROJ.read_text(encoding="utf-8")
         cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
@@ -92,6 +155,7 @@ class QgisParityTests(unittest.TestCase):
         self.assertEqual(len(commands), len(EXPECTED_BUTTONS))
         for command in commands:
             self.assertIn(f"public ICommand {command} {{ get; }}", self.view_model)
+            self.assertRegex(self.view_model, rf"\b{command}\s*=\s*(?:new\s+|CoreCommand\()")
         self.assertNotIn("ExportLayoutCommand", commands)
         self.assertNotIn("MapOpsCommand", commands)
 
@@ -141,6 +205,22 @@ class QgisParityTests(unittest.TestCase):
         self.assertIsNotNone(match)
         tools = [value.strip() for value in match.group(1).replace("\n", " ").split(",") if value.strip()]
         self.assertEqual(tools, ["AuditProject", "AutopilotMap", "CreateLayout", "VectorIntelligence", "RasterIntelligence", "GeoIntelligence", "BatchMaps", "ReplayRecipe", "MapOpsCheck"])
+
+    def test_all_module_calls_match_their_toolbox_parameter_contracts(self):
+        self.assertEqual(
+            _run_tool_input_counts(self.view_model),
+            {
+                "AuditProject": {2},
+                "AutopilotMap": {15},
+                "BatchMaps": {2},
+                "CreateLayout": {19},
+                "GeoIntelligence": {2},
+                "MapOpsCheck": {4},
+                "RasterIntelligence": {3, 13},
+                "ReplayRecipe": {1},
+                "VectorIntelligence": {4, 14},
+            },
+        )
 
     def test_context_basemap_contract_is_preserved(self):
         sys.path.insert(0, str(ROOT / "toolbox"))
@@ -220,6 +300,38 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("CommandManager.RequerySuggested", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.view_model)
+
+    def test_geoprocessing_bridge_is_null_safe_and_non_blocking(self):
+        for required in (
+            "if (result is null)",
+            "FormatMessages(result.Messages)",
+            "FormatMessages(result.ErrorMessages)",
+            "result.IsCanceled",
+            "GPExecuteToolFlags.GPThread",
+            'DiagnosticLog.Write($"Géotraitement .NET : {toolName}", exception)',
+        ):
+            self.assertIn(required, self.geoprocessing)
+        self.assertNotIn("result.Messages.Select", self.geoprocessing)
+
+    def test_arcgis_actions_use_supported_public_apis(self):
+        for invalid_id in (
+            "esri_mapping_zoomToLayer",
+            "esri_mapping_layerProperties",
+            "esri_layouts_openLayout",
+            "esri_mapping_refreshView",
+        ):
+            self.assertNotIn(invalid_id, self.view_model)
+        for required in (
+            "ZoomSelectedLayerAsync",
+            "activeView.ZoomToAsync(",
+            "activeView.SelectLayers([selectedLayer])",
+            '"esri_mapping_selectedLayerPropertiesButton"',
+            "FrameworkApplication.Panes.CreateLayoutPaneAsync(layout)",
+            "layoutView.Refresh",
+            "ExecuteCoreCommand(id, successMessage)",
+            "Commande ArcGIS Pro introuvable",
+        ):
+            self.assertIn(required, self.view_model)
 
     def test_arcgis_dockpane_uses_a_lightweight_initial_visual_tree(self):
         self.assertEqual(len(list(self.host_root.iter(NS + "ContentControl"))), 1)

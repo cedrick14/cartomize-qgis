@@ -7,9 +7,11 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Framework;
 using ArcGIS.Desktop.Framework.Contracts;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Layouts;
 using ArcGIS.Desktop.Mapping;
 using ArcGIS.Desktop.Mapping.Events;
 using Cartomize.ArcGISPro.Services;
@@ -107,15 +109,15 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         ReplayCommand = new AsyncDelegateCommand(ReplayRecipeAsync, () => !IsBusy);
         AnalyzeLayerCommand = new AsyncDelegateCommand(AnalyzeSelectedLayerAsync, () => SelectedLayerName is not null && !IsBusy);
         ApplyRecommendationCommand = new AsyncDelegateCommand(ApplyRecommendationAsync, () => SelectedLayerName is not null && !IsBusy);
-        UndoStyleCommand = NativeCommand("esri_core_undoButton");
-        ImportDataCommand = NativeCommand("esri_mapping_addDataButton");
-        ZoomLayerCommand = NativeCommand("esri_mapping_zoomToLayer");
-        LayerPropertiesCommand = NativeCommand("esri_mapping_layerProperties");
+        UndoStyleCommand = CoreCommand("esri_core_undoButton", "Style précédent restauré");
+        ImportDataCommand = CoreCommand("esri_mapping_addDataButton", "Ajout de données ouvert");
+        ZoomLayerCommand = new AsyncDelegateCommand(ZoomSelectedLayerAsync, () => SelectedLayerName is not null && !IsBusy);
+        LayerPropertiesCommand = new AsyncDelegateCommand(OpenSelectedLayerPropertiesAsync, () => SelectedLayerName is not null && !IsBusy);
         RasterCommand = new AsyncDelegateCommand(OpenRasterEngineAsync, () => SelectedLayerName is not null && !IsBusy);
         LayoutCommand = new AsyncDelegateCommand(CreateLayoutAsync, () => SelectedTemplate is not null && !IsBusy);
         SynchronizeLayoutCommand = new AsyncDelegateCommand(SynchronizeLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
-        OpenLayoutCommand = NativeCommand("esri_layouts_openLayout");
-        RefreshPreviewCommand = NativeCommand("esri_mapping_refreshView");
+        OpenLayoutCommand = new AsyncDelegateCommand(OpenSelectedLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
+        RefreshPreviewCommand = new AsyncDelegateCommand(RefreshLayoutPreviewAsync, () => SelectedLayoutName is not null && !IsBusy);
         OptimizeLayoutCommand = new AsyncDelegateCommand(OptimizeLayoutAsync, () => SelectedLayoutName is not null && !IsBusy);
         ExportPdfCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("pdf"), () => SelectedLayoutName is not null && !IsBusy);
         ExportSvgCommand = new AsyncDelegateCommand(() => ExportLayoutAsync("svg"), () => SelectedLayoutName is not null && !IsBusy);
@@ -190,7 +192,15 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public string AuditScoreText { get => _auditScoreText; private set => SetProperty(ref _auditScoreText, value); }
     public string LabelAuditText { get => _labelAuditText; private set => SetProperty(ref _labelAuditText, value); }
     public string AuditReportText { get => _auditReportText; private set => SetProperty(ref _auditReportText, value); }
-    public string BatchManifestPath { get => _batchManifestPath; set => SetProperty(ref _batchManifestPath, value); }
+    public string BatchManifestPath
+    {
+        get => _batchManifestPath;
+        set
+        {
+            if (SetProperty(ref _batchManifestPath, value))
+                CommandManager.InvalidateRequerySuggested();
+        }
+    }
     public string MapOpsStatus { get => _mapOpsStatus; private set => SetProperty(ref _mapOpsStatus, value); }
     public string ValidationReviewer { get => _validationReviewer; set => SetProperty(ref _validationReviewer, value); }
     public string ValidationOrganization { get => _validationOrganization; set => SetProperty(ref _validationOrganization, value); }
@@ -204,7 +214,15 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public ChoiceItem? SelectedObjective { get => _selectedObjective; set { if (SetProperty(ref _selectedObjective, value)) BuildProposals(); } }
     public ChoiceItem? SelectedStyleProfile { get => _selectedStyleProfile; set => SetProperty(ref _selectedStyleProfile, value); }
     public AutomationProposal? SelectedProposal { get => _selectedProposal; set { if (SetProperty(ref _selectedProposal, value)) ApplyProposalSelection(); } }
-    public string? SelectedLayoutName { get => _selectedLayoutName; set => SetProperty(ref _selectedLayoutName, value); }
+    public string? SelectedLayoutName
+    {
+        get => _selectedLayoutName;
+        set
+        {
+            if (SetProperty(ref _selectedLayoutName, value))
+                CommandManager.InvalidateRequerySuggested();
+        }
+    }
     public CommunityResourceItem? SelectedCommunityResource { get => _selectedCommunityResource; set => SetProperty(ref _selectedCommunityResource, value); }
     public string TemplateSearchText { get => _templateSearchText; set { if (SetProperty(ref _templateSearchText, value)) FilterTemplates(); } }
     public string SelectedTemplateCategory { get => _selectedTemplateCategory; set { if (SetProperty(ref _selectedTemplateCategory, value)) FilterTemplates(); } }
@@ -485,6 +503,42 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             await RunToolAsync("VectorIntelligence", selectedLayer, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
     }
 
+    private async Task ZoomSelectedLayerAsync()
+    {
+        var activeView = MapView.Active;
+        var selectedLayer = await ResolveSelectedLayerAsync();
+        if (activeView is null || selectedLayer is null)
+        {
+            StatusText = "Sélectionnez une couche dans le panneau Contents.";
+            return;
+        }
+
+        var completed = await activeView.ZoomToAsync(
+            selectedLayer,
+            false,
+            TimeSpan.FromMilliseconds(250),
+            true);
+        StatusText = completed
+            ? $"Emprise affichée : {selectedLayer.Name}"
+            : "Navigation interrompue par ArcGIS Pro.";
+    }
+
+    private async Task OpenSelectedLayerPropertiesAsync()
+    {
+        var activeView = MapView.Active;
+        var selectedLayer = await ResolveSelectedLayerAsync();
+        if (activeView is null || selectedLayer is null)
+        {
+            StatusText = "Sélectionnez une couche dans le panneau Contents.";
+            return;
+        }
+
+        activeView.SelectLayers([selectedLayer]);
+        ExecuteCoreCommand(
+            "esri_mapping_selectedLayerPropertiesButton",
+            "Propriétés de la couche ouvertes");
+    }
+
     private async Task OpenRasterEngineAsync()
     {
         var selectedLayer = await ResolveSelectedLayerAsync();
@@ -500,6 +554,58 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task CreateLayoutAsync() => await ExecuteLayoutAsync("Créer", string.Empty);
     private async Task SynchronizeLayoutAsync() => await ExecuteLayoutAsync("Synchroniser", string.Empty);
     private async Task OptimizeLayoutAsync() => await ExecuteLayoutAsync("Optimiser", string.Empty);
+
+    private async Task OpenSelectedLayoutAsync()
+    {
+        var pane = await ActivateSelectedLayoutPaneAsync();
+        if (pane is not null)
+            StatusText = $"Mise en page ouverte : {SelectedLayoutName}";
+    }
+
+    private async Task RefreshLayoutPreviewAsync()
+    {
+        var pane = await ActivateSelectedLayoutPaneAsync();
+        if (pane is null)
+            return;
+
+        var layoutView = pane.LayoutView;
+        await QueuedTask.Run(layoutView.Refresh);
+        StatusText = $"Aperçu actualisé : {SelectedLayoutName}";
+    }
+
+    private async Task<ILayoutPane?> ActivateSelectedLayoutPaneAsync()
+    {
+        var selected = SelectedLayoutName;
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            StatusText = "Sélectionnez une mise en page.";
+            return null;
+        }
+
+        var layout = await QueuedTask.Run(() =>
+        {
+            var item = Project.Current?
+                .GetItems<LayoutProjectItem>()
+                .FirstOrDefault(candidate => candidate.Name.Equals(selected, StringComparison.OrdinalIgnoreCase));
+            return item?.GetLayout();
+        });
+        if (layout is null)
+        {
+            StatusText = $"Mise en page introuvable : {selected}";
+            return null;
+        }
+
+        foreach (var candidate in FrameworkApplication.Panes)
+        {
+            if (candidate is not ILayoutPane layoutPane || layoutPane.LayoutView.Layout != layout)
+                continue;
+            if (candidate is Pane pane)
+                pane.Activate();
+            return layoutPane;
+        }
+
+        return await FrameworkApplication.Panes.CreateLayoutPaneAsync(layout);
+    }
 
     private async Task ExportLayoutAsync(string extension)
     {
@@ -659,6 +765,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         catch (Exception exception)
         {
+            DiagnosticLog.Write($"Exécution du module {name}", exception);
             StatusText = $"Erreur : {exception.Message}";
             return new GeoprocessingService.ExecutionResult(false, string.Empty, exception.Message, -1);
         }
@@ -670,16 +777,21 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var activeView = requestedView ?? MapView.Active;
         var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault();
         var activeLayerName = tocLayer?.Name;
-        var activeMap = activeView?.Map;
+        var requestedMap = activeView?.Map;
+        var requestedMapName = SelectedMapName;
         var state = await QueuedTask.Run(() =>
         {
-            var maps = ArcGIS.Desktop.Core.Project.Current?.GetItems<ArcGIS.Desktop.Mapping.MapProjectItem>().Select(item => item.Name).ToArray() ?? [];
-            var layouts = ArcGIS.Desktop.Core.Project.Current?.GetItems<ArcGIS.Desktop.Layouts.LayoutProjectItem>().Select(item => item.Name).ToArray() ?? [];
-            var layers = activeMap?.GetLayersAsFlattenedList() ?? [];
+            var mapItems = Project.Current?.GetItems<MapProjectItem>().ToArray() ?? [];
+            var maps = mapItems.Select(item => item.Name).ToArray();
+            var layouts = Project.Current?.GetItems<LayoutProjectItem>().Select(item => item.Name).ToArray() ?? [];
+            var map = requestedMap
+                ?? mapItems.FirstOrDefault(item => item.Name.Equals(requestedMapName, StringComparison.OrdinalIgnoreCase))?.GetMap()
+                ?? mapItems.FirstOrDefault()?.GetMap();
+            var layers = map?.GetLayersAsFlattenedList() ?? [];
             var entries = layers.Select(layer => new { layer.Name, Visible = layer.IsVisible, Raster = layer is RasterLayer }).ToArray();
-            return new { Maps = maps, Layouts = layouts, Entries = entries };
+            return new { Maps = maps, Layouts = layouts, Entries = entries, MapName = map?.Name };
         });
-        await Application.Current.Dispatcher.InvokeAsync(() =>
+        await InvokeOnUiAsync(() =>
         {
             Replace(MapNames, state.Maps);
             Replace(LayoutNames, state.Layouts);
@@ -687,7 +799,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             LayerNames.Clear();
             _rasterLayerNames.Clear();
             foreach (var entry in state.Entries) { LayerNames.Add(entry.Name); if (entry.Raster) _rasterLayerNames.Add(entry.Name); }
-            SelectedMapName = MapNames.Contains(SelectedMapName ?? string.Empty) ? SelectedMapName : MapNames.FirstOrDefault();
+            SelectedMapName = state.MapName ?? (MapNames.Contains(SelectedMapName ?? string.Empty) ? SelectedMapName : MapNames.FirstOrDefault());
             LocatorMapName = MapNames.Contains(LocatorMapName ?? string.Empty) ? LocatorMapName : MapNames.FirstOrDefault();
             SelectedLayoutName = LayoutNames.Contains(SelectedLayoutName ?? string.Empty) ? SelectedLayoutName : LayoutNames.FirstOrDefault();
             SelectedLayerName = preferTocSelection && activeLayerName is not null && LayerNames.Contains(activeLayerName)
@@ -717,17 +829,22 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var selected = SelectedLayerName;
         var activeView = MapView.Active;
         var tocLayer = activeView?.GetSelectedLayers().FirstOrDefault();
-        var activeMap = activeView?.Map;
+        var requestedMap = activeView?.Map;
+        var requestedMapName = SelectedMapName;
         var fields = await QueuedTask.Run(() =>
         {
             if (string.IsNullOrWhiteSpace(selected)) return Array.Empty<string>();
-            var layer = tocLayer ?? activeMap?.GetLayersAsFlattenedList().FirstOrDefault(item => item.Name.Equals(selected, StringComparison.OrdinalIgnoreCase));
+            var map = requestedMap
+                ?? Project.Current?.GetItems<MapProjectItem>()
+                    .FirstOrDefault(item => item.Name.Equals(requestedMapName, StringComparison.OrdinalIgnoreCase))
+                    ?.GetMap();
+            var layer = tocLayer ?? map?.GetLayersAsFlattenedList().FirstOrDefault(item => item.Name.Equals(selected, StringComparison.OrdinalIgnoreCase));
             if (layer is not BasicFeatureLayer basicLayer) return Array.Empty<string>();
             using var table = basicLayer.GetTable();
             using var definition = table.GetDefinition();
             return definition.GetFields().Select(field => field.Name).ToArray();
         });
-        await Application.Current.Dispatcher.InvokeAsync(() =>
+        await InvokeOnUiAsync(() =>
         {
             Replace(LayerFields, fields);
             SelectedThematicField = LayerFields.Contains(SelectedThematicField ?? string.Empty) ? SelectedThematicField : LayerFields.FirstOrDefault();
@@ -744,12 +861,20 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return Task.FromResult<Layer?>(tocLayer);
 
         var selected = SelectedLayerName;
-        var activeMap = activeView?.Map;
-        if (string.IsNullOrWhiteSpace(selected) || activeMap is null)
+        var requestedMap = activeView?.Map;
+        var requestedMapName = SelectedMapName;
+        if (string.IsNullOrWhiteSpace(selected))
             return Task.FromResult<Layer?>(null);
 
-        return QueuedTask.Run<Layer?>(() => activeMap.GetLayersAsFlattenedList()
-            .FirstOrDefault(item => item.Name.Equals(selected, StringComparison.OrdinalIgnoreCase)));
+        return QueuedTask.Run<Layer?>(() =>
+        {
+            var map = requestedMap
+                ?? Project.Current?.GetItems<MapProjectItem>()
+                    .FirstOrDefault(item => item.Name.Equals(requestedMapName, StringComparison.OrdinalIgnoreCase))
+                    ?.GetMap();
+            return map?.GetLayersAsFlattenedList()
+                .FirstOrDefault(item => item.Name.Equals(selected, StringComparison.OrdinalIgnoreCase));
+        });
     }
 
     private async Task RefreshLayerFieldsSafelyAsync()
@@ -778,6 +903,19 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         {
             DiagnosticLog.Write("Mise à jour de l’état du panneau", exception);
         }
+    }
+
+    private static async Task InvokeOnUiAsync(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.HasShutdownStarted || dispatcher.HasShutdownFinished)
+            throw new InvalidOperationException("L’interface ArcGIS Pro n’est pas disponible.");
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+        await dispatcher.InvokeAsync(action);
     }
 
     private void SetBusy(bool value)
@@ -848,10 +986,35 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             locator_map_name = LocatorMapName, proposal_validated = ProposalValidated }
     }, new JsonSerializerOptions { WriteIndented = true });
 
-    private static ICommand NativeCommand(string id) => new DelegateCommand(() =>
+    private ICommand CoreCommand(string id, string successMessage) => new DelegateCommand(() =>
     {
-        if (FrameworkApplication.GetPlugInWrapper(id) is ICommand command && command.CanExecute(null)) command.Execute(null);
+        ExecuteCoreCommand(id, successMessage);
     });
+
+    private void ExecuteCoreCommand(string id, string successMessage)
+    {
+        try
+        {
+            if (FrameworkApplication.GetPlugInWrapper(id) is not ICommand command)
+            {
+                StatusText = "Commande ArcGIS Pro indisponible.";
+                DiagnosticLog.Write($"Commande ArcGIS Pro introuvable : {id}");
+                return;
+            }
+            if (!command.CanExecute(null))
+            {
+                StatusText = "Commande ArcGIS Pro indisponible dans le contexte actuel.";
+                return;
+            }
+            command.Execute(null);
+            StatusText = successMessage;
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write($"Commande ArcGIS Pro : {id}", exception);
+            StatusText = $"Erreur : {exception.Message}";
+        }
+    }
 
     private static void OpenUrl(string url) => Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }

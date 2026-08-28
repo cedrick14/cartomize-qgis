@@ -12,7 +12,7 @@ internal static class GeoprocessingService
         string Messages,
         int ErrorCode);
 
-    public static void Open(string toolName, params object[] values)
+    public static void Open(string toolName, params object?[] values)
     {
         var toolbox = Module.ToolboxPath;
         if (!File.Exists(toolbox))
@@ -23,8 +23,16 @@ internal static class GeoprocessingService
             return;
         }
 
-        var toolPath = $"{toolbox}\\{toolName}";
-        Geoprocessing.OpenToolDialog(toolPath, Geoprocessing.MakeValueArray(values));
+        try
+        {
+            var toolPath = Path.Combine(toolbox, toolName);
+            Geoprocessing.OpenToolDialog(toolPath, Geoprocessing.MakeValueArray(values));
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write($"Ouverture du géotraitement : {toolName}", exception);
+            MessageBox.Show(exception.Message, "Cartomize");
+        }
     }
 
     public static async Task<ExecutionResult> ExecuteAsync(string toolName, params object?[] values)
@@ -33,20 +41,56 @@ internal static class GeoprocessingService
         if (!File.Exists(toolbox))
             return new ExecutionResult(false, string.Empty, $"Boîte à outils introuvable : {toolbox}", -1);
 
-        var toolPath = $"{toolbox}\\{toolName}";
-        var result = await Geoprocessing.ExecuteToolAsync(
-            toolPath,
-            Geoprocessing.MakeValueArray(values),
-            null,
-            null,
-            GPExecuteToolFlags.RefreshProjectItems | GPExecuteToolFlags.AddToHistory);
-        var messages = string.Join(
-            Environment.NewLine,
-            result.Messages.Select(message => message.Text));
-        return new ExecutionResult(
-            !result.IsFailed,
-            result.ReturnValue ?? string.Empty,
-            messages,
-            result.ErrorCode);
+        var toolPath = Path.Combine(toolbox, toolName);
+        DiagnosticLog.Write($"Géotraitement démarré : {toolName} ({values.Length} paramètre(s))");
+        try
+        {
+            var result = await Geoprocessing.ExecuteToolAsync(
+                toolPath,
+                Geoprocessing.MakeValueArray(values),
+                null,
+                null,
+                GPExecuteToolFlags.RefreshProjectItems |
+                GPExecuteToolFlags.AddToHistory |
+                GPExecuteToolFlags.GPThread);
+
+            if (result is null)
+            {
+                const string message = "ArcGIS Pro n’a retourné aucun résultat de géotraitement.";
+                DiagnosticLog.Write($"Géotraitement sans résultat : {toolName}");
+                return new ExecutionResult(false, string.Empty, message, -1);
+            }
+
+            var messages = FormatMessages(result.Messages);
+            if (string.IsNullOrWhiteSpace(messages) && (result.IsFailed || result.IsCanceled))
+                messages = FormatMessages(result.ErrorMessages);
+            if (string.IsNullOrWhiteSpace(messages) && result.IsCanceled)
+                messages = "Opération annulée.";
+            if (string.IsNullOrWhiteSpace(messages) && result.IsFailed)
+                messages = $"Le géotraitement a échoué (code {result.ErrorCode}).";
+
+            DiagnosticLog.Write(
+                $"Géotraitement terminé : {toolName} — code {result.ErrorCode} — " +
+                $"échec={result.IsFailed} — annulé={result.IsCanceled}");
+            return new ExecutionResult(
+                !result.IsFailed && !result.IsCanceled,
+                result.ReturnValue ?? string.Empty,
+                messages,
+                result.ErrorCode);
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write($"Géotraitement .NET : {toolName}", exception);
+            return new ExecutionResult(false, string.Empty, exception.Message, -1);
+        }
     }
+
+    private static string FormatMessages(IEnumerable<IGPMessage>? messages)
+        => messages is null
+            ? string.Empty
+            : string.Join(
+                Environment.NewLine,
+                messages
+                    .Where(message => message is not null && !string.IsNullOrWhiteSpace(message.Text))
+                    .Select(message => message.Text));
 }
