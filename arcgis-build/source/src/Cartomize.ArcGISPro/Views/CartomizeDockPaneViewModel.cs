@@ -396,28 +396,25 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task AnalyzeAutomationAsync()
     {
-        var path = CartomizeDataService.ReportPath("automation-analysis.json");
+        await RefreshProjectAsync();
         var selectedLayer = await ResolveSelectedLayerAsync();
-        var result = await RunToolAsync(
-            "GeoIntelligence",
-            SelectedMapName ?? string.Empty,
-            SelectedObjective?.Label ?? "Détection automatique",
-            selectedLayer,
-            SelectedStyleProfile?.Label ?? "Équilibré",
-            AutomationVisibleOnly,
-            path);
-        if (!result.Succeeded) return;
-        using var document = CartomizeDataService.ReadJson(path);
-        var proposalsLoaded = false;
-        if (document is not null)
+        var lines = new List<string>
         {
-            var root = document.RootElement;
-            var recommendations = root.TryGetProperty("recommendations", out var items) ? string.Join("\n", items.EnumerateArray().Select(item => $"• {item.GetString()}")) : "Analyse terminée.";
-            AutomationReportText = $"Carte : {CartomizeDataService.Text(root, "map")}\n{recommendations}";
-            proposalsLoaded = LoadAutomationProposals(root);
+            $"Carte : {SelectedMapName ?? "—"}",
+            $"Objectif : {SelectedObjective?.Label ?? "Détection automatique"}",
+            $"Couches : {LayerChoices.Count}",
+        };
+        if (selectedLayer is not null)
+        {
+            var profile = await NativeLayerService.AnalyzeAsync(selectedLayer);
+            lines.Add($"Couche principale : {profile.Name}");
+            lines.Add($"Rôle : {profile.Role}");
+            lines.Add($"Rendu recommandé : {profile.RecommendedRenderer}");
+            foreach (var warning in profile.Warnings.Take(5)) lines.Add($"• {warning}");
         }
-        if (!proposalsLoaded)
-            BuildProposals();
+        AutomationReportText = string.Join(Environment.NewLine, lines);
+        BuildProposals();
+        StatusText = "Analyse du projet terminée avec le moteur ArcGIS Pro natif.";
     }
 
     private async Task GenerateSelectedVariantAsync()
@@ -439,16 +436,36 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task<bool> ExecuteAutopilotAsync(AutomationProposal proposal, string reportName)
     {
-        var report = CartomizeDataService.ReportPath(reportName);
-        var selectedLayer = await ResolveSelectedLayerAsync();
-        var result = await RunToolAsync("AutopilotMap", SelectedMapName ?? string.Empty, SelectedObjective?.Label ?? "Détection automatique", selectedLayer,
-            SelectedStyleProfile?.Label ?? "Équilibré", proposal.Name, AutomationApplySymbology, AutomationAutoCorrect, AutomationVisibleOnly,
-            AutomationSources, LayoutTitle, proposal.TemplateId, report, SelectedContextChoice?.Id ?? "automatic",
-            ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty, ProposalValidated);
-        if (!result.Succeeded) return false;
-        using var document = CartomizeDataService.ReadJson(report);
-        if (document is not null && document.RootElement.TryGetProperty("recipe", out var recipe)) _lastRecipeJson = recipe.GetRawText();
-        return true;
+        try
+        {
+            SelectedProposal = proposal;
+            SelectedTemplate = _allTemplates.FirstOrDefault(item => item.Id.Equals(proposal.TemplateId, StringComparison.OrdinalIgnoreCase));
+            if (SelectedTemplate is null)
+                throw new InvalidOperationException($"Maquette introuvable : {proposal.TemplateId}");
+            if (AutomationApplySymbology && SelectedLayerChoice is not null && !IsBasemapLayer)
+            {
+                await AnalyzeSelectedLayerAsync();
+                await ApplyRecommendationAsync();
+            }
+            await ExecuteLayoutAsync("Créer", string.Empty);
+            _lastRecipeJson = BuildCurrentRecipeJson();
+            using var recipeDocument = JsonDocument.Parse(_lastRecipeJson);
+            CartomizeDataService.WriteJson(CartomizeDataService.ReportPath(reportName), new
+            {
+                schema_version = 1,
+                status = "success",
+                recipe = recipeDocument.RootElement.Clone(),
+                layout_name = SelectedLayoutName,
+            });
+            ValidationStatus = "Statut : une validation humaine est requise";
+            return true;
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Cartomize Autopilot natif", exception);
+            StatusText = $"Erreur : {exception.Message}";
+            return false;
+        }
     }
 
     private void SaveRecipe()
@@ -468,13 +485,36 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     {
         var dialog = new OpenFileDialog { Filter = "Recette Cartomize (*.cartomize.json;*.json)|*.cartomize.json;*.json" };
         if (dialog.ShowDialog() != true) return;
-        var result = await RunToolAsync("ReplayRecipe", dialog.FileName);
-        if (result.Succeeded)
-        {
-            _lastRecipeJson = File.ReadAllText(dialog.FileName);
-            ValidationStatus = "Statut : une nouvelle validation humaine est requise";
-            await RefreshProjectAsync();
-        }
+        await ApplyRecipeFileAsync(dialog.FileName);
+    }
+
+    private async Task ApplyRecipeFileAsync(string path)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var root = document.RootElement;
+        if (root.TryGetProperty("objective", out var objective))
+            SelectedObjective = Objectives.FirstOrDefault(item => item.Id.Equals(objective.GetString(), StringComparison.OrdinalIgnoreCase)) ?? SelectedObjective;
+        if (!root.TryGetProperty("layout", out var layout) || layout.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("La recette Cartomize ne contient pas de section layout valide.");
+        SelectedMapName = CartomizeDataService.Text(layout, "map_name", SelectedMapName ?? string.Empty);
+        var templateId = CartomizeDataService.Text(layout, "template_id");
+        SelectedTemplate = _allTemplates.FirstOrDefault(item => item.Id.Equals(templateId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Maquette de la recette introuvable : {templateId}");
+        LayoutName = CartomizeDataService.Text(layout, "layout_name", LayoutName);
+        LayoutTitle = CartomizeDataService.Text(layout, "title", LayoutTitle);
+        LayoutSubtitle = CartomizeDataService.Text(layout, "subtitle", LayoutSubtitle);
+        LayoutSources = CartomizeDataService.Text(layout, "credits", LayoutSources);
+        LayoutMargin = CartomizeDataService.Number(layout, "margin_percent", 3).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+        LayoutAddGrid = CartomizeDataService.Boolean(layout, "add_grid");
+        ContextOpacity = ((int)CartomizeDataService.Number(layout, "context_opacity_percent", 100)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        LocatorMapName = CartomizeDataService.Text(layout, "locator_map_name", LocatorMapName ?? string.Empty);
+        ProposalValidated = CartomizeDataService.Boolean(layout, "proposal_validated");
+        var background = CartomizeDataService.Text(layout, "background_choice", "automatic");
+        SelectedContextChoice = ContextChoices.FirstOrDefault(item => item.Id.Equals(background, StringComparison.OrdinalIgnoreCase)) ?? SelectedContextChoice;
+        await ExecuteLayoutAsync("Créer", string.Empty);
+        _lastRecipeJson = root.GetRawText();
+        ValidationStatus = "Statut : une nouvelle validation humaine est requise";
+        await RefreshProjectAsync();
     }
 
     private async Task AnalyzeSelectedLayerAsync()
@@ -485,49 +525,32 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             StatusText = "Sélectionnez une couche dans le panneau Contents.";
             return;
         }
-        var isRaster = selectedLayer is RasterLayer;
-        var path = CartomizeDataService.ReportPath(isRaster ? "raster-analysis.json" : "vector-analysis.json");
-        // ArcGIS Pro doit transmettre l'objet Layer natif au paramètre
-        // GPFeatureLayer/GPRasterLayer. Un simple nom n'est pas résolu de façon
-        // fiable par le moteur GP (noms dupliqués, groupes, couches distantes).
-        var result = isRaster
-            ? await RunToolAsync("RasterIntelligence", selectedLayer, false, path)
-            : await RunToolAsync("VectorIntelligence", selectedLayer, 1000, false, path);
-        if (!result.Succeeded) return;
-        using var document = CartomizeDataService.ReadJson(path);
-        if (document is null) return;
-        var root = document.RootElement;
-        if (isRaster && root.TryGetProperty("diagnosis", out var diagnosis))
+        var profile = await NativeLayerService.AnalyzeAsync(selectedLayer);
+        if (profile.IsRaster)
         {
-            RecommendationText = $"Type : {CartomizeDataService.Text(diagnosis, "raster_type")}\nThème : {CartomizeDataService.Text(diagnosis, "theme")}\nConfiance : {CartomizeDataService.Number(diagnosis, "confidence"):P0}";
-            var rasterType = CartomizeDataService.Text(diagnosis, "raster_type");
-            SelectedRenderMode = rasterType is "binary" or "categorized" ? "Catégorisé" : rasterType == "rgb" ? "Symbole unique" : "Gradué — quantiles";
-            if (diagnosis.TryGetProperty("classes", out var classes) && classes.ValueKind == JsonValueKind.Array)
-                MaxClasses = Math.Clamp(classes.GetArrayLength(), 2, 12).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            if (diagnosis.TryGetProperty("inference", out var inference))
+            RecommendationText = $"Type : raster\nBandes : {profile.BandCount}\nDimensions : {profile.Width:N0} × {profile.Height:N0}\nRendu : {profile.RecommendedRenderer}";
+            SelectedRenderMode = profile.RecommendedRenderer switch
             {
-                var palette = CartomizeDataService.Text(inference, "recommended_palette");
-                SelectedPalette = palette.Contains("diverg", StringComparison.OrdinalIgnoreCase) ? "Divergente" : palette.Contains("sequent", StringComparison.OrdinalIgnoreCase) ? "Séquentielle" : "Qualitative";
-            }
+                "Catégoriel" => "Catégorisé",
+                "Composition RGB" => "Symbole unique",
+                _ => "Gradué — quantiles",
+            };
+            SelectedPalette = profile.RecommendedPalette.Contains("Categorical", StringComparison.OrdinalIgnoreCase) ? "Qualitative" : "Séquentielle";
             LabelsEnabled = false;
         }
-        else if (root.TryGetProperty("profile", out var profile))
+        else
         {
-            RecommendationText = $"Rôle : {CartomizeDataService.Text(profile, "role")}\nÉtiquette : {CartomizeDataService.Text(profile, "label_field", "à confirmer")}\nChamp thématique : {CartomizeDataService.Text(profile, "thematic_field", "à confirmer")}";
-            SelectedThematicField = CartomizeDataService.Text(profile, "thematic_field");
-            SelectedLabelField = CartomizeDataService.Text(profile, "label_field");
+            var labelField = string.IsNullOrWhiteSpace(profile.LabelField) ? "—" : profile.LabelField;
+            var thematicField = string.IsNullOrWhiteSpace(profile.ThematicField) ? "—" : profile.ThematicField;
+            RecommendationText = $"Rôle : {profile.Role}\nGéométrie : {profile.GeometryType}\nEntités : {profile.FeatureCount:N0}\nÉtiquette : {labelField}\nChamp thématique : {thematicField}";
+            SelectedThematicField = profile.ThematicField;
+            SelectedLabelField = profile.LabelField;
             LabelsEnabled = !string.IsNullOrWhiteSpace(SelectedLabelField);
-            var role = "";
-            if (profile.TryGetProperty("fields", out var fields) && fields.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var field in fields.EnumerateArray())
-                    if (CartomizeDataService.Text(field, "name").Equals(SelectedThematicField, StringComparison.OrdinalIgnoreCase))
-                    { role = CartomizeDataService.Text(field, "semantic_role"); break; }
-            }
-            SelectedRenderMode = role is "category" or "coded_category" or "ordinal" ? "Catégorisé" : string.IsNullOrWhiteSpace(SelectedThematicField) ? "Symbole unique" : "Gradué — quantiles";
-            SelectedPalette = SelectedRenderMode == "Catégorisé" ? "Qualitative" : role == "diverging_quantitative" ? "Divergente" : "Séquentielle";
+            SelectedRenderMode = profile.RecommendedRenderer;
+            SelectedPalette = profile.RecommendedPalette;
         }
         ConfirmStyleParameters = false;
+        StatusText = "Couche analysée avec le moteur ArcGIS Pro natif.";
     }
 
     private async Task ApplyRecommendationAsync()
@@ -539,10 +562,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return;
         }
         var snapshot = await QueuedTask.Run(() => (Key: selectedLayer.URI, Definition: selectedLayer.GetDefinition()));
-        var isRaster = selectedLayer is RasterLayer;
-        var report = CartomizeDataService.ReportPath(isRaster ? "raster-style.json" : "vector-style.json");
         var classes = ParseInt(MaxClasses, 5, 2, 12);
-        var labelSize = ParseDouble(LabelSize, 9.5, 5, 48);
         var opacity = ParseInt(LayerOpacity, 100, 0, 100);
         var rasterMode = SelectedRenderMode switch
         {
@@ -550,17 +570,18 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             "Gradué — quantiles" => "Continu",
             _ => "Continu",
         };
-        var rasterPalette = SelectedPalette switch
-        {
-            "Divergente" => "Diverging",
-            "Qualitative" => "Categorical",
-            _ => "Continuous",
-        };
-        var result = isRaster
-            ? await RunToolAsync("RasterIntelligence", selectedLayer, true, report, rasterMode, SelectedThematicField ?? string.Empty, classes, rasterPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters)
-            : await RunToolAsync("VectorIntelligence", selectedLayer, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
-        if (result.Succeeded)
-            _styleHistory[snapshot.Key] = snapshot.Definition;
+        await NativeStyleService.ApplyAsync(
+            selectedLayer,
+            selectedLayer is RasterLayer ? rasterMode : SelectedRenderMode,
+            SelectedThematicField ?? string.Empty,
+            classes,
+            LabelsEnabled,
+            SelectedLabelField ?? string.Empty,
+            ParseDouble(LabelSize, 9.5, 5, 36),
+            SelectedPlacement ?? "Automatique selon la géométrie",
+            opacity);
+        _styleHistory[snapshot.Key] = snapshot.Definition;
+        StatusText = "Recommandation appliquée avec la symbologie ArcGIS Pro native.";
     }
 
     private async Task RestorePreviousStyleAsync()
@@ -720,32 +741,84 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task ExecuteLayoutAsync(string operation, string exportPath)
     {
         if (SelectedTemplate is null) return;
-        _ = double.TryParse(LayoutMargin.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var margin);
-        await RunToolAsync("CreateLayout", SelectedMapName ?? string.Empty, SelectedTemplate.Label, LayoutTitle, LayoutSubtitle, LayoutName, LayoutSources, LayoutVisibleOnly,
-            margin <= 0 ? 3.0 : margin, LayoutAddGrid, true, operation is "Créer" or "Synchroniser" or "Optimiser", exportPath, 600,
-            exportPath.EndsWith(".pagx", StringComparison.OrdinalIgnoreCase) ? exportPath : string.Empty, string.Empty, operation, SelectedLayoutName ?? string.Empty,
-            SelectedContextChoice?.Id ?? "automatic", ParseInt(ContextOpacity, 100, 0, 100), LocatorMapName ?? string.Empty);
+        var map = await ResolveSelectedMapAsync();
+        if (map is null)
+        {
+            StatusText = "Sélectionnez une carte ArcGIS Pro.";
+            return;
+        }
+        var margin = ParseDouble(LayoutMargin, 3, 0, 50);
+        var layout = await NativeLayoutService.FindAsync(SelectedLayoutName);
+        switch (operation)
+        {
+            case "Créer":
+            {
+                var locator = await ResolveMapAsync(LocatorMapName);
+                var result = await NativeLayoutService.CreateAsync(new NativeLayoutRequest(
+                    map,
+                    SelectedTemplate.Path,
+                    LayoutName,
+                    LayoutTitle,
+                    LayoutSubtitle,
+                    LayoutSources,
+                    LayoutVisibleOnly,
+                    margin,
+                    true,
+                    locator,
+                    ParseInt(ContextOpacity, 100, 0, 100)));
+                layout = result.Layout;
+                SelectedLayoutName = result.LayoutName;
+                StatusText = result.Warnings.Count == 0
+                    ? $"Mise en page créée : {result.LayoutName}"
+                    : $"Mise en page créée avec {result.Warnings.Count} avertissement(s).";
+                await FrameworkApplication.Panes.CreateLayoutPaneAsync(layout);
+                break;
+            }
+            case "Synchroniser":
+                if (layout is null)
+                {
+                    await ExecuteLayoutAsync("Créer", exportPath);
+                    return;
+                }
+                await NativeLayoutService.SynchronizeAsync(layout, map, LayoutTitle, LayoutSubtitle, LayoutSources, LayoutVisibleOnly, margin);
+                StatusText = $"Mise en page synchronisée : {SelectedLayoutName}";
+                break;
+            case "Optimiser":
+                if (layout is null)
+                {
+                    StatusText = "Sélectionnez une mise en page.";
+                    return;
+                }
+                await NativeLayoutService.OptimizeAsync(layout);
+                StatusText = $"Mise en page optimisée : {SelectedLayoutName}";
+                break;
+            case "Exporter":
+                if (layout is null)
+                {
+                    StatusText = "Sélectionnez une mise en page.";
+                    return;
+                }
+                await NativeLayoutService.ExportAsync(layout, exportPath, 600);
+                StatusText = $"Mise en page exportée : {exportPath}";
+                break;
+        }
         await RefreshProjectAsync();
     }
 
     private async Task RunAuditAsync()
     {
-        var report = CartomizeDataService.ReportPath("audit.json");
-        var result = await RunToolAsync("AuditProject", report, "Projet");
-        if (!result.Succeeded) return;
-        using var document = CartomizeDataService.ReadJson(report);
-        if (document is not null) LoadAudit(document.RootElement);
+        var result = await NativeAuditService.RunAsync(MapView.Active?.Map);
+        LoadAudit(result);
+        StatusText = "Contrôle qualité exécuté avec le moteur ArcGIS Pro natif.";
     }
 
     private async Task RunLabelAuditAsync()
     {
-        var report = CartomizeDataService.ReportPath("labels.json");
-        var result = await RunToolAsync("AuditProject", report, "Étiquettes");
-        if (!result.Succeeded) return;
-        using var document = CartomizeDataService.ReadJson(report);
-        if (document is null) return;
-        LabelAuditText = CartomizeDataService.Text(document.RootElement, "status", "Étiquettes contrôlées");
-        LoadAudit(document.RootElement);
+        var result = await NativeAuditService.RunAsync(MapView.Active?.Map);
+        LabelAuditText = result.Findings.Any(item => item.Code.Contains("LABEL", StringComparison.OrdinalIgnoreCase))
+            ? "Étiquettes à vérifier"
+            : "Étiquettes contrôlées";
+        LoadAudit(result);
     }
 
     private void LoadAudit(JsonElement root)
@@ -756,6 +829,17 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             foreach (var item in findings.EnumerateArray()) AuditFindings.Add(new AuditFindingItem(CartomizeDataService.Text(item, "severity"), CartomizeDataService.Text(item, "code"),
                 CartomizeDataService.Text(item, "layer_name"), CartomizeDataService.Text(item, "message"), CartomizeDataService.Text(item, "remediation")));
         AuditReportText = string.Join("\n", AuditFindings.Select(item => $"[{item.Severity}] {item.Code} — {item.Message} {item.Remediation}"));
+    }
+
+    private void LoadAudit(NativeAuditResult result)
+    {
+        AuditScoreText = $"{result.Score:0}/100 — {result.Status}";
+        AuditFindings.Clear();
+        foreach (var item in result.Findings)
+            AuditFindings.Add(new AuditFindingItem(item.Severity, item.Code, item.LayerName, item.Message, item.Remediation));
+        AuditReportText = AuditFindings.Count == 0
+            ? "Aucune anomalie détectée par les contrôles automatiques."
+            : string.Join("\n", AuditFindings.Select(item => $"[{item.Severity}] {item.Code} — {item.Message} {item.Remediation}"));
     }
 
     private void SelectManifest()
@@ -784,29 +868,57 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     private async Task RunBatchAsync()
     {
-        var result = await RunToolAsync("BatchMaps", BatchManifestPath, CartomizeDataService.ReportPath("batch-report.json"));
-        BatchStatusText = result.Succeeded ? "Série terminée. Consultez le rapport de production." : result.Messages;
+        if (SelectedTemplate is null)
+        {
+            BatchStatusText = "Sélectionnez une maquette Cartomize.";
+            return;
+        }
+        var map = await ResolveSelectedMapAsync();
+        if (map is null)
+        {
+            BatchStatusText = "Sélectionnez une carte ArcGIS Pro.";
+            return;
+        }
+        var result = await NativeBatchService.RunAsync(
+            BatchManifestPath,
+            map,
+            SelectedTemplate.Path,
+            LayoutVisibleOnly,
+            ParseDouble(LayoutMargin, 3, 0, 50),
+            ParseInt(ContextOpacity, 100, 0, 100));
+        CartomizeDataService.WriteJson(CartomizeDataService.ReportPath("batch-report.json"), result);
+        BatchStatusText = result.Errors.Count == 0
+            ? $"Série terminée : {result.Completed}/{result.Total} carte(s), {result.Outputs.Count} fichier(s)."
+            : $"Série terminée avec erreurs : {result.Completed}/{result.Total} carte(s). {string.Join(" · ", result.Errors.Take(3))}";
     }
     private string MapOpsPath => CartomizeDataService.ReportPath("mapops-baseline.json");
-    private async Task CreateMapOpsBaselineAsync() => await RunMapOpsAsync("Créer référence", string.Empty, MapOpsPath);
+    private async Task CreateMapOpsBaselineAsync()
+    {
+        await NativeProjectStateService.WriteBaselineAsync(MapOpsPath);
+        MapOpsStatus = "Référence MapOps créée.";
+    }
     private async Task CheckMapOpsAsync()
     {
         var comparisonPath = CartomizeDataService.ReportPath("mapops-report.json");
-        await RunMapOpsAsync("Vérifier", MapOpsPath, CartomizeDataService.ReportPath("mapops-current.json"));
+        var result = await NativeProjectStateService.CompareAsync(MapOpsPath, CartomizeDataService.ReportPath("mapops-current.json"));
+        CartomizeDataService.WriteJson(comparisonPath, new
+        {
+            schema_version = 1,
+            changed = result.Changed,
+            current_hash = result.CurrentHash,
+            previous_hash = result.PreviousHash,
+            message = result.Message,
+        });
+        MapOpsStatus = result.Message;
         if (!MapOpsAutoRegenerate || string.IsNullOrWhiteSpace(_lastRecipeJson))
             return;
-        using var document = CartomizeDataService.ReadJson(comparisonPath);
-        if (document is not null
-            && document.RootElement.TryGetProperty("changed", out var changed)
-            && changed.ValueKind == JsonValueKind.True)
+        if (result.Changed)
             await RegenerateAfterMapOpsAsync();
     }
-    private async Task AcceptMapOpsAsync() => await RunMapOpsAsync("Accepter", MapOpsPath, MapOpsPath);
-
-    private async Task RunMapOpsAsync(string action, string previous, string output)
+    private async Task AcceptMapOpsAsync()
     {
-        var result = await RunToolAsync("MapOpsCheck", previous, output, CartomizeDataService.ReportPath("mapops-report.json"), action);
-        MapOpsStatus = result.Succeeded ? (string.IsNullOrWhiteSpace(result.Messages) ? action : result.Messages) : result.Messages;
+        await NativeProjectStateService.WriteBaselineAsync(MapOpsPath);
+        MapOpsStatus = "État actuel accepté comme nouvelle référence.";
     }
 
     private async Task RegenerateAfterMapOpsAsync()
@@ -818,10 +930,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         var path = CartomizeDataService.ReportPath("mapops-last-recipe.cartomize.json");
         File.WriteAllText(path, _lastRecipeJson);
-        var result = await RunToolAsync("ReplayRecipe", path);
-        if (!result.Succeeded)
-            return;
-        await RunMapOpsAsync("Accepter", MapOpsPath, MapOpsPath);
+        await ApplyRecipeFileAsync(path);
+        await AcceptMapOpsAsync();
         await RefreshProjectAsync();
         ValidationStatus = "Statut : une nouvelle validation humaine est requise";
         StatusText = "La dernière recette a été régénérée avec les données actuelles.";
@@ -941,30 +1051,10 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task RunDiagnosticsAsync()
     {
         await RefreshProjectAsync();
-        var toolbox = File.Exists(Module.ToolboxPath);
         var templates = _allTemplates.Count;
-        DiagnosticText = $"Cartomize 10.5.1\nArcGIS Pro SDK 3.7\n.NET 10\n\nBoîte à outils : {(toolbox ? "disponible" : "indisponible")}\nAlgorithmes Cartomize : 9\n" +
-            $"Maquettes : {templates}/24\nCartes : {MapNames.Count}\nCouches : {LayerNames.Count}\nMises en page : {LayoutNames.Count}\n\nStatut général : {(toolbox && templates == 24 ? "Conforme" : "Non conforme")}";
+        DiagnosticText = $"Cartomize 10.5.1\nArcGIS Pro SDK 3.7\n.NET 10\n\nMoteur : API natives ArcGIS Pro\nServices Cartomize : analyse, symbologie, raster, mise en page, qualité, série et MapOps\n" +
+            $"Maquettes : {templates}/24\nCartes : {MapNames.Count}\nCouches : {LayerNames.Count}\nMises en page : {LayoutNames.Count}\n\nStatut général : {(templates == 24 ? "Conforme" : "Non conforme")}";
         StatusText = "Système vérifié";
-    }
-
-    private async Task<GeoprocessingService.ExecutionResult> RunToolAsync(string name, params object?[] values)
-    {
-        SetBusy(true);
-        StatusText = $"Exécution : {name}";
-        try
-        {
-            var result = await GeoprocessingService.ExecuteAsync(name, values);
-            StatusText = result.Succeeded ? (string.IsNullOrWhiteSpace(result.Messages) ? "Opération terminée" : result.Messages) : $"Erreur : {result.Messages}";
-            return result;
-        }
-        catch (Exception exception)
-        {
-            DiagnosticLog.Write($"Exécution du module {name}", exception);
-            StatusText = $"Erreur : {exception.Message}";
-            return new GeoprocessingService.ExecutionResult(false, string.Empty, exception.Message, -1);
-        }
-        finally { SetBusy(false); }
     }
 
     private async Task RefreshProjectAsync(MapView? requestedView = null, bool preferTocSelection = true)
@@ -1097,6 +1187,20 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             return map?.GetLayersAsFlattenedList()
                 .FirstOrDefault(item => item.URI.Equals(selected.Id, StringComparison.Ordinal));
         });
+    }
+
+    private Task<Map?> ResolveSelectedMapAsync()
+        => ResolveMapAsync(SelectedMapName, MapView.Active?.Map);
+
+    private static Task<Map?> ResolveMapAsync(string? mapName, Map? preferred = null)
+    {
+        if (preferred is not null
+            && (string.IsNullOrWhiteSpace(mapName) || preferred.Name.Equals(mapName, StringComparison.OrdinalIgnoreCase)))
+            return Task.FromResult<Map?>(preferred);
+        return QueuedTask.Run<Map?>(() =>
+            Project.Current?.GetItems<MapProjectItem>()
+                .FirstOrDefault(item => item.Name.Equals(mapName ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                ?.GetMap());
     }
 
     private async Task RefreshLayerFieldsSafelyAsync()

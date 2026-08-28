@@ -36,7 +36,6 @@
     <Content Include="Images\Cartomize.png" />
     <Content Include="Images\Cartomize-hd.png" />
     <Content Include="Images\north_arrow.svg" />
-    <Content Include="..\..\toolbox\**\*" Exclude="..\..\toolbox\**\__pycache__\**;..\..\toolbox\**\*.pyc" Link="Toolbox\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\templates_library\**\*" Link="Templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

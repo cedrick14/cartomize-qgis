@@ -20,7 +20,14 @@ RASTER_WINDOW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/RasterEngineWindow.xa
 BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
 COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
 DIAGNOSTIC_LOG = ROOT / "src/Cartomize.ArcGISPro/Services/DiagnosticLog.cs"
-GEOPROCESSING = ROOT / "src/Cartomize.ArcGISPro/Services/GeoprocessingService.cs"
+NATIVE_SERVICES = {
+    name: ROOT / f"src/Cartomize.ArcGISPro/Services/{name}.cs"
+    for name in (
+        "NativeLayerService", "NativeStyleService", "NativeLayoutService",
+        "NativeAuditService", "NativeBatchService", "NativeProjectStateService",
+        "NativeRasterAnalysisService",
+    )
+}
 STARTUP_GUARD = ROOT / "src/Cartomize.ArcGISPro/Services/StartupGuard.cs"
 CSPROJ = ROOT / "src/Cartomize.ArcGISPro/Cartomize.ArcGISPro.csproj"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
@@ -50,67 +57,6 @@ EXPECTED_BUTTONS = [
 ]
 
 
-def _run_tool_input_counts(source: str) -> dict[str, set[int]]:
-    """Compte les arguments C# de chaque appel RunToolAsync, parenthèses incluses."""
-
-    result: dict[str, set[int]] = {}
-    needle = "RunToolAsync("
-    position = 0
-    while (start := source.find(needle, position)) >= 0:
-        cursor = start + len(needle)
-        expression_start = cursor
-        depth = 0
-        quote = None
-        escaped = False
-        while cursor < len(source):
-            character = source[cursor]
-            if quote:
-                if escaped:
-                    escaped = False
-                elif character == "\\":
-                    escaped = True
-                elif character == quote:
-                    quote = None
-            elif character in {'"', "'"}:
-                quote = character
-            elif character == "(":
-                depth += 1
-            elif character == ")":
-                if depth == 0:
-                    break
-                depth -= 1
-            cursor += 1
-        expression = source[expression_start:cursor]
-        arguments = []
-        last = 0
-        depth = 0
-        quote = None
-        escaped = False
-        for index, character in enumerate(expression):
-            if quote:
-                if escaped:
-                    escaped = False
-                elif character == "\\":
-                    escaped = True
-                elif character == quote:
-                    quote = None
-            elif character in {'"', "'"}:
-                quote = character
-            elif character in "([{":
-                depth += 1
-            elif character in ")]}":
-                depth -= 1
-            elif character == "," and depth == 0:
-                arguments.append(expression[last:index].strip())
-                last = index + 1
-        arguments.append(expression[last:].strip())
-        if arguments and re.fullmatch(r'"[A-Za-z0-9_]+"', arguments[0]):
-            tool_name = arguments[0].strip('"')
-            result.setdefault(tool_name, set()).add(len(arguments) - 1)
-        position = cursor + 1
-    return result
-
-
 class QgisParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -127,7 +73,9 @@ class QgisParityTests(unittest.TestCase):
         cls.buttons = BUTTONS.read_text(encoding="utf-8")
         cls.commands = COMMANDS.read_text(encoding="utf-8")
         cls.diagnostic_log = DIAGNOSTIC_LOG.read_text(encoding="utf-8")
-        cls.geoprocessing = GEOPROCESSING.read_text(encoding="utf-8")
+        cls.native_services = {
+            name: path.read_text(encoding="utf-8") for name, path in NATIVE_SERVICES.items()
+        }
         cls.startup_guard = STARTUP_GUARD.read_text(encoding="utf-8")
         cls.csproj = CSPROJ.read_text(encoding="utf-8")
         cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
@@ -211,21 +159,16 @@ class QgisParityTests(unittest.TestCase):
         tools = [value.strip() for value in match.group(1).replace("\n", " ").split(",") if value.strip()]
         self.assertEqual(tools, ["AuditProject", "AutopilotMap", "CreateLayout", "VectorIntelligence", "RasterIntelligence", "GeoIntelligence", "BatchMaps", "ReplayRecipe", "MapOpsCheck"])
 
-    def test_all_module_calls_match_their_toolbox_parameter_contracts(self):
-        self.assertEqual(
-            _run_tool_input_counts(self.view_model),
-            {
-                "AuditProject": {2},
-                "AutopilotMap": {16},
-                "BatchMaps": {2},
-                "CreateLayout": {20},
-                "GeoIntelligence": {6},
-                "MapOpsCheck": {4},
-                "RasterIntelligence": {3, 13},
-                "ReplayRecipe": {1},
-                "VectorIntelligence": {4, 14},
-            },
-        )
+    def test_native_arcgis_services_replace_the_python_execution_bridge(self):
+        combined = self.view_model + self.raster_window_code + "\n".join(self.native_services.values())
+        self.assertNotIn("RunToolAsync(", combined)
+        self.assertNotIn("GeoprocessingService", combined)
+        self.assertNotIn("ArcGIS.Desktop.Core.Geoprocessing", combined)
+        self.assertNotIn("toolbox\\**\\*", self.csproj)
+        for service in NATIVE_SERVICES:
+            self.assertIn(service, combined)
+        for source in self.native_services.values():
+            self.assertIn("QueuedTask.Run", source)
 
     def test_context_basemap_contract_is_preserved(self):
         sys.path.insert(0, str(ROOT / "toolbox"))
@@ -245,22 +188,24 @@ class QgisParityTests(unittest.TestCase):
     def test_operations_are_wired_to_equivalent_actions_not_placeholders(self):
         self.assertIn("UndoStyleCommand = new AsyncDelegateCommand(RestorePreviousStyleAsync", self.view_model)
         self.assertNotIn('UndoStyleCommand = CoreCommand("esri_core_undoButton"', self.view_model)
-        self.assertIn('proposal.TemplateId, report', self.view_model)
-        self.assertNotIn('proposal.TemplateName, report', self.view_model)
-        self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer', self.view_model)
-        self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer', self.view_model)
-        self.assertNotIn('RunToolAsync("RasterIntelligence", selectedLayer.Name', self.view_model)
-        self.assertNotIn('RunToolAsync("VectorIntelligence", selectedLayer.Name', self.view_model)
+        self.assertIn("proposal.TemplateId", self.view_model)
+        self.assertIn("SelectedTemplate = _allTemplates.FirstOrDefault", self.view_model)
+        self.assertIn("NativeLayerService.AnalyzeAsync(selectedLayer)", self.view_model)
+        self.assertIn("NativeStyleService.ApplyAsync(", self.view_model)
+        self.assertIn("NativeLayoutService.CreateAsync(", self.view_model)
+        self.assertIn("NativeAuditService.RunAsync(", self.view_model)
         self.assertIn('ItemsSource="{Binding LayerChoices}"', self.xaml_text)
         self.assertIn('SelectedItem="{Binding SelectedLayerChoice}"', self.xaml_text)
-        self.assertIn('operation is "Créer" or "Synchroniser" or "Optimiser"', self.view_model)
+        for operation in ("CreateLayoutAsync", "SynchronizeLayoutAsync", "OptimizeLayoutAsync"):
+            self.assertIn(operation, self.view_model)
         self.assertNotIn("Activez la régénération automatique avant de rejouer la recette.", self.view_model)
 
     def test_project_analysis_consumes_the_same_decisions_as_qgis(self):
         for name in ('"objective"', '"main_layer"', '"style_profile"', '"visible_only"'):
             self.assertIn(name, self.toolbox)
         self.assertIn('"proposals": _automation_proposals', self.toolbox)
-        self.assertIn("LoadAutomationProposals(root)", self.view_model)
+        self.assertIn("BuildProposals(", self.view_model)
+        self.assertIn("NativeLayerService.AnalyzeAsync(", self.view_model)
 
     def test_context_choice_matches_qgis_and_is_not_the_map_selector(self):
         self.assertEqual(self.xaml_text.count('ItemsSource="{Binding ContextChoices}"'), 2)
@@ -275,7 +220,7 @@ class QgisParityTests(unittest.TestCase):
             self.view_model.count('if (string.IsNullOrWhiteSpace(_lastRecipeJson))'),
             3,
         )
-        self.assertIn("_lastRecipeJson = File.ReadAllText(dialog.FileName);", self.view_model)
+        self.assertIn("_lastRecipeJson = root.GetRawText();", self.view_model)
 
     def test_active_layer_list_excludes_groups_and_other_non_data_layers(self):
         self.assertIn("layer is BasicFeatureLayer or RasterLayer", self.view_model)
@@ -337,11 +282,11 @@ class QgisParityTests(unittest.TestCase):
         ):
             self.assertIn(event_name, self.view_model)
         self.assertIn("GetSelectedLayers().FirstOrDefault(layer =>", self.view_model)
-        self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer', self.view_model)
-        self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer', self.view_model)
+        self.assertIn("NativeLayerService.AnalyzeAsync(selectedLayer)", self.view_model)
+        self.assertIn("NativeStyleService.ApplyAsync(", self.view_model)
         self.assertIn("selectedLayer is not RasterLayer rasterLayer", self.view_model)
         self.assertIn("new RasterEngineWindow(rasterLayer)", self.view_model)
-        self.assertNotIn('GeoprocessingService.Open("RasterIntelligence", selectedLayer', self.view_model)
+        self.assertNotIn("GeoprocessingService", self.view_model)
         self.assertIn("CommandManager.RequerySuggested", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.view_model)
@@ -387,30 +332,18 @@ class QgisParityTests(unittest.TestCase):
         self.assertNotIn("FontFamily=", self.raster_window_xaml)
         self.assertNotIn('Background="#', self.raster_window_xaml)
 
-    def test_geoprocessing_bridge_is_null_safe_and_non_blocking(self):
-        for required in (
-            "if (result is null)",
-            "FormatMessages(result.Messages)",
-            "FormatMessages(result.ErrorMessages)",
-            "result.IsCanceled",
-            "CancelableProgressor.None",
-            "GPExecuteToolFlags.GPThread",
-            'DiagnosticLog.Write($"Géotraitement .NET : {toolName}", exception)',
-        ):
-            self.assertIn(required, self.geoprocessing)
-        self.assertNotIn("result.Messages.Select", self.geoprocessing)
-
-        execute_call = re.search(
-            r"ExecuteToolAsync\(\s*toolPath,\s*Geoprocessing\.MakeValueArray\(values\),"
-            r"\s*null,\s*CancelableProgressor\.None,\s*GPExecuteToolFlags\.",
-            self.geoprocessing,
-            re.S,
-        )
-        self.assertIsNotNone(
-            execute_call,
-            "Le pont doit utiliser la surcharge officielle à cinq arguments avec CancelableProgressor.None.",
-        )
-        self.assertNotIn("CancellationToken.None", self.geoprocessing)
+    def test_native_services_use_supported_arcgis_sdk_capabilities(self):
+        layout = self.native_services["NativeLayoutService"]
+        raster = self.native_services["NativeRasterAnalysisService"]
+        style = self.native_services["NativeStyleService"]
+        self.assertIn("LayoutFactory.Instance.CreateLayout", layout)
+        self.assertIn("ElementFactory.Instance.CreateMapFrameElement", layout)
+        self.assertIn("layout.Export(format)", layout)
+        self.assertIn("raster.GetPixelValue", raster)
+        self.assertIn("layer.CreateRenderer", style)
+        self.assertIn("layer.CreateColorizer", style)
+        self.assertIn("labelClass.SetTextSymbol", style)
+        self.assertIn("labelClass.SetMaplexLabelPlacementProperties", style)
 
     def test_arcgis_actions_use_supported_public_apis(self):
         for invalid_id in (

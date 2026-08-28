@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
 using ArcGIS.Core.CIM;
-using ArcGIS.Desktop.Core.Geoprocessing;
 using ArcGIS.Desktop.Framework.Controls;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
 using ArcGIS.Desktop.Mapping;
@@ -115,22 +114,28 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         StatusText = deep ? "Analyse approfondie en arrière-plan…" : "Analyse du raster…";
         try
         {
+            var sample = await NativeRasterAnalysisService.AnalyzeAsync(_layer, deep, ParseInt(ClassCount, 5));
             var report = CartomizeDataService.ReportPath(deep ? "raster-engine-deep.json" : "raster-engine.json");
-            var result = await GeoprocessingService.ExecuteAsync(
-                "RasterIntelligence", _layer, false, report,
-                SelectedRenderMode, string.Empty, ParseInt(ClassCount, 5), SelectedPalette,
-                string.Empty, false, 9.5, "Automatique selon la géométrie", 100,
-                ExpertConfirmed, deep, string.Empty, SelectedThemeMode, SelectedThemeProfile,
-                BandNumber(SelectedBand), SelectedClassificationMethod,
-                ParseDouble(Minimum, 0), ParseDouble(Maximum, 1),
-                BandNumber(RedBand), BandNumber(GreenBand), BandNumber(BlueBand));
-            if (!result.Succeeded)
+            LoadNativeDiagnosis(sample);
+            CartomizeDataService.WriteJson(report, new
             {
-                StatusText = string.IsNullOrWhiteSpace(result.Messages) ? "Analyse impossible." : result.Messages;
-                return;
-            }
+                schema_version = 1,
+                engine = "ArcGIS Pro SDK",
+                layer = _layer.Name,
+                band_count = sample.BandCount,
+                width = sample.Width,
+                height = sample.Height,
+                nodata = sample.NoData,
+                sample_count = sample.SampleCount,
+                minimum = sample.Minimum,
+                maximum = sample.Maximum,
+                mean = sample.Mean,
+                median = sample.Median,
+                categorical = sample.IsCategorical,
+                quantile_breaks = sample.QuantileBreaks,
+                frequencies = sample.Frequencies.Select(item => new { value = item.Key, count = item.Value }).ToArray(),
+            });
             _lastReportPath = report;
-            LoadDiagnosis(report);
             StatusText = deep ? "Analyse approfondie terminée" : "Analyse terminée";
         }
         catch (Exception exception)
@@ -139,6 +144,84 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             StatusText = exception.Message;
         }
         finally { _busy = false; }
+    }
+
+    private void LoadNativeDiagnosis(NativeRasterSample sample)
+    {
+        var rasterType = sample.BandCount >= 3 ? "rgb" : sample.IsCategorical ? "categorized" : "continuous";
+        SummaryText = $"Type : {rasterType}\nBandes : {sample.BandCount}\nDimensions : {sample.Width:N0} × {sample.Height:N0}\n" +
+            $"Échantillon : {sample.SampleCount:N0}\nMinimum : {sample.Minimum:G15}\nMaximum : {sample.Maximum:G15}\nMédiane : {sample.Median:G15}";
+        ThemeEvidenceText = sample.IsCategorical ? "Classification raster" : sample.BandCount >= 3 ? "Image satellite RGB" : "Raster continu";
+        MetadataText = JsonSerializer.Serialize(new
+        {
+            sample.BandCount,
+            sample.Width,
+            sample.Height,
+            sample.NoData,
+            sample.SampleCount,
+            sample.Minimum,
+            sample.Maximum,
+            sample.Mean,
+            sample.Median,
+        }, new JsonSerializerOptions { WriteIndented = true });
+        NoDataCandidates.Clear();
+        if (!string.IsNullOrWhiteSpace(sample.NoData))
+            NoDataCandidates.Add(new NoDataCandidateRow(sample.NoData, "100 %", "Valeur NoData déclarée par le raster"));
+        Bands.Clear();
+        for (var index = 1; index <= Math.Max(1, sample.BandCount); index++) Bands.Add($"{index} · Bande {index}");
+        SelectedBand = Bands.First();
+        RedBand = Bands.ElementAtOrDefault(0) ?? SelectedBand;
+        GreenBand = Bands.ElementAtOrDefault(1) ?? SelectedBand;
+        BlueBand = Bands.ElementAtOrDefault(2) ?? SelectedBand;
+        Minimum = sample.Minimum.ToString("G15", CultureInfo.InvariantCulture);
+        Maximum = sample.Maximum.ToString("G15", CultureInfo.InvariantCulture);
+        SelectedRenderMode = sample.BandCount >= 3 ? "Composition RGB" : sample.IsCategorical ? "Catégoriel" : "Continu";
+        SelectedThemeProfile = sample.BandCount >= 3 ? "Image satellite RGB" : sample.IsCategorical ? "Classification raster" : "Autre carte thématique continue";
+        SelectedPalette = sample.IsCategorical ? "Categorical" : "Continuous";
+        var colors = new[] { "#1F78B4", "#33A02C", "#E31A1C", "#FF7F00", "#6A3D9A", "#B15928", "#A6CEE3", "#B2DF8A", "#FB9A99", "#FDBF6F", "#CAB2D6", "#FFFF99" };
+        Classes.Clear();
+        if (sample.IsCategorical)
+        {
+            var total = Math.Max(1, sample.Frequencies.Values.Sum());
+            var index = 0;
+            foreach (var entry in sample.Frequencies.OrderBy(item => item.Key).Take(64))
+            {
+                Classes.Add(new RasterClassRow
+                {
+                    Visible = true,
+                    ValuesText = entry.Key.ToString("G15", CultureInfo.InvariantCulture),
+                    Label = entry.Key.ToString("G15", CultureInfo.CurrentCulture),
+                    Color = colors[index++ % colors.Length],
+                    OpacityPercent = 100,
+                    PixelCount = entry.Value,
+                    Percentage = 100d * entry.Value / total,
+                    Status = "détectée",
+                    ShowInLegend = true,
+                });
+            }
+        }
+        else
+        {
+            var lower = sample.Minimum;
+            var index = 0;
+            foreach (var upper in sample.QuantileBreaks)
+            {
+                Classes.Add(new RasterClassRow
+                {
+                    Visible = true,
+                    ValuesText = $"{lower.ToString("G15", CultureInfo.InvariantCulture)}; {upper.ToString("G15", CultureInfo.InvariantCulture)}",
+                    Label = $"{lower:G5} – {upper:G5}",
+                    Color = colors[index++ % colors.Length],
+                    OpacityPercent = 100,
+                    Status = "quantile",
+                    ShowInLegend = true,
+                });
+                lower = upper;
+            }
+        }
+        _automaticClasses.Clear();
+        _automaticClasses.AddRange(Classes.Select(item => item.Clone()));
+        ClassCount = Math.Clamp(Classes.Count, 2, 64).ToString(CultureInfo.InvariantCulture);
     }
 
     private void LoadDiagnosis(string report)
@@ -226,26 +309,44 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                 _history.Push(await QueuedTask.Run(() => _layer.GetDefinition()));
             }
 
-            var classPlan = CartomizeDataService.ReportPath("raster-engine-classes.json");
-            File.WriteAllText(classPlan, JsonSerializer.Serialize(new
-            {
-                classes = Classes.Select(item => item.ToPayload()).ToArray(),
-                non_destructive = true,
-            }, new JsonSerializerOptions { WriteIndented = true }));
             var report = CartomizeDataService.ReportPath(preview ? "raster-engine-preview.json" : "raster-engine-style.json");
-            var result = await GeoprocessingService.ExecuteAsync(
-                "RasterIntelligence", _layer, true, report,
-                SelectedRenderMode, string.Empty, ParseInt(ClassCount, 5), SelectedPalette,
-                string.Empty, false, 9.5, "Automatique selon la géométrie", 100,
-                ExpertConfirmed, false, classPlan, SelectedThemeMode, SelectedThemeProfile,
-                BandNumber(SelectedBand), SelectedClassificationMethod,
-                ParseDouble(Minimum, 0), ParseDouble(Maximum, 1),
-                BandNumber(RedBand), BandNumber(GreenBand), BandNumber(BlueBand));
-            if (result.Succeeded && string.Equals(SelectedRenderMode, "Composition RGB", StringComparison.Ordinal))
+            if (string.Equals(SelectedRenderMode, "Composition RGB", StringComparison.Ordinal))
                 await ApplyRgbColorizerAsync();
-            StatusText = result.Succeeded
-                ? preview ? "Aperçu actif · pixels et NoData source inchangés." : "Symbologie appliquée · pixels du raster inchangés."
-                : result.Messages;
+            else
+                await NativeStyleService.ApplyRasterAsync(
+                    _layer,
+                    new NativeRasterStyleRequest(
+                        SelectedRenderMode,
+                        BandNumber(SelectedBand) - 1,
+                        ParseInt(ClassCount, 5),
+                        SelectedClassificationMethod,
+                        ParseDouble(Minimum, 0),
+                        ParseDouble(Maximum, 1),
+                        Classes.Where(item => item.Visible)
+                            .Select(item => new NativeRasterClassStyle(
+                                item.Values().LastOrDefault(),
+                                item.ShowInLegend ? item.Label : string.Empty,
+                                item.Color))
+                            .ToArray()));
+            CartomizeDataService.WriteJson(report, new
+            {
+                schema_version = 1,
+                engine = "ArcGIS Pro SDK",
+                render_mode = SelectedRenderMode,
+                palette = SelectedPalette,
+                render_band = BandNumber(SelectedBand),
+                classification_method = SelectedClassificationMethod,
+                render_minimum = ParseDouble(Minimum, 0),
+                render_maximum = ParseDouble(Maximum, 1),
+                red_band = BandNumber(RedBand),
+                green_band = BandNumber(GreenBand),
+                blue_band = BandNumber(BlueBand),
+                expert_confirmed = ExpertConfirmed,
+                classes = Classes.Select(item => item.ToPayload()).ToArray(),
+                preview,
+                non_destructive = true,
+            });
+            StatusText = preview ? "Aperçu actif · pixels et NoData source inchangés." : "Symbologie appliquée · pixels du raster inchangés.";
         }
         catch (Exception exception)
         {
@@ -296,6 +397,21 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             if (!_layer.CanCreateColorizer(definition))
                 throw new InvalidOperationException("La composition RGB n’est pas compatible avec ce raster.");
             var colorizer = _layer.CreateColorizer(definition);
+            if (colorizer is CIMRasterRGBColorizer rgb)
+            {
+                var minimum = ParseDouble(Minimum, 0);
+                var maximum = ParseDouble(Maximum, 1);
+                if (maximum > minimum)
+                {
+                    rgb.UseCustomStretchMinMax = true;
+                    rgb.CustomStretchMinRed = minimum;
+                    rgb.CustomStretchMinGreen = minimum;
+                    rgb.CustomStretchMinBlue = minimum;
+                    rgb.CustomStretchMaxRed = maximum;
+                    rgb.CustomStretchMaxGreen = maximum;
+                    rgb.CustomStretchMaxBlue = maximum;
+                }
+            }
             _layer.SetColorizer(colorizer);
         });
 
