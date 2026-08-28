@@ -624,12 +624,12 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private async Task OpenRasterEngineAsync()
     {
         var selectedLayer = await ResolveSelectedLayerAsync();
-        if (selectedLayer is not RasterLayer)
+        if (selectedLayer is not RasterLayer rasterLayer)
         {
             StatusText = "Sélectionnez une couche raster dans le panneau Contents.";
             return;
         }
-        var window = new RasterEngineWindow(selectedLayer);
+        var window = new RasterEngineWindow(rasterLayer);
         if (Application.Current?.MainWindow is Window owner)
             window.Owner = owner;
         window.ShowDialog();
