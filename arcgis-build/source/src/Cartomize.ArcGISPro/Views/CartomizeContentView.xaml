@@ -78,7 +78,7 @@
                 <TextBlock Text="Plan cartographique recommandé" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Le rapport présente les décisions proposées avant toute modification du projet."
                            Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                <TextBox Text="{Binding AutomationReportText}"
+                <TextBox Text="{Binding AutomationReportText, Mode=OneWay}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="170" />
                 <ProgressBar Minimum="0" Maximum="100" Value="0" MinHeight="18" Margin="0,8,0,0" />
               </StackPanel>
@@ -149,7 +149,7 @@
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
                 <TextBlock Text="Vue d’ensemble du projet" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
-                <TextBox Text="{Binding ProjectSummary}" IsReadOnly="True" AcceptsReturn="True"
+                <TextBox Text="{Binding ProjectSummary, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
                          TextWrapping="Wrap" MinHeight="150" />
               </StackPanel>
             </Border>
@@ -181,7 +181,7 @@
                            Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
                 <Button Content="Analyser la couche sélectionnée" Command="{Binding AnalyzeLayerCommand}"
                         Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
-                <TextBox Text="{Binding RecommendationText}" IsReadOnly="True" AcceptsReturn="True"
+                <TextBox Text="{Binding RecommendationText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
                          TextWrapping="Wrap" MinHeight="190" />
                 <Border Style="{StaticResource CardStyle}" Margin="0,8,0,8">
                   <Grid>
@@ -240,7 +240,7 @@
                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                          ScrollViewer.CanContentScroll="True" />
                 <TextBlock Text="Détails de la maquette" Style="{DynamicResource Esri_TextBlockRegular}" />
-                <TextBox Text="{Binding TemplateDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
+                <TextBox Text="{Binding TemplateDetails, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -346,7 +346,7 @@
                 </Grid>
                 <Button Content="Créer un manifeste" Command="{Binding CreateManifestCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Button Content="Exécuter la série" Command="{Binding BatchCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
-                <TextBox Text="{Binding BatchStatusText}"
+                <TextBox Text="{Binding BatchStatusText, Mode=OneWay}"
                          IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="135" />
               </StackPanel>
             </Border>
@@ -364,7 +364,7 @@
                   <Button Grid.Row="1" Grid.Column="1" Content="Régénérer la dernière recette" Command="{Binding RegenerateMapOpsCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" Margin="4,3,0,3" />
                 </Grid>
                 <CheckBox Content="Régénérer automatiquement la dernière recette lorsque des données utilisées changent" IsChecked="{Binding MapOpsAutoRegenerate}" />
-                <TextBox Text="{Binding MapOpsStatus}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" />
+                <TextBox Text="{Binding MapOpsStatus, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="160" />
               </StackPanel>
             </Border>
             <Border Style="{StaticResource CardStyle}">
@@ -434,7 +434,7 @@
                        Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Diagnostic" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
-              <TextBox Text="{Binding DiagnosticText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="360" />
+              <TextBox Text="{Binding DiagnosticText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="360" />
               <Button Content="Actualiser l’état du système" Command="{Binding DiagnosticsCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
             </StackPanel></Border>
           </StackPanel>

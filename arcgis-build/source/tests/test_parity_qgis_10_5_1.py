@@ -109,6 +109,16 @@ class QgisParityTests(unittest.TestCase):
         for item in self.root.iter(NS + "CheckBox"):
             self.assertIn("IsChecked", item.attrib)
 
+    def test_read_only_text_boxes_use_one_way_bindings(self):
+        read_only = [
+            item
+            for item in self.root.iter(NS + "TextBox")
+            if item.attrib.get("IsReadOnly") == "True"
+        ]
+        self.assertGreater(len(read_only), 0)
+        for item in read_only:
+            self.assertIn("Mode=OneWay", item.attrib.get("Text", ""))
+
     def test_advanced_controls_are_consumed_by_processing_commands(self):
         properties = [
             "ContextOpacity", "LocatorMapName", "ProposalValidated", "SelectedRenderMode",
