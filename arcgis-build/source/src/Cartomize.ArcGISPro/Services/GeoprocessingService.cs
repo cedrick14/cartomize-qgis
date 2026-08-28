@@ -42,13 +42,14 @@ internal static class GeoprocessingService
             return new ExecutionResult(false, string.Empty, $"Boîte à outils introuvable : {toolbox}", -1);
 
         var toolPath = Path.Combine(toolbox, toolName);
-        DiagnosticLog.Write($"Géotraitement démarré : {toolName} ({values.Length} paramètre(s))");
+        DiagnosticLog.Write($"Géotraitement démarré : {toolName} — {toolPath} ({values.Length} paramètre(s))");
         try
         {
             var result = await Geoprocessing.ExecuteToolAsync(
                 toolPath,
                 Geoprocessing.MakeValueArray(values),
                 null,
+                CancellationToken.None,
                 null,
                 GPExecuteToolFlags.RefreshProjectItems |
                 GPExecuteToolFlags.AddToHistory |

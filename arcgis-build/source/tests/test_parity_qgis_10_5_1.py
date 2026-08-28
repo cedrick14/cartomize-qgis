@@ -307,11 +307,23 @@ class QgisParityTests(unittest.TestCase):
             "FormatMessages(result.Messages)",
             "FormatMessages(result.ErrorMessages)",
             "result.IsCanceled",
+            "CancellationToken.None",
             "GPExecuteToolFlags.GPThread",
             'DiagnosticLog.Write($"Géotraitement .NET : {toolName}", exception)',
         ):
             self.assertIn(required, self.geoprocessing)
         self.assertNotIn("result.Messages.Select", self.geoprocessing)
+
+        execute_call = re.search(
+            r"ExecuteToolAsync\(\s*toolPath,\s*Geoprocessing\.MakeValueArray\(values\),"
+            r"\s*null,\s*CancellationToken\.None,\s*null,\s*GPExecuteToolFlags\.",
+            self.geoprocessing,
+            re.S,
+        )
+        self.assertIsNotNone(
+            execute_call,
+            "Le pont doit utiliser la surcharge non modale à six arguments ; la surcharge à cinq arguments appelle eval_modal.",
+        )
 
     def test_arcgis_actions_use_supported_public_apis(self):
         for invalid_id in (
