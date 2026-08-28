@@ -18,6 +18,7 @@ from cartomize_core.mapops import snapshot
 from cartomize_core.raster import analyze_raster, resolve_raster_source
 from cartomize_core.raster_themes import THEME_PROFILES, detect_raster_theme
 from cartomize_core.recipes import load_recipe, make_recipe, save_recipe
+from cartomize_core.symbology import apply_raster_symbology, apply_vector_symbology
 from cartomize_core.templates import TemplateCatalog
 
 
@@ -210,6 +211,66 @@ class RasterTests(unittest.TestCase):
         self.assertIn("anomalies", diagnosis)
         self.assertTrue(diagnosis["non_destructive"])
 
+    def test_categorical_raster_classes_keep_qgis_labels_colors_and_visibility(self):
+        layer = FakeStyledRasterLayer()
+        diagnosis = {
+            "raster_type": "categorized",
+            "theme": "land_cover",
+            "classes": [
+                {"values": [0], "label": "Hors emprise", "color": "#112233", "opacity": 0.25, "visible": False, "show_in_legend": False},
+                {"values": [1], "label": "Forêt", "color": "#2E7D32", "opacity": 0.8, "visible": True, "show_in_legend": True, "status": "valide"},
+            ],
+        }
+
+        result = apply_raster_symbology(FakeStyleProject(), layer, diagnosis, 2)
+
+        self.assertTrue(result["applied"])
+        self.assertEqual(result["classes_applied"], 1)
+        self.assertEqual(result["classes_hidden"], 1)
+        items = layer.symbology.colorizer.groups[0].items
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].label, "Forêt")
+        self.assertEqual(items[0].color, {"RGB": [46, 125, 50, 80]})
+        self.assertEqual(layer.symbology.colorizer.noDataColor, {"RGB": [0, 0, 0, 0]})
+
+
+class VectorStyleTests(unittest.TestCase):
+    def test_categorized_renderer_uses_qgis_10_5_1_palette(self):
+        layer = FakeStyledVectorLayer("UniqueValueRenderer")
+        profile = {
+            "thematic_field": "classe",
+            "label_field": "nom",
+            "fields": [{"name": "classe", "semantic_role": "category"}],
+        }
+        result = apply_vector_symbology(
+            FakeStyleProject(), layer, profile,
+            mode="Catégorisé", field_name="classe", labels_enabled=False,
+        )
+        colors = [
+            item.symbol.color
+            for group in layer.symbology.renderer.groups
+            for item in group.items
+        ]
+        self.assertTrue(result["applied"])
+        self.assertEqual(colors[0], {"RGB": [27, 158, 119, 100]})
+        self.assertEqual(colors[1], {"RGB": [217, 95, 2, 100]})
+
+    def test_graduated_renderer_uses_qgis_10_5_1_diverging_palette(self):
+        layer = FakeStyledVectorLayer("GraduatedColorsRenderer")
+        profile = {
+            "thematic_field": "variation",
+            "fields": [{"name": "variation", "semantic_role": "diverging_quantitative"}],
+        }
+        result = apply_vector_symbology(
+            FakeStyleProject(), layer, profile, 5,
+            mode="Gradué — quantiles", field_name="variation", palette="Divergente",
+            labels_enabled=False,
+        )
+        colors = [item.symbol.color for item in layer.symbology.renderer.classBreaks]
+        self.assertTrue(result["applied"])
+        self.assertEqual(colors[0], {"RGB": [127, 29, 29, 100]})
+        self.assertEqual(colors[-1], {"RGB": [30, 58, 138, 100]})
+
 
 class FakeLayer:
     def __init__(self, name, feature=False, raster=False):
@@ -231,6 +292,101 @@ class FakeRasterInputLayer:
     @staticmethod
     def supports(value):
         return str(value).upper() == "DATASOURCE"
+
+
+class FakeRasterItem:
+    def __init__(self, value):
+        self.values = [value]
+        self.label = str(value)
+        self.description = ""
+        self.color = {"RGB": [128, 128, 128, 100]}
+
+
+class FakeRasterItemGroup:
+    def __init__(self):
+        self.items = [FakeRasterItem(0), FakeRasterItem(1)]
+
+
+class FakeRasterColorizer:
+    def __init__(self):
+        self.type = "RasterUniqueValueColorizer"
+        self.field = "Value"
+        self.groups = [FakeRasterItemGroup()]
+        self.noDataColor = {"RGB": [255, 255, 255, 100]}
+        self.useDefaultColor = True
+
+
+class FakeRasterSymbology:
+    def __init__(self):
+        self.colorizer = FakeRasterColorizer()
+
+    def updateColorizer(self, name):
+        if name != "RasterUniqueValueColorizer":
+            raise AssertionError(name)
+        self.colorizer = FakeRasterColorizer()
+
+
+class FakeStyledRasterLayer:
+    def __init__(self):
+        self.symbology = FakeRasterSymbology()
+        self.transparency = 0
+
+
+class FakeStyleProject:
+    @staticmethod
+    def listColorRamps(*_args):
+        return []
+
+
+class FakeSymbol:
+    def __init__(self):
+        self.color = {"RGB": [128, 128, 128, 100]}
+
+
+class FakeVectorItem:
+    def __init__(self):
+        self.symbol = FakeSymbol()
+
+
+class FakeVectorGroup:
+    def __init__(self):
+        self.items = [FakeVectorItem(), FakeVectorItem(), FakeVectorItem()]
+
+
+class FakeClassBreak:
+    def __init__(self):
+        self.symbol = FakeSymbol()
+
+
+class FakeVectorRenderer:
+    def __init__(self, kind):
+        self.type = kind
+        self.symbol = FakeSymbol()
+        self.fields = []
+        self.groups = [FakeVectorGroup()]
+        self.classificationField = ""
+        self.breakCount = 5
+        self.classificationMethod = ""
+        self.classBreaks = [FakeClassBreak() for _ in range(5)]
+
+
+class FakeVectorSymbology:
+    def __init__(self, kind):
+        self.renderer = FakeVectorRenderer(kind)
+
+    def updateRenderer(self, kind):
+        self.renderer = FakeVectorRenderer(kind)
+
+
+class FakeStyledVectorLayer:
+    def __init__(self, kind):
+        self.symbology = FakeVectorSymbology(kind)
+        self.transparency = 0
+        self.showLabels = False
+
+    @staticmethod
+    def listLabelClasses():
+        return []
 
 
 class FakeRasterExtent:

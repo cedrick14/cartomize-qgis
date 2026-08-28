@@ -33,6 +33,16 @@ _PALETTE_RAMPS = {
     "diverging": "Green to Red",
 }
 
+# Palette Cartomize 10.5.1 issue du service QGIS. ArcGIS Pro reçoit les
+# mêmes couleurs ; seul l'objet renderer du SIG hôte change.
+_QUALITATIVE = (
+    "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
+    "#e6ab02", "#a6761d", "#1f78b4", "#b2df8a", "#fb9a99",
+    "#cab2d6", "#fdbf6f", "#6a3d9a", "#b15928", "#17becf",
+)
+_SEQUENTIAL = ("#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a")
+_DIVERGING = ("#7f1d1d", "#ef4444", "#f8fafc", "#3b82f6", "#1e3a8a")
+
 
 @dataclass(frozen=True)
 class SymbologyRecommendation:
@@ -74,10 +84,22 @@ def apply_vector_symbology(
     categorized = mode_key in {"catégorisé", "categorise", "categorize", "categorized"} or (not mode_key and role in {"category", "coded_category"})
     if single:
         sym.updateRenderer("SimpleRenderer")
+        try:
+            sym.renderer.symbol.color = _arcgis_color(_QUALITATIVE[len(_QUALITATIVE) // 2])
+        except Exception:
+            pass
         renderer = "SimpleRenderer"
     elif categorized:
         sym.updateRenderer("UniqueValueRenderer")
         sym.renderer.fields = [field]
+        index = 0
+        for group in list(getattr(sym.renderer, "groups", ()) or ()):
+            for item in list(getattr(group, "items", ()) or ()):
+                try:
+                    item.symbol.color = _arcgis_color(_QUALITATIVE[index % len(_QUALITATIVE)])
+                    index += 1
+                except Exception:
+                    pass
         renderer = "UniqueValueRenderer"
     else:
         sym.updateRenderer("GraduatedColorsRenderer")
@@ -88,6 +110,16 @@ def apply_vector_symbology(
         ramps = aprx.listColorRamps(ramp_name) or aprx.listColorRamps()
         if ramps:
             sym.renderer.colorRamp = ramps[0]
+        breaks = list(getattr(sym.renderer, "classBreaks", ()) or ())
+        colors = _resample_palette(
+            _DIVERGING if str(palette).strip().casefold() in {"divergente", "diverging"} else _SEQUENTIAL,
+            len(breaks),
+        )
+        for item, color in zip(breaks, colors):
+            try:
+                item.symbol.color = _arcgis_color(color)
+            except Exception:
+                pass
         renderer = "GraduatedColorsRenderer"
     layer.symbology = sym
     label_field = str(label_field or profile.get("label_field") or "")
@@ -142,7 +174,56 @@ def apply_raster_symbology(aprx: Any, layer: Any, diagnosis: dict[str, Any], cla
         sym.updateColorizer(colorizer)
     except Exception:
         return {"applied": False, "reason": f"ArcGIS Pro n'a pas pu activer {colorizer}."}
-    if colorizer == "RasterClassifyColorizer":
+    applied_classes = 0
+    hidden_classes = 0
+    if colorizer == "RasterUniqueValueColorizer":
+        definitions = list(diagnosis.get("classes") or ())
+        definitions_by_value = {
+            _number_key(value): definition
+            for definition in definitions
+            for value in (definition.get("values") or ())
+        }
+        try:
+            sym.colorizer.field = "Value"
+        except Exception:
+            pass
+        try:
+            sym.colorizer.useDefaultColor = False
+        except Exception:
+            pass
+        for group in list(getattr(sym.colorizer, "groups", ()) or ()):
+            visible_items = []
+            for item in list(getattr(group, "items", ()) or ()):
+                definition = next(
+                    (
+                        definitions_by_value.get(_number_key(value))
+                        for value in _iter_item_values(getattr(item, "values", ()) or ())
+                        if _number_key(value) in definitions_by_value
+                    ),
+                    None,
+                )
+                if definition is None:
+                    visible_items.append(item)
+                    continue
+                visible = bool(definition.get("visible", True))
+                show_in_legend = bool(definition.get("show_in_legend", True))
+                if not visible or not show_in_legend:
+                    hidden_classes += 1
+                    continue
+                item.label = str(definition.get("label") or getattr(item, "label", "Classe"))
+                item.description = str(definition.get("status") or definition.get("source") or "")
+                item.color = _arcgis_color(
+                    definition.get("color", "#808080"),
+                    float(definition.get("opacity", 1.0) or 0.0),
+                )
+                visible_items.append(item)
+                applied_classes += 1
+            group.items = visible_items
+        try:
+            sym.colorizer.noDataColor = {"RGB": [0, 0, 0, 0]}
+        except Exception:
+            pass
+    elif colorizer == "RasterClassifyColorizer":
         sym.colorizer.classificationField = "Value"
         theme = str(diagnosis.get("theme") or "continuous")
         profile = theme_profile(theme)
@@ -158,7 +239,58 @@ def apply_raster_symbology(aprx: Any, layer: Any, diagnosis: dict[str, Any], cla
         layer.transparency = 100 - opacity
     except Exception:
         pass
-    return {"applied": True, "colorizer": colorizer, "theme": diagnosis.get("theme"), "class_count": int(class_count), "palette": palette, "opacity_percent": opacity, "expert_confirmed": bool(expert_confirmed)}
+    return {
+        "applied": True,
+        "colorizer": colorizer,
+        "theme": diagnosis.get("theme"),
+        "class_count": int(class_count),
+        "classes_applied": applied_classes,
+        "classes_hidden": hidden_classes,
+        "palette": palette,
+        "opacity_percent": opacity,
+        "expert_confirmed": bool(expert_confirmed),
+    }
+
+
+def _number_key(value: Any) -> str:
+    try:
+        number = float(value)
+        if number.is_integer():
+            return str(int(number))
+        return format(number, ".15g")
+    except (TypeError, ValueError):
+        return str(value).strip().casefold()
+
+
+def _iter_item_values(values: Any):
+    for value in values or ():
+        if isinstance(value, (list, tuple)):
+            yield from _iter_item_values(value)
+        else:
+            yield value
+
+
+def _resample_palette(palette: tuple[str, ...], count: int) -> tuple[str, ...]:
+    if count <= 0:
+        return ()
+    if count == 1:
+        return (palette[len(palette) // 2],)
+    return tuple(
+        palette[round(index * (len(palette) - 1) / (count - 1))]
+        for index in range(count)
+    )
+
+
+def _arcgis_color(value: Any, opacity: float = 1.0) -> dict[str, list[int]]:
+    text = str(value or "#808080").strip().lstrip("#")
+    if len(text) == 3:
+        text = "".join(character * 2 for character in text)
+    try:
+        red, green, blue = (int(text[index:index + 2], 16) for index in (0, 2, 4))
+    except (TypeError, ValueError):
+        red, green, blue = 128, 128, 128
+    alpha = max(0, min(100, round(100 * float(opacity))))
+    return {"RGB": [red, green, blue, alpha]}
 
 
 class SmartSymbologyService:
