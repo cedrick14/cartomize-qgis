@@ -5,6 +5,15 @@ internal sealed record ChoiceItem(string Id, string Label)
     public override string ToString() => Label;
 }
 
+internal sealed record LayerChoiceItem(
+    string Id,
+    string Name,
+    bool IsRaster,
+    bool IsBasemap)
+{
+    public override string ToString() => Name;
+}
+
 internal sealed record TemplateItem(
     string Id,
     string Name,

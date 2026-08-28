@@ -100,6 +100,37 @@ def _layer_by_name(map_item, name, predicate=None):
     raise RuntimeError(f"La couche « {name} » est introuvable dans la carte « {map_item.name} ».")
 
 
+def _layer_identity_values(value):
+    """Return every stable ArcGIS identity exposed by a layer or GP layer value."""
+    values = set()
+    if value is None:
+        return values
+    for candidate in (value, getattr(value, "value", None)):
+        if candidate is None:
+            continue
+        for attribute in ("URI", "longName", "name", "dataSource"):
+            try:
+                text = str(getattr(candidate, attribute, "") or "").strip()
+            except Exception:
+                text = ""
+            if text:
+                values.add(text.casefold())
+                values.add(os.path.normcase(os.path.normpath(text)).casefold())
+        try:
+            text = str(candidate or "").strip()
+        except Exception:
+            text = ""
+        if text:
+            values.add(text.casefold())
+            values.add(os.path.normcase(os.path.normpath(text)).casefold())
+    return values
+
+
+def _same_layer_input(layer, source, source_text=""):
+    requested = _layer_identity_values(source) | _layer_identity_values(source_text)
+    return bool(requested and requested.intersection(_layer_identity_values(layer)))
+
+
 def _raster_layer_from_input(map_item, source, source_text, diagnosis):
     if getattr(source, "isRasterLayer", False) and hasattr(source, "symbology"):
         return source
@@ -661,16 +692,16 @@ class GeoIntelligence:
     def getParameterInfo(self):
         map_parameter = _map_parameter()
         objective = _choice_parameter("Objectif cartographique", "objective", OBJECTIVES, "auto")
-        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPString", parameterType="Optional", direction="Input")
+        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPLayer", parameterType="Optional", direction="Input")
         try:
             active_map = _map_by_name(_project(), None)
-            main_layer.filter.type = "ValueList"
-            main_layer.filter.list = [
-                layer.name for layer in active_map.listLayers()
+            main_layer.value = next(
+                (layer for layer in active_map.listLayers()
                 if not getattr(layer, "isBroken", False)
                 and not is_basemap_layer(layer)
-                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
-            ]
+                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))),
+                None,
+            )
         except Exception:
             pass
         style_profile = _choice_parameter("Profil cartographique", "style_profile", STYLE_PROFILES, "balanced")
@@ -684,7 +715,8 @@ class GeoIntelligence:
             map_item = _map_by_name(aprx, _text(parameters[0]))
             objective = _choice_key(_text(parameters[1]), OBJECTIVES, "auto")
             objective_label = dict(OBJECTIVES).get(objective, "Détection automatique")
-            requested_main = _text(parameters[2])
+            requested_main = parameters[2].value
+            requested_main_text = _text(parameters[2])
             style_profile = _choice_key(_text(parameters[3]), STYLE_PROFILES, "balanced")
             visible_only = bool(parameters[4].value)
             audit = audit_project(arcpy, aprx)
@@ -730,8 +762,7 @@ class GeoIntelligence:
                 else:
                     record["kind"] = "other"
                 if (
-                    requested_main
-                    and str(layer.name).casefold() == requested_main.casefold()
+                    _same_layer_input(layer, requested_main, requested_main_text)
                     and not record["basemap"]
                     and record.get("kind") in {"vector", "raster"}
                 ):
@@ -788,17 +819,16 @@ class AutopilotMap:
     def getParameterInfo(self):
         map_parameter = _map_parameter()
         objective = _choice_parameter("Objectif cartographique", "objective", OBJECTIVES, "auto")
-        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPString", parameterType="Optional", direction="Input")
+        main_layer = arcpy.Parameter(displayName="Couche principale", name="main_layer", datatype="GPLayer", parameterType="Optional", direction="Input")
         try:
             active_map = _map_by_name(_project(), None)
-            choices = [
-                layer.name for layer in active_map.listLayers()
+            main_layer.value = next(
+                (layer for layer in active_map.listLayers()
                 if not getattr(layer, "isBroken", False)
                 and not is_basemap_layer(layer)
-                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
-            ]
-            main_layer.filter.type = "ValueList"
-            main_layer.filter.list = choices
+                and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))),
+                None,
+            )
         except Exception:
             pass
         style_profile = _choice_parameter("Profil cartographique", "style_profile", STYLE_PROFILES, "balanced")
@@ -842,9 +872,10 @@ class AutopilotMap:
                 and (not bool(parameters[7].value) or bool(getattr(layer, "visible", True)))
                 and (getattr(layer, "isFeatureLayer", False) or getattr(layer, "isRasterLayer", False))
             ]
-            requested_main = _text(parameters[2])
+            requested_main = parameters[2].value
+            requested_main_text = _text(parameters[2])
             primary = next(
-                (layer for layer in candidates if requested_main and str(layer.name).casefold() == requested_main.casefold()),
+                (layer for layer in candidates if _same_layer_input(layer, requested_main, requested_main_text)),
                 candidates[0] if candidates else None,
             )
             if primary is None:
