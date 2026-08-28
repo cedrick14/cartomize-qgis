@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ArcGIS.Core.CIM;
 using ArcGIS.Desktop.Core;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
+using ArcGIS.Desktop.Layouts;
 using ArcGIS.Desktop.Mapping;
 
 namespace Cartomize.ArcGISPro.Services;
@@ -29,7 +31,7 @@ internal static class NativeProjectStateService
                             name = layer.Name,
                             type = layer is RasterLayer ? "raster" : "vector",
                             visible = layer.IsVisible,
-                            transparency = layer.GetTransparency(),
+                            transparency = layer.GetDefinition().Transparency,
                             crs = layer.GetSpatialReference()?.Name ?? string.Empty,
                         })
                         .OrderBy(layer => layer.id, StringComparer.Ordinal)

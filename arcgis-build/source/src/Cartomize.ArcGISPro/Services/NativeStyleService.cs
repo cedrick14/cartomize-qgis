@@ -32,13 +32,13 @@ internal static class NativeStyleService
                     BandIndex = Math.Max(0, request.BandIndex),
                     StretchType = RasterStretchType.MinimumMaximum,
                 },
-                _ => new ClassifyColorizerDefinition
-                {
-                    ClassificationMethod = request.ClassificationMethod.Contains("Intervalles", StringComparison.OrdinalIgnoreCase)
+                _ => new ClassifyColorizerDefinition(
+                    "Value",
+                    Math.Clamp(request.ClassCount, 2, 64),
+                    request.ClassificationMethod.Contains("Intervalles", StringComparison.OrdinalIgnoreCase)
                         ? ClassificationMethod.EqualInterval
                         : ClassificationMethod.Quantile,
-                    BreakCount = Math.Clamp(request.ClassCount, 2, 64),
-                },
+                    null),
             };
             if (!layer.CanCreateColorizer(definition))
                 definition = new StretchColorizerDefinition
@@ -177,11 +177,11 @@ internal static class NativeStyleService
                 StretchType = ArcGIS.Core.CIM.RasterStretchType.MinimumMaximum,
             },
             "Catégoriel" or "Catégorisé" => new UniqueValueColorizerDefinition(),
-            "Continu" or "Gradué — quantiles" => new ClassifyColorizerDefinition
-            {
-                ClassificationMethod = ArcGIS.Core.CIM.ClassificationMethod.Quantile,
-                BreakCount = Math.Clamp(classCount, 2, 12),
-            },
+            "Continu" or "Gradué — quantiles" => new ClassifyColorizerDefinition(
+                "Value",
+                Math.Clamp(classCount, 2, 12),
+                ArcGIS.Core.CIM.ClassificationMethod.Quantile,
+                null),
             _ => new StretchColorizerDefinition(),
         };
         if (!layer.CanCreateColorizer(definition))

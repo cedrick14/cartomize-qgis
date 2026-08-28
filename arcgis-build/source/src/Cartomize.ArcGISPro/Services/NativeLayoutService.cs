@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Text.Json;
 using ArcGIS.Core.CIM;
 using ArcGIS.Core.Geometry;

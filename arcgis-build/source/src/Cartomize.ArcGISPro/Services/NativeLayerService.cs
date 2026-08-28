@@ -220,14 +220,14 @@ internal static class NativeLayerService
         return "contexte";
     }
 
-    private sealed class FieldAccumulator(Field field)
+    private sealed class FieldAccumulator(Field sourceField)
     {
         private readonly HashSet<string> _unique = new(StringComparer.CurrentCulture);
         private readonly List<double> _numeric = [];
         private int _count;
         private int _nullCount;
 
-        public string Name => field.Name;
+        public string Name => sourceField.Name;
 
         public void Add(object? value)
         {
@@ -244,10 +244,10 @@ internal static class NativeLayerService
 
         public NativeFieldProfile Build()
         {
-            var role = InferFieldRole(Name, field.FieldType.ToString(), _unique.Count, _count - _nullCount, _numeric.Count);
+            var role = InferFieldRole(Name, sourceField.FieldType.ToString(), _unique.Count, _count - _nullCount, _numeric.Count);
             return new NativeFieldProfile(
                 Name,
-                field.FieldType.ToString(),
+                sourceField.FieldType.ToString(),
                 _count,
                 _nullCount,
                 _unique.Count,
