@@ -1,0 +1,12 @@
+<UserControl x:Class="Cartomize.ArcGISPro.Views.CartomizeDockPaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Conteneur volontairement minimal : ArcGIS Pro peut d'abord créer, ancrer
+    et afficher le DockPane. L'interface Cartomize 10.5.1 est ensuite ajoutée
+    par le code-behind, une fois l'événement Loaded reçu.
+  -->
+  <Grid>
+    <ContentControl x:Name="ContentHost" />
+  </Grid>
+</UserControl>
