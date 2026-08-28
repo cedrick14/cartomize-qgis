@@ -163,6 +163,9 @@ internal static class NativeRasterNomenclatureService
                 classes);
         }
 
+        if (ordered.Length == 1)
+            return SingleClassNomenclature(context, detectedTheme, ordered[0]);
+
         if (rasterType == "binary" && ordered.Length == 2)
             return BinaryNomenclature(context, detectedTheme, ordered);
 
@@ -286,6 +289,27 @@ internal static class NativeRasterNomenclatureService
                 new(values[0], schema.Low, schema.LowColor, schema.Confidence, schema.Name),
                 new(values[1], schema.High, schema.HighColor, schema.Confidence, schema.Name),
             ]);
+    }
+
+    private static NativeRasterNomenclature SingleClassNomenclature(string context, string theme, double value)
+    {
+        var text = Normalize($"{context} {theme}");
+        var (name, label, color, confidence) =
+            text.Contains("deforest", StringComparison.Ordinal)
+                ? ("Présence de déforestation", "Déforestation détectée", "#D32F2F", 0.86)
+            : text.Contains("forest", StringComparison.Ordinal) || text.Contains("foret", StringComparison.Ordinal)
+                ? ("Présence forestière", "Forêt", "#1B5E20", 0.82)
+            : text.Contains("water", StringComparison.Ordinal) || text.Contains("eau", StringComparison.Ordinal)
+                ? ("Présence d’eau", "Eau", "#1565C0", 0.82)
+                : ("Classe utile sur fond masqué", $"Classe {Pretty(value)}", "#2E7D32", 0.68);
+        return new NativeRasterNomenclature(
+            "single_class_overlay",
+            name,
+            string.IsNullOrWhiteSpace(theme) ? "categorical" : theme,
+            PaletteForTheme(theme),
+            confidence,
+            ["Une seule classe utile subsiste après le masquage spatial du fond raster."],
+            [new NativeRasterClassProposal(value, label, color, confidence, name)]);
     }
 
     private static double SchemaScore(CodeSchema schema, string normalizedContext, IReadOnlyList<int> codes)

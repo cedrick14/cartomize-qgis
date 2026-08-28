@@ -24,7 +24,12 @@ internal class CartomizeDockPaneViewModel : DockPane
 {
     internal const string DockPaneId = "Cartomize_ArcGISPro_DockPane";
     private readonly Dictionary<string, CIMBaseLayer> _styleHistory = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, bool> _rasterOutlineHistory = new(StringComparer.Ordinal);
     private readonly List<TemplateItem> _allTemplates = [];
+    private NativeRasterRecommendation? _lastRasterRecommendation;
+    private NativeVectorWorkspaceAnalysis? _lastVectorRecommendation;
+    private NativeVectorCompositionSnapshot? _vectorCompositionSnapshot;
+    private string? _vectorCompositionMapName;
     private string? _selectedMapName;
     private LayerChoiceItem? _selectedLayerChoice;
     private ChoiceItem? _selectedObjective;
@@ -75,6 +80,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     private bool _isRasterLayer;
     private bool _isBasemapLayer;
     private bool _hasVectorLayers;
+    private bool _hasRasterClassRecommendation;
     private bool _isBusy;
     private bool _automationVisibleOnly = true;
     private bool _automationApplySymbology;
@@ -101,7 +107,13 @@ internal class CartomizeDockPaneViewModel : DockPane
         foreach (var item in StyleProfileChoices()) StyleProfiles.Add(item);
         foreach (var item in DefaultContextChoices()) ContextChoices.Add(item);
         foreach (var item in new[] { "Symbole unique", "Catégorisé", "Gradué — quantiles" }) RenderModes.Add(item);
-        foreach (var item in new[] { "Qualitative", "Séquentielle", "Divergente" }) PaletteChoices.Add(item);
+        foreach (var item in new[]
+        {
+            "Qualitative", "Séquentielle", "Divergente", "Land Cover", "Forest Dynamics",
+            "Deforestation", "Forest Degradation", "Land Cover Change", "Categorical",
+            "Ndvi", "Elevation", "Slope", "Temperature", "Precipitation", "Risk",
+            "Probability", "Water", "Continuous", "Gray",
+        }) PaletteChoices.Add(item);
         foreach (var item in new[] { "Automatique selon la géométrie", "Autour du point", "Sur le point", "Le long de la ligne", "Courbe", "Horizontal", "Libre" }) PlacementChoices.Add(item);
         _selectedObjective = Objectives.FirstOrDefault();
         _selectedStyleProfile = StyleProfiles.FirstOrDefault();
@@ -170,6 +182,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     public ObservableCollection<string> TemplateCategories { get; } = [];
     public ObservableCollection<AuditFindingItem> AuditFindings { get; } = [];
     public ObservableCollection<CommunityResourceItem> CommunityResources { get; } = [];
+    public ObservableCollection<ProjectRasterClassItem> RasterRecommendationClasses { get; } = [];
 
     public string VersionText => "Cartomize 10.5.1";
     public string FooterStatus => StatusText;
@@ -219,7 +232,16 @@ internal class CartomizeDockPaneViewModel : DockPane
     public string StatusText { get => _statusText; private set { if (SetProperty(ref _statusText, value)) NotifyPropertyChanged(nameof(FooterStatus)); } }
 
     public string? SelectedMapName { get => _selectedMapName; set => SetProperty(ref _selectedMapName, value); }
-    public ChoiceItem? SelectedObjective { get => _selectedObjective; set { if (SetProperty(ref _selectedObjective, value)) BuildProposals(); } }
+    public ChoiceItem? SelectedObjective
+    {
+        get => _selectedObjective;
+        set
+        {
+            if (!SetProperty(ref _selectedObjective, value)) return;
+            ClearSmartRecommendations();
+            BuildProposals();
+        }
+    }
     public ChoiceItem? SelectedStyleProfile { get => _selectedStyleProfile; set => SetProperty(ref _selectedStyleProfile, value); }
     public ChoiceItem? SelectedContextChoice { get => _selectedContextChoice; set => SetProperty(ref _selectedContextChoice, value); }
     public AutomationProposal? SelectedProposal { get => _selectedProposal; set { if (SetProperty(ref _selectedProposal, value)) ApplyProposalSelection(); } }
@@ -251,7 +273,10 @@ internal class CartomizeDockPaneViewModel : DockPane
         get => _selectedLayerChoice;
         set
         {
+            var previousId = _selectedLayerChoice?.Id;
             if (!SetProperty(ref _selectedLayerChoice, value)) return;
+            if (!string.Equals(previousId, value?.Id, StringComparison.Ordinal))
+                ClearSmartRecommendations();
             NotifyPropertyChanged(nameof(SelectedLayerName));
             IsRasterLayer = value?.IsRaster == true;
             IsBasemapLayer = value?.IsBasemap == true;
@@ -269,6 +294,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     public bool IsRasterLayer { get => _isRasterLayer; private set => SetProperty(ref _isRasterLayer, value); }
     public bool IsBasemapLayer { get => _isBasemapLayer; private set => SetProperty(ref _isBasemapLayer, value); }
     public bool HasVectorLayers { get => _hasVectorLayers; private set => SetProperty(ref _hasVectorLayers, value); }
+    public bool HasRasterClassRecommendation { get => _hasRasterClassRecommendation; private set => SetProperty(ref _hasRasterClassRecommendation, value); }
     public override bool IsBusy => _isBusy;
     public bool AutomationVisibleOnly { get => _automationVisibleOnly; set => SetProperty(ref _automationVisibleOnly, value); }
     public bool AutomationApplySymbology { get => _automationApplySymbology; set => SetProperty(ref _automationApplySymbology, value); }
@@ -408,15 +434,33 @@ internal class CartomizeDockPaneViewModel : DockPane
         };
         if (selectedLayer is not null)
         {
-            var profile = await NativeLayerService.AnalyzeAsync(selectedLayer);
-            lines.Add($"Couche principale : {profile.Name}");
-            lines.Add($"Rôle : {profile.Role}");
-            lines.Add($"Rendu recommandé : {profile.RecommendedRenderer}");
-            foreach (var warning in profile.Warnings.Take(5)) lines.Add($"• {warning}");
+            var baselineProfile = await NativeLayerService.AnalyzeAsync(selectedLayer);
+            lines.Add($"Profil natif : {baselineProfile.Role} · {baselineProfile.RecommendedRenderer}");
+        }
+        if (selectedLayer is RasterLayer rasterLayer)
+        {
+            var recommendation = await AnalyzeRasterRecommendationAsync(rasterLayer, false);
+            lines.Add($"Couche principale : {rasterLayer.Name}");
+            lines.Add(recommendation.Summary);
+            lines.Add("Action : appliquer les classes détectées et rendre le NoData transparent.");
+        }
+        else if (selectedLayer is BasicFeatureLayer vectorLayer)
+        {
+            var analysis = await AnalyzeVectorRecommendationAsync(vectorLayer, false);
+            lines.Add($"Couche principale : {vectorLayer.Name}");
+            lines.Add(analysis.PlanText);
+        }
+        else
+        {
+            lines.Add("Aucune couche raster ou vectorielle exploitable n’est sélectionnée.");
         }
         AutomationReportText = string.Join(Environment.NewLine, lines);
         BuildProposals();
-        StatusText = "Analyse du projet terminée avec le moteur ArcGIS Pro natif.";
+        StatusText = selectedLayer is RasterLayer
+            ? "Projet analysé automatiquement par Raster Engine; classes et NoData sont prêts."
+            : selectedLayer is BasicFeatureLayer
+                ? "Projet analysé automatiquement par Vector Engine multi-couches."
+                : "Analyse terminée sans couche principale exploitable.";
     }
 
     private async Task GenerateSelectedVariantAsync()
@@ -527,32 +571,17 @@ internal class CartomizeDockPaneViewModel : DockPane
             StatusText = "Sélectionnez une couche dans le panneau Contents.";
             return;
         }
-        var profile = await NativeLayerService.AnalyzeAsync(selectedLayer);
-        if (profile.IsRaster)
+        if (selectedLayer is RasterLayer rasterLayer)
         {
-            RecommendationText = $"Type : raster\nBandes : {profile.BandCount}\nDimensions : {profile.Width:N0} × {profile.Height:N0}\nRendu : {profile.RecommendedRenderer}";
-            SelectedRenderMode = profile.RecommendedRenderer switch
-            {
-                "Catégoriel" => "Catégorisé",
-                "Composition RGB" => "Symbole unique",
-                _ => "Gradué — quantiles",
-            };
-            SelectedPalette = profile.RecommendedPalette.Contains("Categorical", StringComparison.OrdinalIgnoreCase) ? "Qualitative" : "Séquentielle";
-            LabelsEnabled = false;
+            await AnalyzeRasterRecommendationAsync(rasterLayer, false);
+            StatusText = "Couche analysée par Raster Engine; classes, nomenclature et NoData sont prêts.";
         }
-        else
+        else if (selectedLayer is BasicFeatureLayer vectorLayer)
         {
-            var labelField = string.IsNullOrWhiteSpace(profile.LabelField) ? "—" : profile.LabelField;
-            var thematicField = string.IsNullOrWhiteSpace(profile.ThematicField) ? "—" : profile.ThematicField;
-            RecommendationText = $"Rôle : {profile.Role}\nGéométrie : {profile.GeometryType}\nEntités : {profile.FeatureCount:N0}\nÉtiquette : {labelField}\nChamp thématique : {thematicField}";
-            SelectedThematicField = profile.ThematicField;
-            SelectedLabelField = profile.LabelField;
-            LabelsEnabled = !string.IsNullOrWhiteSpace(SelectedLabelField);
-            SelectedRenderMode = profile.RecommendedRenderer;
-            SelectedPalette = profile.RecommendedPalette;
+            await AnalyzeVectorRecommendationAsync(vectorLayer, false);
+            StatusText = "Couche et superposition analysées par Vector Engine multi-couches.";
         }
         ConfirmStyleParameters = false;
-        StatusText = "Couche analysée avec le moteur ArcGIS Pro natif.";
     }
 
     private async Task ApplyRecommendationAsync()
@@ -563,28 +592,55 @@ internal class CartomizeDockPaneViewModel : DockPane
             StatusText = "Sélectionnez une couche dans le panneau Contents.";
             return;
         }
-        var snapshot = await QueuedTask.Run(() => (Key: selectedLayer.URI, Definition: selectedLayer.GetDefinition()));
-        var classes = ParseInt(MaxClasses, 5, 2, 12);
         var opacity = ParseInt(LayerOpacity, 100, 0, 100);
-        var rasterMode = SelectedRenderMode switch
+        if (selectedLayer is RasterLayer rasterLayer)
         {
-            "Catégorisé" => "Catégoriel",
-            "Gradué — quantiles" => "Continu",
-            _ => "Continu",
-        };
-        await NativeStyleService.ApplyAsync(
-            selectedLayer,
-            selectedLayer is RasterLayer ? rasterMode : SelectedRenderMode,
-            SelectedThematicField ?? string.Empty,
-            classes,
-            SelectedPalette,
-            LabelsEnabled,
-            SelectedLabelField ?? string.Empty,
-            ParseDouble(LabelSize, 9.5, 5, 36),
-            SelectedPlacement ?? "Automatique selon la géométrie",
-            opacity);
-        _styleHistory[snapshot.Key] = snapshot.Definition;
-        StatusText = "Recommandation appliquée avec la symbologie ArcGIS Pro native.";
+            var recommendation = _lastRasterRecommendation;
+            if (recommendation is null
+                || !recommendation.LayerId.Equals(rasterLayer.URI ?? rasterLayer.Name, StringComparison.Ordinal))
+                recommendation = await AnalyzeRasterRecommendationAsync(rasterLayer, false);
+            var snapshot = await QueuedTask.Run(() => (Key: rasterLayer.URI, Definition: rasterLayer.GetDefinition()));
+            var previousOutline = await NativeRasterOutlineService.ExistsAsync(rasterLayer);
+            await NativeRasterRecommendationService.ApplyAsync(rasterLayer, recommendation, opacity);
+            _styleHistory[snapshot.Key] = snapshot.Definition;
+            _rasterOutlineHistory[snapshot.Key] = previousOutline;
+            var noData = recommendation.Sample.AutomaticNoDataValues.Count;
+            StatusText = $"Raster Engine appliqué : {recommendation.Classes.Count(item => item.Visible)} classe(s), {noData} valeur(s) NoData masquée(s), rectangle retiré.";
+            return;
+        }
+
+        if (selectedLayer is BasicFeatureLayer vectorLayer)
+        {
+            var map = await ResolveSelectedMapAsync()
+                      ?? throw new InvalidOperationException("La carte active est indisponible.");
+            var analysis = _lastVectorRecommendation;
+            if (analysis is null
+                || !analysis.MapName.Equals(map.Name, StringComparison.OrdinalIgnoreCase)
+                || !analysis.PrimaryLayerId.Equals(vectorLayer.URI ?? vectorLayer.Name, StringComparison.Ordinal))
+                analysis = await AnalyzeVectorRecommendationAsync(vectorLayer, false);
+            var layerIds = analysis.Composition.Select(item => item.LayerId).ToArray();
+            var snapshot = await NativeVectorWorkspaceService.CaptureCompositionAsync(map, layerIds);
+            await NativeVectorWorkspaceService.ApplyCompositionAsync(
+                map,
+                analysis,
+                reorderLayers: true,
+                harmonizeStyles: true,
+                enableLabels: true);
+            await NativeStyleService.ApplyAsync(
+                selectedLayer,
+                SelectedRenderMode,
+                SelectedThematicField ?? string.Empty,
+                ParseInt(MaxClasses, 5, 2, 12),
+                SelectedPalette,
+                LabelsEnabled,
+                SelectedLabelField ?? string.Empty,
+                ParseDouble(LabelSize, 9.5, 5, 36),
+                SelectedPlacement ?? "Automatique selon la géométrie",
+                opacity);
+            _vectorCompositionSnapshot = snapshot;
+            _vectorCompositionMapName = map.Name;
+            StatusText = $"Vector Engine appliqué : {analysis.Composition.Count} couche(s) harmonisée(s) et superposée(s).";
+        }
     }
 
     private async Task RestorePreviousStyleAsync()
@@ -596,17 +652,118 @@ internal class CartomizeDockPaneViewModel : DockPane
             return;
         }
 
+        var key = selectedLayer.URI;
+        if (selectedLayer is BasicFeatureLayer
+            && _vectorCompositionSnapshot is not null
+            && _vectorCompositionSnapshot.LayerDefinitions.ContainsKey(key))
+        {
+            var map = await ResolveSelectedMapAsync();
+            if (map is not null
+                && string.Equals(map.Name, _vectorCompositionMapName, StringComparison.OrdinalIgnoreCase))
+            {
+                await NativeVectorWorkspaceService.RestoreCompositionAsync(map, _vectorCompositionSnapshot);
+                _vectorCompositionSnapshot = null;
+                _vectorCompositionMapName = null;
+                StatusText = "La composition vectorielle précédente a été restaurée.";
+                return;
+            }
+        }
+
         var restored = await QueuedTask.Run(() =>
         {
-            var key = selectedLayer.URI;
             if (!_styleHistory.Remove(key, out var definition))
                 return false;
             selectedLayer.SetDefinition(definition);
             return true;
         });
+        if (restored && selectedLayer is RasterLayer rasterLayer
+            && _rasterOutlineHistory.Remove(key, out var outlineWasVisible))
+            await NativeRasterOutlineService.ApplyAsync(rasterLayer, outlineWasVisible, 1.2);
         StatusText = restored
             ? "Le style précédent a été restauré."
             : "Aucun style précédent n’est disponible pour cette couche.";
+    }
+
+    private async Task<NativeRasterRecommendation> AnalyzeRasterRecommendationAsync(
+        RasterLayer layer,
+        bool deep)
+    {
+        var recommendation = await NativeRasterRecommendationService.AnalyzeAsync(
+            layer,
+            deep,
+            ParseInt(MaxClasses, 5, 2, 12),
+            $"{SelectedObjective?.Id} {SelectedObjective?.Label}");
+        _lastRasterRecommendation = recommendation;
+        _lastVectorRecommendation = null;
+        RecommendationText = recommendation.Summary;
+        SelectedRenderMode = recommendation.RenderMode switch
+        {
+            "Catégoriel" => "Catégorisé",
+            "Composition RGB" => "Symbole unique",
+            _ => "Gradué — quantiles",
+        };
+        SelectedPalette = recommendation.Palette;
+        LabelsEnabled = false;
+        RasterRecommendationClasses.Clear();
+        foreach (var item in recommendation.Classes)
+            RasterRecommendationClasses.Add(new ProjectRasterClassItem(
+                item.ValueText,
+                item.Label,
+                item.Color,
+                item.Percentage,
+                item.Visible,
+                item.Status));
+        HasRasterClassRecommendation = RasterRecommendationClasses.Count > 0;
+        return recommendation;
+    }
+
+    private async Task<NativeVectorWorkspaceAnalysis> AnalyzeVectorRecommendationAsync(
+        BasicFeatureLayer primaryLayer,
+        bool deep)
+    {
+        var map = await ResolveSelectedMapAsync()
+                  ?? throw new InvalidOperationException("La carte active est indisponible.");
+        var primaryId = primaryLayer.URI ?? primaryLayer.Name;
+        var inventory = await NativeVectorWorkspaceService.InventoryAsync(map);
+        var requestedIds = inventory
+            .Where(item => !AutomationVisibleOnly || item.IsVisible || item.LayerId.Equals(primaryId, StringComparison.Ordinal))
+            .Select(item => item.LayerId)
+            .ToArray();
+        var analysis = await NativeVectorWorkspaceService.AnalyzeAsync(
+            map,
+            requestedIds,
+            primaryId,
+            SelectedObjective?.Label ?? "Détection automatique",
+            visibleOnly: false,
+            deep: deep);
+        _lastVectorRecommendation = analysis;
+        _lastRasterRecommendation = null;
+        RasterRecommendationClasses.Clear();
+        HasRasterClassRecommendation = false;
+        var profile = analysis.Profiles.FirstOrDefault(item => item.LayerId.Equals(analysis.PrimaryLayerId, StringComparison.Ordinal))
+                      ?? analysis.Profiles.First();
+        var labelField = string.IsNullOrWhiteSpace(profile.LabelField) ? "—" : profile.LabelField;
+        var thematicField = string.IsNullOrWhiteSpace(profile.ThematicField) ? "—" : profile.ThematicField;
+        RecommendationText =
+            $"Moteur : Vector Engine multi-couches\n" +
+            $"Couche principale : {profile.Name}\nRôle : {profile.Role}\nGéométrie : {profile.GeometryType}\n" +
+            $"Entités : {profile.FeatureCount:N0}\nÉtiquette : {labelField}\nChamp thématique : {thematicField}\n" +
+            $"Superposition analysée : {analysis.Profiles.Count} couche(s) · {analysis.Relations.Count} relation(s)\n\n" +
+            analysis.PlanText;
+        SelectedThematicField = profile.ThematicField;
+        SelectedLabelField = profile.LabelField;
+        LabelsEnabled = !string.IsNullOrWhiteSpace(profile.LabelField);
+        SelectedRenderMode = profile.RecommendedRenderer;
+        SelectedPalette = profile.RecommendedPalette;
+        return analysis;
+    }
+
+    private void ClearSmartRecommendations()
+    {
+        _lastRasterRecommendation = null;
+        _lastVectorRecommendation = null;
+        RasterRecommendationClasses.Clear();
+        HasRasterClassRecommendation = false;
     }
 
     private async Task ZoomSelectedLayerAsync()

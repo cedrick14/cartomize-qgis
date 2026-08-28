@@ -1,5 +1,47 @@
 namespace Cartomize.ArcGISPro.Views;
 
+internal sealed class ProjectRasterClassItem
+{
+    public ProjectRasterClassItem(
+        string value,
+        string label,
+        string color,
+        double percentage,
+        bool visible,
+        string state)
+    {
+        Value = value;
+        Label = label;
+        Color = color;
+        PercentageText = percentage > 0 ? $"{percentage:0.##} %" : "—";
+        State = visible ? state : "Masqué · " + state;
+    }
+
+    public string Value { get; }
+    public string Label { get; }
+    public string Color { get; }
+    public string PercentageText { get; }
+    public string State { get; }
+
+    public System.Windows.Media.Brush ColorBrush
+    {
+        get
+        {
+            try
+            {
+                var converted = System.Windows.Media.ColorConverter.ConvertFromString(Color);
+                return converted is System.Windows.Media.Color value
+                    ? new System.Windows.Media.SolidColorBrush(value)
+                    : System.Windows.Media.Brushes.Gray;
+            }
+            catch
+            {
+                return System.Windows.Media.Brushes.Gray;
+            }
+        }
+    }
+}
+
 internal sealed record ChoiceItem(string Id, string Label)
 {
     public override string ToString() => Label;

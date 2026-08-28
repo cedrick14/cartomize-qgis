@@ -72,6 +72,13 @@ internal static class NativeStyleService
         {
             RasterColorizerDefinition definition = request.RenderMode switch
             {
+                "Composition RGB" => new RGBColorizerDefinition
+                {
+                    RedBandIndex = 0,
+                    GreenBandIndex = 1,
+                    BlueBandIndex = 2,
+                    StretchType = RasterStretchType.MinimumMaximum,
+                },
                 "Catégoriel" or "Catégorisé" => new UniqueValueColorizerDefinition(),
                 "Niveaux de gris" => new StretchColorizerDefinition
                 {
@@ -103,6 +110,16 @@ internal static class NativeStyleService
                 stretch.UseCustomStretchMinMax = true;
                 stretch.CustomStretchMin = request.Minimum;
                 stretch.CustomStretchMax = request.Maximum;
+            }
+            if (colorizer is CIMRasterRGBColorizer rgb && request.Maximum > request.Minimum)
+            {
+                rgb.UseCustomStretchMinMax = true;
+                rgb.CustomStretchMinRed = request.Minimum;
+                rgb.CustomStretchMinGreen = request.Minimum;
+                rgb.CustomStretchMinBlue = request.Minimum;
+                rgb.CustomStretchMaxRed = request.Maximum;
+                rgb.CustomStretchMaxGreen = request.Maximum;
+                rgb.CustomStretchMaxBlue = request.Maximum;
             }
             ApplyRasterPalette(colorizer, request.Palette);
             if (colorizer is CIMRasterUniqueValueColorizer unique)

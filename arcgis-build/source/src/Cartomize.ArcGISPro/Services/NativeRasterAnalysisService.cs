@@ -54,7 +54,11 @@ internal static class NativeRasterAnalysisService
 {
     private const int MaximumProfiles = 4096;
 
-    public static Task<NativeRasterSample> AnalyzeAsync(RasterLayer layer, bool deep, int classCount)
+    public static Task<NativeRasterSample> AnalyzeAsync(
+        RasterLayer layer,
+        bool deep,
+        int classCount,
+        string semanticContext = "")
         => QueuedTask.Run(() =>
         {
             using var raster = layer.GetRaster()
@@ -172,7 +176,8 @@ internal static class NativeRasterAnalysisService
             var integerCodes = validFrequencies.Keys.All(IntegerLike);
             var categorical = bandCount == 1
                               && !profileLimited
-                              && observedUnique is >= 2 and <= 128
+                              && observedUnique is >= 1 and <= 128
+                              && (observedUnique >= 2 || automaticNoData.Count > 0)
                               && (integerCodes || attributeClasses.Count > 1);
             var rasterType = bandCount >= 3 && !categorical
                 ? "rgb"
@@ -188,6 +193,7 @@ internal static class NativeRasterAnalysisService
             {
                 layer.Name,
                 layer.URI ?? string.Empty,
+                semanticContext,
                 string.Join(" ", attributeClasses.Select(item => item.Label)),
             });
             var (theme, themeConfidence, rationale) = InferTheme(
@@ -311,13 +317,23 @@ internal static class NativeRasterAnalysisService
             var strongPerimeter = borderPercentage >= 0.60 && centerPercentage <= 0.45 && borderSignal >= 0.35;
             var strongCorners = cornerPercentage >= 0.75 && borderPercentage >= 0.50
                                 && centerPercentage <= 0.60 && borderSignal >= 0.20;
-            if (!strongPerimeter && !strongCorners) continue;
+            var rectangularPadding = frequencies.Count >= 2
+                                     && LikelyPaddingValue(value)
+                                     && cornerPercentage >= 0.94
+                                     && borderPercentage >= 0.40
+                                     && centerPercentage <= 0.82
+                                     && cornerPercentage - centerPercentage >= 0.12;
+            if (!strongPerimeter && !strongCorners && !rectangularPadding) continue;
             var spatialSignal = Math.Max(borderSignal, cornerPercentage - centerPercentage);
-            var confidence = Math.Clamp(0.58 + spatialSignal * 0.42, 0, 0.98);
+            var confidence = rectangularPadding
+                ? Math.Clamp(0.82 + spatialSignal * 0.16, 0, 0.98)
+                : Math.Clamp(0.58 + spatialSignal * 0.42, 0, 0.98);
             var candidate = new NativeRasterCandidate(
                 value,
                 Math.Round(confidence, 4),
-                "Valeur très concentrée en bordure du raster et rare au centre.",
+                rectangularPadding
+                    ? "Valeur de remplissage rectangulaire détectée dans les coins et en bordure."
+                    : "Valeur très concentrée en bordure du raster et rare au centre.",
                 borderPercentage,
                 centerPercentage,
                 cornerPercentage);
@@ -355,7 +371,13 @@ internal static class NativeRasterAnalysisService
                                 && candidate.BorderPercentage >= 0.55
                                 && candidate.CenterPercentage <= 0.55
                                 && borderSignal >= 0.25;
-            if (strongPerimeter || strongCorners)
+            var rectangularPadding = candidate.Confidence >= 0.82
+                                     && LikelyPaddingValue(candidate.Value)
+                                     && candidate.CornerPercentage >= 0.94
+                                     && candidate.BorderPercentage >= 0.40
+                                     && candidate.CenterPercentage <= 0.82
+                                     && candidate.CornerPercentage - candidate.CenterPercentage >= 0.12;
+            if (strongPerimeter || strongCorners || rectangularPadding)
                 selected.Add(candidate.Value);
         }
         return selected.OrderBy(value => value).ToArray();
@@ -541,6 +563,12 @@ internal static class NativeRasterAnalysisService
 
     private static bool IntegerLike(double value)
         => Math.Abs(value - Math.Round(value)) <= 1e-9;
+
+    private static bool LikelyPaddingValue(double value)
+        => SameNumber(value, 0)
+           || SameNumber(value, 255)
+           || value <= -999
+           || value >= 9999;
 
     private static bool TryNumber(object? value, out double number)
     {
