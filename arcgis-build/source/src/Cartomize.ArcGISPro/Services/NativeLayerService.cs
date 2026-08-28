@@ -172,7 +172,7 @@ internal static class NativeLayerService
             : "Séquentielle";
 
         return new NativeLayerProfile(
-            layer.URI,
+            layer.URI ?? string.Empty,
             layer.Name,
             source,
             false,
@@ -224,7 +224,7 @@ internal static class NativeLayerService
             warnings.Add($"NoData déclaré : {noData}.");
 
         return new NativeLayerProfile(
-            layer.URI,
+            layer.URI ?? string.Empty,
             layer.Name,
             layer.URI ?? string.Empty,
             true,

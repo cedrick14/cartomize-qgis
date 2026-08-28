@@ -291,10 +291,11 @@ internal static class NativeStyleService
 
     internal static IReadOnlyList<string> ResolvePalette(string palette, int count)
     {
-        IReadOnlyList<string> source = RasterPalettes.TryGetValue(palette ?? string.Empty, out var rasterPalette)
+        var key = palette ?? string.Empty;
+        IReadOnlyList<string> source = RasterPalettes.TryGetValue(key, out var rasterPalette)
             ? rasterPalette
-            : IsDiverging(palette) ? DivergingPalette
-            : palette.Contains("Qualitative", StringComparison.OrdinalIgnoreCase) ? QualitativePalette
+            : IsDiverging(key) ? DivergingPalette
+            : key.Contains("Qualitative", StringComparison.OrdinalIgnoreCase) ? QualitativePalette
             : SequentialPalette;
         return count > 0 ? Resample(source, count) : source;
     }
