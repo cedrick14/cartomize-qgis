@@ -21,6 +21,21 @@ internal sealed record NativeRasterStyleRequest(
 /// </summary>
 internal static class NativeStyleService
 {
+    // Couleurs du service QGIS Cartomize 10.5.1. Le rendu reste créé par
+    // l'API native ArcGIS Pro, puis reçoit exactement la palette choisie.
+    private static readonly string[] QualitativePalette =
+    [
+        "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
+        "#e6ab02", "#a6761d", "#1f78b4", "#b2df8a", "#fb9a99",
+        "#cab2d6", "#fdbf6f", "#6a3d9a", "#b15928", "#17becf",
+    ];
+
+    private static readonly string[] SequentialPalette =
+        ["#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a"];
+
+    private static readonly string[] DivergingPalette =
+        ["#7f1d1d", "#ef4444", "#f8fafc", "#3b82f6", "#1e3a8a"];
+
     public static Task ApplyRasterAsync(RasterLayer layer, NativeRasterStyleRequest request)
         => QueuedTask.Run(() =>
         {
@@ -77,6 +92,7 @@ internal static class NativeStyleService
         string renderMode,
         string thematicField,
         int classCount,
+        string palette,
         bool labelsEnabled,
         string labelField,
         double labelSize,
@@ -87,11 +103,11 @@ internal static class NativeStyleService
             switch (layer)
             {
                 case FeatureLayer featureLayer:
-                    ApplyFeatureRenderer(featureLayer, renderMode, thematicField, classCount);
+                    ApplyFeatureRenderer(featureLayer, renderMode, thematicField, classCount, palette);
                     ApplyLabels(featureLayer, labelsEnabled, labelField, labelSize, labelPlacement);
                     break;
                 case RasterLayer rasterLayer:
-                    ApplyRasterColorizer(rasterLayer, renderMode, classCount);
+                    ApplyRasterColorizer(rasterLayer, renderMode, classCount, palette);
                     break;
                 default:
                     throw new InvalidOperationException("Cette couche ne prend pas en charge la symbologie Cartomize native.");
@@ -143,7 +159,7 @@ internal static class NativeStyleService
         properties.CanStackLabel = value is "Libre" or "Automatique selon la géométrie" or "";
     }
 
-    private static void ApplyFeatureRenderer(FeatureLayer layer, string mode, string field, int classCount)
+    private static void ApplyFeatureRenderer(FeatureLayer layer, string mode, string field, int classCount, string palette)
     {
         RendererDefinition definition = mode switch
         {
@@ -162,10 +178,11 @@ internal static class NativeStyleService
             throw new InvalidOperationException("ArcGIS Pro ne peut pas créer ce rendu pour la couche sélectionnée.");
         var renderer = layer.CreateRenderer(definition)
             ?? throw new InvalidOperationException("ArcGIS Pro n’a retourné aucun rendu.");
+        ApplyFeaturePalette(renderer, palette);
         layer.SetRenderer(renderer);
     }
 
-    private static void ApplyRasterColorizer(RasterLayer layer, string mode, int classCount)
+    private static void ApplyRasterColorizer(RasterLayer layer, string mode, int classCount, string palette)
     {
         RasterColorizerDefinition definition = mode switch
         {
@@ -190,7 +207,75 @@ internal static class NativeStyleService
             throw new InvalidOperationException("ArcGIS Pro ne peut pas créer ce coloriseur pour le raster sélectionné.");
         var colorizer = layer.CreateColorizer(definition)
             ?? throw new InvalidOperationException("ArcGIS Pro n’a retourné aucun coloriseur.");
+        ApplyRasterPalette(colorizer, palette);
         layer.SetColorizer(colorizer);
+    }
+
+    private static void ApplyFeaturePalette(CIMRenderer renderer, string palette)
+    {
+        if (renderer is CIMSimpleRenderer simple)
+        {
+            simple.Symbol?.Symbol?.SetColor(ParseColor(QualitativePalette[QualitativePalette.Length / 2]));
+            return;
+        }
+
+        if (renderer is CIMUniqueValueRenderer unique)
+        {
+            var index = 0;
+            foreach (var group in unique.Groups ?? [])
+            foreach (var item in group.Classes ?? [])
+            {
+                item.Symbol?.Symbol?.SetColor(ParseColor(QualitativePalette[index % QualitativePalette.Length]));
+                index++;
+            }
+            return;
+        }
+
+        if (renderer is not CIMClassBreaksRenderer graduated)
+            return;
+        var source = IsDiverging(palette) ? DivergingPalette : SequentialPalette;
+        var breaks = graduated.Breaks ?? [];
+        var colors = Resample(source, breaks.Length);
+        for (var index = 0; index < Math.Min(breaks.Length, colors.Count); index++)
+            breaks[index].Symbol?.Symbol?.SetColor(ParseColor(colors[index]));
+        graduated.Breaks = breaks;
+    }
+
+    private static void ApplyRasterPalette(CIMRasterColorizer colorizer, string palette)
+    {
+        var source = IsDiverging(palette) ? DivergingPalette
+            : palette.Contains("Qualitative", StringComparison.OrdinalIgnoreCase) ? QualitativePalette
+            : SequentialPalette;
+        if (colorizer is CIMRasterClassifyColorizer classified)
+        {
+            var breaks = classified.ClassBreaks ?? [];
+            var colors = Resample(source, breaks.Length);
+            for (var index = 0; index < Math.Min(breaks.Length, colors.Count); index++)
+                breaks[index].Color = ParseColor(colors[index]);
+            classified.ClassBreaks = breaks;
+        }
+        else if (colorizer is CIMRasterUniqueValueColorizer unique)
+        {
+            var index = 0;
+            foreach (var group in unique.Groups ?? [])
+            foreach (var item in group.Classes ?? [])
+            {
+                item.Color = ParseColor(source[index % source.Length]);
+                index++;
+            }
+        }
+    }
+
+    private static bool IsDiverging(string palette)
+        => palette.Contains("Diverg", StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<string> Resample(IReadOnlyList<string> palette, int count)
+    {
+        if (count <= 0) return Array.Empty<string>();
+        if (count == 1) return [palette[palette.Count / 2]];
+        return Enumerable.Range(0, count)
+            .Select(index => palette[(int)Math.Round((double)index * (palette.Count - 1) / (count - 1))])
+            .ToArray();
     }
 
     private static CIMColor ParseColor(string value)

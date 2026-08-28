@@ -67,9 +67,10 @@ internal static partial class NativeBatchService
                 {
                     await QueuedTask.Run(() =>
                     {
-                        var item = Project.Current?.GetItems<LayoutProjectItem>()
+                        var project = Project.Current;
+                        var item = project?.GetItems<LayoutProjectItem>()
                             .FirstOrDefault(value => value.Name.Equals(result.LayoutName, StringComparison.OrdinalIgnoreCase));
-                        if (item is not null) Project.Current.RemoveItem(item);
+                        if (project is not null && item is not null) project.RemoveItem(item);
                     });
                 }
             }

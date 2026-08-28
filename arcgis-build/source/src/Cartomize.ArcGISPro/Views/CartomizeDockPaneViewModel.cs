@@ -20,7 +20,7 @@ using Microsoft.Win32;
 
 namespace Cartomize.ArcGISPro.Views;
 
-internal sealed class CartomizeDockPaneViewModel : DockPane
+internal class CartomizeDockPaneViewModel : DockPane
 {
     internal const string DockPaneId = "Cartomize_ArcGISPro_DockPane";
     private readonly Dictionary<string, CIMBaseLayer> _styleHistory = new(StringComparer.Ordinal);
@@ -575,6 +575,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             selectedLayer is RasterLayer ? rasterMode : SelectedRenderMode,
             SelectedThematicField ?? string.Empty,
             classes,
+            SelectedPalette,
             LabelsEnabled,
             SelectedLabelField ?? string.Empty,
             ParseDouble(LabelSize, 9.5, 5, 36),
@@ -1114,7 +1115,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             SelectedLayerChoice ??= oldLayerId is not null
                 ? LayerChoices.FirstOrDefault(item => item.Id.Equals(oldLayerId, StringComparison.Ordinal))
                 : null;
-            SelectedLayerChoice ??= LayerChoices.FirstOrDefault();
+            SelectedLayerChoice ??= LayerChoices.FirstOrDefault(item => !item.IsBasemap)
+                ?? LayerChoices.FirstOrDefault();
             var rasterCount = state.Entries.Count(item => item.Raster);
             ProjectSummary = $"Couches : {state.Entries.Length}\nCouches visibles : {state.Entries.Count(item => item.Visible)}\nVecteurs : {state.Entries.Length - rasterCount}\nRasters : {rasterCount}\nCouches invalides : 0";
             BuildProposals();
@@ -1270,7 +1272,9 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var values = _allTemplates.Where(item => (SelectedTemplateCategory == "Toutes les catégories" || item.Category.Equals(SelectedTemplateCategory, StringComparison.CurrentCultureIgnoreCase)) &&
             (needle.Length == 0 || $"{item.Name} {item.Category} {item.Description}".Contains(needle, StringComparison.CurrentCultureIgnoreCase)));
         Replace(FilteredTemplates, values);
-        SelectedTemplate = FilteredTemplates.Contains(SelectedTemplate) ? SelectedTemplate : FilteredTemplates.FirstOrDefault();
+        SelectedTemplate = SelectedTemplate is not null && FilteredTemplates.Contains(SelectedTemplate)
+            ? SelectedTemplate
+            : FilteredTemplates.FirstOrDefault();
     }
 
     private void BuildProposals()

@@ -345,6 +345,18 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("labelClass.SetTextSymbol", style)
         self.assertIn("labelClass.SetMaplexLabelPlacementProperties", style)
 
+    def test_qgis_palette_is_passed_to_the_native_arcgis_renderer(self):
+        style = self.native_services["NativeStyleService"]
+        self.assertIn('"#1b9e77", "#d95f02"', style)
+        self.assertIn('"#7f1d1d", "#ef4444"', style)
+        self.assertIn("ApplyFeaturePalette(renderer, palette)", style)
+        self.assertIn("ApplyRasterPalette(colorizer, palette)", style)
+        apply_call = self.view_model.split("await NativeStyleService.ApplyAsync(", 1)[1].split(");", 1)[0]
+        self.assertIn("SelectedPalette", apply_call)
+
+    def test_default_layer_selection_prefers_data_over_basemap(self):
+        self.assertIn("LayerChoices.FirstOrDefault(item => !item.IsBasemap)", self.view_model)
+
     def test_arcgis_actions_use_supported_public_apis(self):
         for invalid_id in (
             "esri_mapping_zoomToLayer",
