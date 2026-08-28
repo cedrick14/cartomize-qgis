@@ -172,13 +172,27 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("DispatcherUnhandledException", self.startup_guard)
         self.assertIn("args.Handled = true", self.startup_guard)
         self.assertIn("TaskScheduler.UnobservedTaskException", self.startup_guard)
-        self.assertIn("protected override async Task InitializeAsync()", self.view_model)
+        self.assertIn("protected override Task InitializeAsync()", self.view_model)
+        self.assertIn("InitializeAfterViewLoadedAsync", self.view_model)
+        self.assertIn("Loaded += OnLoaded", self.view_code)
+        self.assertIn("DispatcherPriority.ContextIdle", self.view_code)
         self.assertIn("RefreshProjectSafelyAsync", self.view_model)
         self.assertIn("RefreshLayerFieldsSafelyAsync", self.view_model)
         constructor = self.view_model.split("protected CartomizeDockPaneViewModel()", 1)[1].split("public ObservableCollection", 1)[0]
         self.assertNotIn("LoadTemplateCatalog();", constructor)
-        initialize = self.view_model.split("protected override async Task InitializeAsync()", 1)[1].split("public static void Show()", 1)[0]
-        self.assertIn("LoadTemplateCatalog();", initialize)
+        framework_initialize = self.view_model.split("protected override Task InitializeAsync()", 1)[1].split("internal async Task InitializeAfterViewLoadedAsync()", 1)[0]
+        self.assertNotIn("LoadTemplateCatalog();", framework_initialize)
+        loaded_initialize = self.view_model.split("internal async Task InitializeAfterViewLoadedAsync()", 1)[1].split("protected override void OnActivate", 1)[0]
+        self.assertIn("LoadTemplateCatalog();", loaded_initialize)
+
+    def test_scrollable_lists_have_bounded_heights(self):
+        for item in self.root.iter(NS + "DataGrid"):
+            self.assertIn("Height", item.attrib)
+            self.assertNotIn("MinHeight", item.attrib)
+            self.assertEqual(item.attrib.get("EnableRowVirtualization"), "True")
+        for item in self.root.iter(NS + "ListBox"):
+            self.assertIn("Height", item.attrib)
+            self.assertNotIn("MinHeight", item.attrib)
 
     def test_arcgis_pro_37_runtime_contract(self):
         self.assertIn("<TargetFramework>net10.0-windows</TargetFramework>", self.csproj)

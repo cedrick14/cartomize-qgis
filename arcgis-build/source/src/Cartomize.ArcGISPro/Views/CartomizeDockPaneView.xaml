@@ -89,9 +89,10 @@
                 <TextBlock Text="Propositions" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Comparez les variantes selon leur score, leur maquette et les principales décisions de composition."
                            Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                <DataGrid MinHeight="220" ItemsSource="{Binding Proposals}" SelectedItem="{Binding SelectedProposal}"
+                <DataGrid Height="220" ItemsSource="{Binding Proposals}" SelectedItem="{Binding SelectedProposal}"
                           Style="{DynamicResource Esri_DataGrid}" SelectionMode="Single" SelectionUnit="FullRow"
-                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False">
+                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False"
+                          EnableRowVirtualization="True" EnableColumnVirtualization="True">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="Score" Width="Auto" Binding="{Binding Score}" />
                     <DataGridTextColumn Header="Proposition" Width="Auto" Binding="{Binding Name}" />
@@ -236,7 +237,9 @@
                   <TextBox Grid.Row="1" Text="{Binding TemplateSearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="Rechercher par titre, thème ou usage" />
                   <ComboBox Grid.Row="1" Grid.Column="1" Margin="8,0,0,0" ItemsSource="{Binding TemplateCategories}" SelectedItem="{Binding SelectedTemplateCategory}" />
                 </Grid>
-                <ListBox MinHeight="190" Margin="0,8,0,8" ItemsSource="{Binding FilteredTemplates}" SelectedItem="{Binding SelectedTemplate}" />
+                <ListBox Height="190" Margin="0,8,0,8" ItemsSource="{Binding FilteredTemplates}" SelectedItem="{Binding SelectedTemplate}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True" />
                 <TextBlock Text="Détails de la maquette" Style="{DynamicResource Esri_TextBlockRegular}" />
                 <TextBox Text="{Binding TemplateDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="145" Margin="0,4,0,0" />
               </StackPanel>
@@ -313,9 +316,10 @@
                 <TextBlock Text="Observations" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
                 <TextBlock Text="Sélectionnez une ligne pour examiner le niveau, la couche concernée et la correction proposée."
                            Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                <DataGrid MinHeight="330" ItemsSource="{Binding AuditFindings}"
+                <DataGrid Height="330" ItemsSource="{Binding AuditFindings}"
                           Style="{DynamicResource Esri_DataGrid}" SelectionMode="Single" SelectionUnit="FullRow"
-                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False">
+                          HeadersVisibility="Column" AutoGenerateColumns="False" CanUserAddRows="False"
+                          EnableRowVirtualization="True" EnableColumnVirtualization="True">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="Niveau" Width="Auto" Binding="{Binding Severity}" /><DataGridTextColumn Header="Code" Width="Auto" Binding="{Binding Code}" />
                     <DataGridTextColumn Header="Couche" Width="Auto" Binding="{Binding Layer}" /><DataGridTextColumn Header="Observation et action recommandée" Width="*" Binding="{Binding Summary}" />
@@ -413,7 +417,9 @@
             <Border Style="{StaticResource CardStyle}"><StackPanel>
               <TextBlock Text="Ressources en ligne" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,0,0,5" />
               <TextBlock Text="Actualisez la liste des ressources publiées sur le portail officiel." Style="{DynamicResource Esri_TextBlockRegular}" TextWrapping="Wrap" Margin="0,0,0,12" />
-              <ListBox MinHeight="190" ItemsSource="{Binding CommunityResources}" SelectedItem="{Binding SelectedCommunityResource}" />
+              <ListBox Height="190" ItemsSource="{Binding CommunityResources}" SelectedItem="{Binding SelectedCommunityResource}"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True" />
               <Button Content="Actualiser le catalogue en ligne" Command="{Binding RefreshCommunityCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               <Button Content="Ouvrir la ressource sélectionnée" Command="{Binding OpenCommunityResourceCommand}" Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               <Button Content="Ouvrir le portail Cartomize" Command="{Binding CommunityCommand}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />

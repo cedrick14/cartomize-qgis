@@ -14,7 +14,7 @@ public partial class CartomizeDockPaneView : UserControl
             StartupGuard.Stage("Chargement XAML commencé");
             InitializeComponent();
             StartupGuard.Stage("Chargement XAML terminé");
-            Loaded += (_, _) => StartupGuard.Stage("Vue Cartomize affichée");
+            Loaded += OnLoaded;
         }
         catch (Exception exception)
         {
@@ -28,6 +28,29 @@ public partial class CartomizeDockPaneView : UserControl
                     TextWrapping = TextWrapping.Wrap,
                 },
             };
+        }
+    }
+
+    private async void OnLoaded(object sender, RoutedEventArgs args)
+    {
+        Loaded -= OnLoaded;
+        StartupGuard.Stage("Vue Cartomize affichée");
+
+        try
+        {
+            // Laisser ArcGIS Pro achever la mesure, le rendu et l'ancrage du
+            // DockPane avant de remplir les collections liées à l'interface.
+            await System.Windows.Threading.Dispatcher.Yield(
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
+
+            if (DataContext is CartomizeDockPaneViewModel viewModel)
+                await viewModel.InitializeAfterViewLoadedAsync();
+            else
+                DiagnosticLog.Write("Le modèle de vue Cartomize n’est pas associé à la vue.");
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Initialisation différée du panneau Cartomize", exception);
         }
     }
 }

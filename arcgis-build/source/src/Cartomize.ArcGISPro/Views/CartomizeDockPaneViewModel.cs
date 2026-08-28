@@ -84,6 +84,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     private bool _checkExport;
     private string _lastRecipeJson = string.Empty;
     private string _validationCertificateJson = string.Empty;
+    private int _loadedInitializationStarted;
 
     protected CartomizeDockPaneViewModel()
     {
@@ -276,9 +277,22 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
     public ICommand CommunityCommand { get; }
     public ICommand DiagnosticsCommand { get; }
 
-    protected override async Task InitializeAsync()
+    protected override Task InitializeAsync()
     {
         StartupGuard.Stage("InitializeAsync commencé");
+        // ArcGIS Pro construit le contrôleur et la vue avant d'activer le DockPane.
+        // Ne pas lancer QueuedTask ni modifier les collections liées pendant cette
+        // phase : l'initialisation fonctionnelle démarre après l'événement Loaded.
+        StartupGuard.Stage("InitializeAsync terminé — attente de la vue");
+        return Task.CompletedTask;
+    }
+
+    internal async Task InitializeAfterViewLoadedAsync()
+    {
+        if (Interlocked.CompareExchange(ref _loadedInitializationStarted, 1, 0) != 0)
+            return;
+
+        StartupGuard.Stage("Initialisation après affichage commencée");
         try
         {
             LoadTemplateCatalog();
@@ -293,8 +307,14 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         }
         finally
         {
-            StartupGuard.Stage("InitializeAsync terminé");
+            StartupGuard.Stage("Initialisation après affichage terminée");
         }
+    }
+
+    protected override void OnActivate(bool isActive)
+    {
+        StartupGuard.Stage(isActive ? "Dockpane activé par ArcGIS Pro" : "Dockpane désactivé par ArcGIS Pro");
+        base.OnActivate(isActive);
     }
 
     public static void Show()
@@ -305,6 +325,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
                        "Le panneau Cartomize n’a pas pu être créé par ArcGIS Pro.");
         StartupGuard.Stage("Dockpane trouvé, activation demandée");
         pane.Activate();
+        StartupGuard.Stage("Appel d’activation du dockpane terminé");
     }
 
     private async Task AnalyzeAutomationAsync()
