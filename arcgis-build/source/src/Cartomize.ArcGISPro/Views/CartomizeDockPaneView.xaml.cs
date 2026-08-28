@@ -45,10 +45,17 @@ public partial class CartomizeDockPaneView : UserControl
             await System.Windows.Threading.Dispatcher.Yield(
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
 
+            var viewModel = DataContext as CartomizeDockPaneViewModel
+                            ?? CartomizeDockPaneViewModel.FindCurrent()
+                            ?? throw new InvalidOperationException(
+                                "Le modèle de vue Cartomize n’est pas disponible.");
+            DataContext = viewModel;
+            ContentHost.DataContext = viewModel;
+
             if (!_cartomizeContentAttached)
             {
                 StartupGuard.Stage("Construction différée de l’interface Cartomize");
-                ContentHost.Content = new CartomizeContentView();
+                ContentHost.Content = new CartomizeContentView { DataContext = viewModel };
                 _cartomizeContentAttached = true;
                 StartupGuard.Stage("Interface Cartomize attachée au conteneur");
 
@@ -59,10 +66,8 @@ public partial class CartomizeDockPaneView : UserControl
                 StartupGuard.Stage("Interface Cartomize mesurée");
             }
 
-            if (DataContext is CartomizeDockPaneViewModel viewModel)
-                await viewModel.InitializeAfterViewLoadedAsync();
-            else
-                DiagnosticLog.Write("Le modèle de vue Cartomize n’est pas associé à la vue.");
+            StartupGuard.Stage("Modèle de vue Cartomize associé au contenu");
+            await viewModel.InitializeAfterViewLoadedAsync();
         }
         catch (Exception exception)
         {

@@ -191,7 +191,9 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("InitializeAfterViewLoadedAsync", self.view_model)
         self.assertIn("Loaded += OnLoaded", self.view_code)
         self.assertIn("DispatcherPriority.ContextIdle", self.view_code)
-        self.assertIn("ContentHost.Content = new CartomizeContentView()", self.view_code)
+        self.assertIn("ContentHost.Content = new CartomizeContentView", self.view_code)
+        self.assertIn("ContentHost.DataContext = viewModel", self.view_code)
+        self.assertIn("new CartomizeContentView { DataContext = viewModel }", self.view_code)
         self.assertIn("ContentHost.UpdateLayout()", self.view_code)
         self.assertIn('DiagnosticLog.Write("Chargement XAML du contenu Cartomize", exception)', self.content_code)
         self.assertIn("RefreshProjectSafelyAsync", self.view_model)
@@ -202,6 +204,22 @@ class QgisParityTests(unittest.TestCase):
         self.assertNotIn("LoadTemplateCatalog();", framework_initialize)
         loaded_initialize = self.view_model.split("internal async Task InitializeAfterViewLoadedAsync()", 1)[1].split("protected override void OnActivate", 1)[0]
         self.assertIn("LoadTemplateCatalog();", loaded_initialize)
+
+    def test_arcgis_context_updates_active_layer_and_command_states(self):
+        for event_name in (
+            "ActiveMapViewChangedEvent.Subscribe(OnActiveMapViewChanged)",
+            "TOCSelectionChangedEvent.Subscribe(OnTocSelectionChanged)",
+            "LayersAddedEvent.Subscribe(OnLayersChanged)",
+            "LayersRemovedEvent.Subscribe(OnLayersChanged)",
+        ):
+            self.assertIn(event_name, self.view_model)
+        self.assertIn("GetSelectedLayers().FirstOrDefault()", self.view_model)
+        self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer', self.view_model)
+        self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer', self.view_model)
+        self.assertIn('GeoprocessingService.Open("RasterIntelligence", selectedLayer', self.view_model)
+        self.assertIn("CommandManager.RequerySuggested", self.commands)
+        self.assertIn("CommandManager.InvalidateRequerySuggested()", self.commands)
+        self.assertIn("CommandManager.InvalidateRequerySuggested()", self.view_model)
 
     def test_arcgis_dockpane_uses_a_lightweight_initial_visual_tree(self):
         self.assertEqual(len(list(self.host_root.iter(NS + "ContentControl"))), 1)

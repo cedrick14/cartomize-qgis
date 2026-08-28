@@ -13,7 +13,11 @@ internal sealed class DelegateCommand(Action execute) : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    public event EventHandler? CanExecuteChanged
+    {
+        add => CommandManager.RequerySuggested += value;
+        remove => CommandManager.RequerySuggested -= value;
+    }
     public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
     public void Execute(object? parameter)
     {
@@ -29,7 +33,7 @@ internal sealed class DelegateCommand(Action execute) : ICommand
                 "Cartomize 10.5.1");
         }
     }
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 }
 
 internal sealed class AsyncDelegateCommand : ICommand
@@ -44,7 +48,11 @@ internal sealed class AsyncDelegateCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged;
+    public event EventHandler? CanExecuteChanged
+    {
+        add => CommandManager.RequerySuggested += value;
+        remove => CommandManager.RequerySuggested -= value;
+    }
 
     public bool CanExecute(object? parameter) => !_running && (_canExecute?.Invoke() ?? true);
 
@@ -72,5 +80,5 @@ internal sealed class AsyncDelegateCommand : ICommand
         }
     }
 
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void RaiseCanExecuteChanged() => CommandManager.InvalidateRequerySuggested();
 }
