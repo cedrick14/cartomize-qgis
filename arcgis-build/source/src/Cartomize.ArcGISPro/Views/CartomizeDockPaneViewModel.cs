@@ -74,6 +74,7 @@ internal class CartomizeDockPaneViewModel : DockPane
     private string _batchStatusText = "Sélectionnez ou créez un manifeste. Cartomize peut produire jusqu’à 5 000 cartes par série.";
     private bool _isRasterLayer;
     private bool _isBasemapLayer;
+    private bool _hasVectorLayers;
     private bool _isBusy;
     private bool _automationVisibleOnly = true;
     private bool _automationApplySymbology;
@@ -267,6 +268,7 @@ internal class CartomizeDockPaneViewModel : DockPane
 
     public bool IsRasterLayer { get => _isRasterLayer; private set => SetProperty(ref _isRasterLayer, value); }
     public bool IsBasemapLayer { get => _isBasemapLayer; private set => SetProperty(ref _isBasemapLayer, value); }
+    public bool HasVectorLayers { get => _hasVectorLayers; private set => SetProperty(ref _hasVectorLayers, value); }
     public override bool IsBusy => _isBusy;
     public bool AutomationVisibleOnly { get => _automationVisibleOnly; set => SetProperty(ref _automationVisibleOnly, value); }
     public bool AutomationApplySymbology { get => _automationApplySymbology; set => SetProperty(ref _automationApplySymbology, value); }
@@ -656,6 +658,28 @@ internal class CartomizeDockPaneViewModel : DockPane
             window.Owner = owner;
         window.ShowDialog();
         StatusText = "Raster Engine fermé.";
+    }
+
+    internal async Task OpenVectorEngineAsync()
+    {
+        var map = await ResolveSelectedMapAsync();
+        if (map is null)
+        {
+            StatusText = "Aucune carte ArcGIS Pro n’est disponible.";
+            return;
+        }
+        var selectedLayer = await ResolveSelectedLayerAsync();
+        var primaryLayer = selectedLayer as BasicFeatureLayer;
+        var window = new VectorEngineWindow(
+            map,
+            primaryLayer,
+            SelectedObjective?.Id ?? "auto",
+            SelectedObjective?.Label ?? "Détection automatique");
+        if (Application.Current?.MainWindow is Window owner)
+            window.Owner = owner;
+        window.ShowDialog();
+        await RefreshProjectSafelyAsync(MapView.Active, false);
+        StatusText = "Vector Engine fermé.";
     }
 
     private async Task CreateLayoutAsync() => await ExecuteLayoutAsync("Créer", string.Empty);
@@ -1118,6 +1142,7 @@ internal class CartomizeDockPaneViewModel : DockPane
             SelectedLayerChoice ??= LayerChoices.FirstOrDefault(item => !item.IsBasemap)
                 ?? LayerChoices.FirstOrDefault();
             var rasterCount = state.Entries.Count(item => item.Raster);
+            HasVectorLayers = state.Entries.Any(item => !item.Raster && !item.Basemap);
             ProjectSummary = $"Couches : {state.Entries.Length}\nCouches visibles : {state.Entries.Count(item => item.Visible)}\nVecteurs : {state.Entries.Length - rasterCount}\nRasters : {rasterCount}\nCouches invalides : 0";
             BuildProposals();
             CommandManager.InvalidateRequerySuggested();

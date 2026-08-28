@@ -211,6 +211,11 @@
                         Style="{DynamicResource Esri_Button}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
                 <Button Content="Restaurer le style précédent" Command="{Binding UndoStyleCommand}"
                         Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
+                <TextBlock HorizontalAlignment="Center" Margin="0,8,0,5">
+                  <Hyperlink Click="OpenVectorEngineClick" IsEnabled="{Binding HasVectorLayers}">
+                    <Run Text="Ouvrir Vector Engine multi-couches" />
+                  </Hyperlink>
+                </TextBlock>
                 <Button Content="Ouvrir Raster Engine" Command="{Binding RasterCommand}"
                         IsEnabled="{Binding IsRasterLayer}" Style="{DynamicResource Esri_ButtonBorderless}" Padding="10,5" MinHeight="32" HorizontalContentAlignment="Center" />
               </StackPanel>

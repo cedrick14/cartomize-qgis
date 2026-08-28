@@ -85,11 +85,16 @@ internal static class NativeLayerService
         => QueuedTask.Run(() => layer switch
         {
             RasterLayer rasterLayer => AnalyzeRaster(rasterLayer),
-            BasicFeatureLayer featureLayer => AnalyzeVector(featureLayer, Math.Clamp(sampleLimit, 100, 5000)),
+            BasicFeatureLayer featureLayer => AnalyzeVectorOnWorker(featureLayer, Math.Clamp(sampleLimit, 100, 5000)),
             _ => throw new InvalidOperationException("Cartomize exige une couche vectorielle ou raster valide."),
         });
 
-    private static NativeLayerProfile AnalyzeVector(BasicFeatureLayer layer, int sampleLimit)
+    /// <summary>
+    /// Analyse une couche vectorielle depuis le MCT. Cette entrée interne permet
+    /// au moteur multi-couches de réutiliser exactement le même profilage sans
+    /// imbriquer plusieurs QueuedTask.
+    /// </summary>
+    internal static NativeLayerProfile AnalyzeVectorOnWorker(BasicFeatureLayer layer, int sampleLimit)
     {
         using var table = layer.GetTable()
             ?? throw new InvalidOperationException("La table attributaire de la couche est indisponible.");

@@ -151,6 +151,95 @@ internal static class NativeStyleService
             layer.SetTransparency(100 - Math.Clamp(opacityPercent, 0, 100));
         });
 
+    /// <summary>
+    /// Harmonise une couche vectorielle à partir du rôle détecté par Cartomize.
+    /// Cette entrée est appelée depuis le MCT par le moteur multi-couches.
+    /// </summary>
+    internal static void ApplyVectorProfileOnWorker(
+        BasicFeatureLayer basicLayer,
+        NativeLayerProfile profile,
+        int opacityPercent,
+        bool enableLabels)
+    {
+        if (basicLayer is not FeatureLayer layer)
+        {
+            basicLayer.SetTransparency(100 - Math.Clamp(opacityPercent, 0, 100));
+            return;
+        }
+
+        if (profile.RecommendedRenderer is "Catégorisé" or "Gradué — quantiles"
+            && !string.IsNullOrWhiteSpace(profile.ThematicField))
+        {
+            ApplyFeatureRenderer(
+                layer,
+                profile.RecommendedRenderer,
+                profile.ThematicField,
+                profile.RecommendedRenderer == "Catégorisé" ? 12 : 5,
+                profile.RecommendedPalette);
+        }
+        else
+        {
+            var definition = new SimpleRendererDefinition
+            {
+                SymbolTemplate = ConstructRoleSymbol(profile).MakeSymbolReference(),
+            };
+            if (layer.CanCreateRenderer(definition))
+            {
+                var renderer = layer.CreateRenderer(definition);
+                if (renderer is not null) layer.SetRenderer(renderer);
+            }
+        }
+
+        ApplyLabels(
+            layer,
+            enableLabels,
+            profile.LabelField,
+            profile.GeometryType == "point" ? 9.0 : 8.5,
+            "Automatique selon la géométrie");
+        layer.SetTransparency(100 - Math.Clamp(opacityPercent, 0, 100));
+    }
+
+    private static CIMSymbol ConstructRoleSymbol(NativeLayerProfile profile)
+    {
+        var color = ParseColor(RoleColor(profile.Role));
+        return profile.GeometryType switch
+        {
+            "point" => SymbolFactory.Instance.ConstructPointSymbol(
+                color,
+                profile.Role == "localités" ? 7.5 : 6.5,
+                SimpleMarkerStyle.Circle),
+            "line" => SymbolFactory.Instance.ConstructLineSymbol(
+                color,
+                profile.Role == "limites" ? 1.6 : 1.3,
+                SimpleLineStyle.Solid),
+            "polygon" when profile.Role == "limites" => SymbolFactory.Instance.ConstructPolygonSymbol(
+                TransparentColor(),
+                SimpleFillStyle.Solid,
+                SymbolFactory.Instance.ConstructStroke(ParseColor("#111827"), 1.4, SimpleLineStyle.Solid)),
+            "polygon" => SymbolFactory.Instance.ConstructPolygonSymbol(
+                ParseColor(RoleColor(profile.Role), 78),
+                SimpleFillStyle.Solid,
+                SymbolFactory.Instance.ConstructStroke(ParseColor("#374151"), 0.7, SimpleLineStyle.Solid)),
+            _ => SymbolFactory.Instance.ConstructPointSymbol(color, 6.0, SimpleMarkerStyle.Circle),
+        };
+    }
+
+    private static string RoleColor(string role)
+        => role switch
+        {
+            "transport" => "#374151",
+            "hydrographie" => "#1565C0",
+            "limites" => "#111827",
+            "localités" => "#C62828",
+            "bâtiments" => "#6B7280",
+            "parcelles" => "#A16207",
+            "risques" => "#D32F2F",
+            "occupation_sol" => "#2E7D32",
+            "points_thématiques" => "#F57C00",
+            "réseau" => "#455A64",
+            _ => "#2E7D32",
+        };
+
     private static void ApplyLabels(
         FeatureLayer layer,
         bool enabled,

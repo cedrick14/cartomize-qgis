@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using Cartomize.ArcGISPro.Services;
 
@@ -23,5 +24,11 @@ public partial class CartomizeContentView : UserControl
             DiagnosticLog.Write("Chargement XAML du contenu Cartomize", exception);
             throw;
         }
+    }
+
+    private async void OpenVectorEngineClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is CartomizeDockPaneViewModel viewModel)
+            await viewModel.OpenVectorEngineAsync();
     }
 }

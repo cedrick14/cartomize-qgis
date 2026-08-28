@@ -1,0 +1,140 @@
+<controls:ProWindow x:Class="Cartomize.ArcGISPro.Views.VectorEngineWindow"
+                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ArcGIS.Desktop.Framework.Controls;assembly=ArcGIS.Desktop.Framework"
+                    Title="Vector Engine" Width="1120" Height="760"
+                    MinWidth="860" MinHeight="600"
+                    WindowStartupLocation="CenterOwner">
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Margin="0,0,0,10">
+      <TextBlock Text="Vector Engine multi-couches" Style="{DynamicResource Esri_TextBlockH1}" />
+      <TextBlock Text="Analyse les rôles, les attributs et les relations spatiales entre plusieurs couches, puis propose une superposition cartographique cohérente. Les entités sources ne sont jamais modifiées."
+                 TextWrapping="Wrap" Style="{DynamicResource Esri_TextBlockRegular}" />
+    </StackPanel>
+
+    <TabControl Grid.Row="1">
+      <TabItem Header="Couches">
+        <Grid Margin="8">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Label Content="Couche principale" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding Layers}" SelectedItem="{Binding PrimaryLayer}" Margin="6,0" />
+            <CheckBox Grid.Column="2" Content="Couches visibles uniquement" IsChecked="{Binding VisibleOnly}" VerticalAlignment="Center" />
+          </Grid>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,8">
+            <Button Content="Tout sélectionner" Click="SelectAllClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="0,0,6,0" />
+            <Button Content="Couches visibles" Click="SelectVisibleClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="0,0,6,0" />
+            <Button Content="Inverser" Click="InvertSelectionClick" Style="{DynamicResource Esri_ButtonBorderless}" />
+          </StackPanel>
+          <DataGrid Grid.Row="2" ItemsSource="{Binding Layers}" AutoGenerateColumns="False"
+                    CanUserAddRows="False" SelectionMode="Extended" SelectionUnit="FullRow"
+                    HeadersVisibility="Column" EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridCheckBoxColumn Header="Analyser" Binding="{Binding IsIncluded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="Auto" />
+              <DataGridTextColumn Header="Couche" Binding="{Binding Name}" IsReadOnly="True" Width="2*" />
+              <DataGridTextColumn Header="Géométrie" Binding="{Binding GeometryType}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Rôle détecté" Binding="{Binding Role}" IsReadOnly="True" Width="*" />
+              <DataGridTextColumn Header="Confiance" Binding="{Binding ConfidenceText}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Entités" Binding="{Binding FeatureCountText}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Champ thématique" Binding="{Binding ThematicField}" IsReadOnly="True" Width="*" />
+              <DataGridTextColumn Header="Étiquette" Binding="{Binding LabelField}" IsReadOnly="True" Width="*" />
+              <DataGridTextColumn Header="Qualité" Binding="{Binding QualityText}" IsReadOnly="True" Width="2*" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Grid.Row="3" Text="La couche principale oriente les priorités. Les autres couches peuvent servir de contexte, de zones d’agrégation, de réseaux ou de données à comparer."
+                     TextWrapping="Wrap" Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Relations spatiales">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <TextBlock Text="Chaque couple de couches est d’abord filtré par emprise, puis vérifié sur un échantillon d’entités avec les relations spatiales natives d’ArcGIS Pro."
+                     TextWrapping="Wrap" Margin="0,0,0,8" />
+          <DataGrid Grid.Row="1" ItemsSource="{Binding Relations}" SelectedItem="{Binding SelectedRelation}"
+                    AutoGenerateColumns="False"
+                    CanUserAddRows="False" SelectionMode="Single" SelectionUnit="FullRow"
+                    HeadersVisibility="Column" EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Couche A" Binding="{Binding LeftLayerName}" IsReadOnly="True" Width="*" />
+              <DataGridTextColumn Header="Couche B" Binding="{Binding RightLayerName}" IsReadOnly="True" Width="*" />
+              <DataGridTextColumn Header="Relation" Binding="{Binding Relation}" IsReadOnly="True" Width="2*" />
+              <DataGridTextColumn Header="Recouvrement %" Binding="{Binding ExtentOverlapPercent, StringFormat=0.##}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Croisements" Binding="{Binding HitSummary}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Opération recommandée" Binding="{Binding SuggestedOperation}" IsReadOnly="True" Width="2*" />
+              <DataGridTextColumn Header="Confiance" Binding="{Binding ConfidenceText}" IsReadOnly="True" Width="Auto" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBox Grid.Row="2" Text="{Binding SelectedRelationEvidence, Mode=OneWay}" IsReadOnly="True"
+                   AcceptsReturn="True" TextWrapping="Wrap" MinHeight="70" Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Composition">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <StackPanel>
+            <TextBlock Text="Cartomize place les points et réseaux au-dessus des surfaces, protège les limites et réduit l’opacité des polygones susceptibles de masquer le contexte."
+                       TextWrapping="Wrap" Margin="0,0,0,8" />
+            <CheckBox Content="Réorganiser automatiquement l’ordre des couches" IsChecked="{Binding ReorderLayers}" />
+            <CheckBox Content="Harmoniser la symbologie selon le rôle détecté" IsChecked="{Binding HarmonizeStyles}" />
+            <CheckBox Content="Activer seulement les étiquettes utiles" IsChecked="{Binding EnableSmartLabels}" />
+          </StackPanel>
+          <DataGrid Grid.Row="1" ItemsSource="{Binding Composition}" AutoGenerateColumns="False"
+                    CanUserAddRows="False" HeadersVisibility="Column" IsReadOnly="True"
+                    EnableRowVirtualization="True" Margin="0,8,0,0">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Ordre" Binding="{Binding OrderIndex}" Width="Auto" />
+              <DataGridTextColumn Header="Couche" Binding="{Binding LayerName}" Width="2*" />
+              <DataGridTextColumn Header="Rôle" Binding="{Binding Role}" Width="*" />
+              <DataGridTextColumn Header="Rendu" Binding="{Binding Renderer}" Width="*" />
+              <DataGridTextColumn Header="Palette" Binding="{Binding Palette}" Width="*" />
+              <DataGridTextColumn Header="Opacité %" Binding="{Binding OpacityPercent}" Width="Auto" />
+              <DataGridCheckBoxColumn Header="Étiquettes" Binding="{Binding EnableLabels}" Width="Auto" />
+              <DataGridTextColumn Header="Décision" Binding="{Binding Reason}" Width="2*" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <UniformGrid Grid.Row="2" Columns="3" Margin="0,8,0,0">
+            <Button Content="Prévisualiser la composition" Click="PreviewCompositionClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Appliquer la composition" Click="ApplyCompositionClick" Style="{DynamicResource Esri_Button}" Margin="2" />
+            <Button Content="Annuler les modifications" Click="UndoCompositionClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+          </UniformGrid>
+          <TextBlock Grid.Row="3" Text="La symbologie et l’ordre précédents sont mémorisés. Aucune géométrie ni valeur attributaire n’est modifiée."
+                     TextWrapping="Wrap" Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Plan d’automatisation">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <TextBox Text="{Binding SummaryText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                   TextWrapping="Wrap" MinHeight="105" Margin="0,0,0,8" />
+          <TextBox Grid.Row="1" Text="{Binding PlanText, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True"
+                   TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+          <Button Grid.Row="2" Content="Exporter le plan…" Click="ExportPlanClick"
+                  Style="{DynamicResource Esri_ButtonBorderless}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <Grid Grid.Row="2" Margin="0,10,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <Button Content="Analyser" Click="AnalyzeClick" Style="{DynamicResource Esri_Button}" MinWidth="100" Margin="0,0,6,0" />
+      <Button Grid.Column="1" Content="Analyse approfondie" Click="DeepAnalyzeClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="0,0,10,0" />
+      <TextBlock Grid.Column="2" Text="{Binding StatusText, Mode=OneWay}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <Button Grid.Column="3" Content="Fermer" Click="CloseClick" Style="{DynamicResource Esri_ButtonBorderless}" MinWidth="90" />
+    </Grid>
+  </Grid>
+</controls:ProWindow>
