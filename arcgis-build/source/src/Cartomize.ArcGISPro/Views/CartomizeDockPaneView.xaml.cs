@@ -6,7 +6,7 @@ namespace Cartomize.ArcGISPro.Views;
 
 public partial class CartomizeDockPaneView : UserControl
 {
-    private bool _contentLoaded;
+    private bool _cartomizeContentAttached;
 
     public CartomizeDockPaneView()
     {
@@ -45,11 +45,11 @@ public partial class CartomizeDockPaneView : UserControl
             await System.Windows.Threading.Dispatcher.Yield(
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
 
-            if (!_contentLoaded)
+            if (!_cartomizeContentAttached)
             {
                 StartupGuard.Stage("Construction différée de l’interface Cartomize");
                 ContentHost.Content = new CartomizeContentView();
-                _contentLoaded = true;
+                _cartomizeContentAttached = true;
                 StartupGuard.Stage("Interface Cartomize attachée au conteneur");
 
                 // Exécuter la première mesure dans ce bloc protégé permet de
