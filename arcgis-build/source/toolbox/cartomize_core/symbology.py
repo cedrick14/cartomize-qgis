@@ -43,6 +43,27 @@ _QUALITATIVE = (
 _SEQUENTIAL = ("#eff6ff", "#bfdbfe", "#60a5fa", "#2563eb", "#1e3a8a")
 _DIVERGING = ("#7f1d1d", "#ef4444", "#f8fafc", "#3b82f6", "#1e3a8a")
 
+_RASTER_PALETTES = {
+    "land_cover": ("#1b5e20", "#388e3c", "#7cb342", "#c0ca33", "#fdd835", "#fb8c00", "#e53935", "#8d6e63", "#90a4ae", "#1565c0"),
+    "ndvi": ("#8b0000", "#d73027", "#fee08b", "#d9ef8b", "#1a9850", "#006837"),
+    "elevation": ("#0b3d2e", "#2e7d32", "#8bc34a", "#d7ccc8", "#8d6e63", "#ffffff"),
+    "temperature": ("#313695", "#4575b4", "#74add1", "#fdae61", "#f46d43", "#a50026"),
+    "precipitation": ("#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"),
+    "risk": ("#ffffcc", "#ffeda0", "#feb24c", "#f03b20", "#bd0026"),
+    "probability": ("#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"),
+    "slope": ("#ffffe5", "#fff7bc", "#fec44f", "#d95f0e", "#7f2704"),
+    "forest_dynamics": ("#1b5e20", "#d32f2f", "#f57c00", "#66bb6a", "#9e9e9e"),
+    "deforestation": ("#1b5e20", "#d32f2f", "#81c784", "#bdbdbd"),
+    "forest_degradation": ("#0b5d1e", "#a5d66a", "#f9a825", "#d84315", "#bdbdbd"),
+    "land_cover_change": ("#546e7a", "#2e7d32", "#c62828", "#f9a825", "#1565c0"),
+    "categorical": ("#2e7d32", "#f9a825", "#1565c0", "#8d6e63", "#6a1b9a", "#546e7a"),
+    "population": ("#f7fcf5", "#c7e9c0", "#74c476", "#238b45", "#00441b"),
+    "water": ("#f7fbff", "#bdd7e7", "#6baed6", "#2171b5", "#08306b"),
+    "continuous": ("#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"),
+    "diverging": ("#7f0000", "#d7301f", "#f7f7f7", "#3182bd", "#08306b"),
+    "gray": ("#000000", "#ffffff"),
+}
+
 
 @dataclass(frozen=True)
 class SymbologyRecommendation:
@@ -162,13 +183,27 @@ def apply_vector_symbology(
     }
 
 
-def apply_raster_symbology(aprx: Any, layer: Any, diagnosis: dict[str, Any], class_count: int = 7, *, palette: str = "", opacity_percent: int = 100, expert_confirmed: bool = False) -> dict[str, Any]:
+def apply_raster_symbology(
+    aprx: Any, layer: Any, diagnosis: dict[str, Any], class_count: int = 7, *,
+    palette: str = "", opacity_percent: int = 100,
+    expert_confirmed: bool = False, mode: str = "", band: int = 1,
+    classification_method: str = "sample_quantiles",
+    minimum: float | None = None, maximum: float | None = None,
+    red_band: int = 1, green_band: int = 2, blue_band: int = 3,
+) -> dict[str, Any]:
     sym = layer.symbology
     if not hasattr(sym, "colorizer"):
         return {"applied": False, "reason": "Le raster n'expose pas de coloriseur modifiable."}
     raster_type = diagnosis.get("raster_type")
-    if raster_type == "rgb":
-        return {"applied": False, "reason": "La composition RGB existante est conservée par sécurité."}
+    mode_key = str(mode or "").strip().casefold()
+    if raster_type == "rgb" or mode_key == "rgb":
+        return {
+            "applied": False,
+            "native_sdk_required": True,
+            "reason": "La composition RGB est transmise au moteur natif ArcGIS Pro.",
+            "red_band": max(1, int(red_band)), "green_band": max(1, int(green_band)),
+            "blue_band": max(1, int(blue_band)),
+        }
     colorizer = "RasterUniqueValueColorizer" if raster_type in {"binary", "categorized"} else "RasterClassifyColorizer"
     try:
         sym.updateColorizer(colorizer)
@@ -229,10 +264,41 @@ def apply_raster_symbology(aprx: Any, layer: Any, diagnosis: dict[str, Any], cla
         profile = theme_profile(theme)
         preferred = class_count or profile.preferred_class_count
         sym.colorizer.breakCount = max(3, min(12, int(preferred)))
-        ramp_name = _PALETTE_RAMPS.get(str(palette).strip().casefold(), _ESRI_RAMP_HINTS.get(theme, "Viridis"))
+        palette_key = str(palette or theme or "continuous").strip().casefold()
+        ramp_name = _PALETTE_RAMPS.get(palette_key, _ESRI_RAMP_HINTS.get(theme, "Viridis"))
         ramps = aprx.listColorRamps(ramp_name) or aprx.listColorRamps()
         if ramps:
             sym.colorizer.colorRamp = ramps[0]
+        try:
+            sym.colorizer.classificationMethod = "Quantile" if classification_method == "sample_quantiles" else "EqualInterval"
+        except Exception:
+            pass
+        try:
+            if minimum is not None:
+                sym.colorizer.lowerBound = float(minimum)
+        except Exception:
+            pass
+        breaks = list(getattr(sym.colorizer, "classBreaks", ()) or ())
+        colors = _resample_palette(_RASTER_PALETTES.get(palette_key, _RASTER_PALETTES.get(theme, _RASTER_PALETTES["continuous"])), len(breaks))
+        bounds = _raster_break_bounds(diagnosis, len(breaks), classification_method, minimum, maximum)
+        lower = float(minimum) if minimum is not None else None
+        for index, (item, color) in enumerate(zip(breaks, colors)):
+            try:
+                item.color = _arcgis_color(color)
+                if index < len(bounds):
+                    item.upperBound = bounds[index]
+                    item.label = (
+                        f"{_format_number(lower)} – {_format_number(bounds[index])}"
+                        if lower is not None else f"≤ {_format_number(bounds[index])}"
+                    )
+                    lower = bounds[index]
+                applied_classes += 1
+            except Exception:
+                pass
+        try:
+            sym.colorizer.noDataColor = {"RGB": [0, 0, 0, 0]}
+        except Exception:
+            pass
     layer.symbology = sym
     opacity = max(0, min(100, int(opacity_percent)))
     try:
@@ -249,7 +315,50 @@ def apply_raster_symbology(aprx: Any, layer: Any, diagnosis: dict[str, Any], cla
         "palette": palette,
         "opacity_percent": opacity,
         "expert_confirmed": bool(expert_confirmed),
+        "mode": mode_key or raster_type,
+        "band": max(1, int(band)),
+        "classification_method": classification_method,
+        "minimum": minimum,
+        "maximum": maximum,
     }
+
+
+def _raster_break_bounds(
+    diagnosis: dict[str, Any], count: int, method: str,
+    minimum: float | None, maximum: float | None,
+) -> tuple[float, ...]:
+    if count <= 0:
+        return ()
+    low = float(minimum if minimum is not None else diagnosis.get("minimum", 0.0) or 0.0)
+    high = float(maximum if maximum is not None else diagnosis.get("maximum", low + 1.0) or (low + 1.0))
+    if low >= high:
+        raise ValueError("Le minimum doit être strictement inférieur au maximum.")
+    if method == "sample_quantiles":
+        inspection = diagnosis.get("inspection") or {}
+        quantiles = [
+            (float(item[0]), float(item[1]))
+            for item in inspection.get("sample_quantiles", ())
+            if isinstance(item, (list, tuple)) and len(item) >= 2
+        ]
+        if quantiles:
+            return tuple(_interpolate_quantile(quantiles, (index + 1) / count) for index in range(count - 1)) + (high,)
+    step = (high - low) / count
+    return tuple(low + step * (index + 1) for index in range(count))
+
+
+def _interpolate_quantile(points: list[tuple[float, float]], target: float) -> float:
+    ordered = sorted(points)
+    if target <= ordered[0][0]:
+        return ordered[0][1]
+    for (left_q, left_v), (right_q, right_v) in zip(ordered, ordered[1:]):
+        if target <= right_q:
+            ratio = (target - left_q) / max(1.0e-12, right_q - left_q)
+            return left_v + ratio * (right_v - left_v)
+    return ordered[-1][1]
+
+
+def _format_number(value: float | None) -> str:
+    return "" if value is None else format(float(value), ".8g")
 
 
 def _number_key(value: Any) -> str:

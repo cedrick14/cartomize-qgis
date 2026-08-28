@@ -544,8 +544,20 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var classes = ParseInt(MaxClasses, 5, 2, 12);
         var labelSize = ParseDouble(LabelSize, 9.5, 5, 48);
         var opacity = ParseInt(LayerOpacity, 100, 0, 100);
+        var rasterMode = SelectedRenderMode switch
+        {
+            "Catégorisé" => "Catégoriel",
+            "Gradué — quantiles" => "Continu",
+            _ => "Continu",
+        };
+        var rasterPalette = SelectedPalette switch
+        {
+            "Divergente" => "Diverging",
+            "Qualitative" => "Categorical",
+            _ => "Continuous",
+        };
         var result = isRaster
-            ? await RunToolAsync("RasterIntelligence", selectedLayer, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters)
+            ? await RunToolAsync("RasterIntelligence", selectedLayer, true, report, rasterMode, SelectedThematicField ?? string.Empty, classes, rasterPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters)
             : await RunToolAsync("VectorIntelligence", selectedLayer, 1000, true, report, SelectedRenderMode, SelectedThematicField ?? string.Empty, classes, SelectedPalette, SelectedLabelField ?? string.Empty, LabelsEnabled, labelSize, SelectedPlacement, opacity, ConfirmStyleParameters);
         if (result.Succeeded)
             _styleHistory[snapshot.Key] = snapshot.Definition;
@@ -617,7 +629,11 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
             StatusText = "Sélectionnez une couche raster dans le panneau Contents.";
             return;
         }
-        GeoprocessingService.Open("RasterIntelligence", selectedLayer, false);
+        var window = new RasterEngineWindow(selectedLayer);
+        if (Application.Current?.MainWindow is Window owner)
+            window.Owner = owner;
+        window.ShowDialog();
+        StatusText = "Raster Engine fermé.";
     }
 
     private async Task CreateLayoutAsync() => await ExecuteLayoutAsync("Créer", string.Empty);

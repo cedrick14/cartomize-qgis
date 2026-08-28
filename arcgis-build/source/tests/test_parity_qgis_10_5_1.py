@@ -15,6 +15,8 @@ XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml"
 VIEW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml.cs"
 CONTENT_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml.cs"
 VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"
+RASTER_WINDOW_XAML = ROOT / "src/Cartomize.ArcGISPro/Views/RasterEngineWindow.xaml"
+RASTER_WINDOW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/RasterEngineWindow.xaml.cs"
 BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
 COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
 DIAGNOSTIC_LOG = ROOT / "src/Cartomize.ArcGISPro/Services/DiagnosticLog.cs"
@@ -119,6 +121,9 @@ class QgisParityTests(unittest.TestCase):
         cls.view_code = VIEW_CODE.read_text(encoding="utf-8")
         cls.content_code = CONTENT_CODE.read_text(encoding="utf-8")
         cls.view_model = VIEW_MODEL.read_text(encoding="utf-8")
+        cls.raster_window_root = ET.parse(RASTER_WINDOW_XAML).getroot()
+        cls.raster_window_xaml = RASTER_WINDOW_XAML.read_text(encoding="utf-8")
+        cls.raster_window_code = RASTER_WINDOW_CODE.read_text(encoding="utf-8")
         cls.buttons = BUTTONS.read_text(encoding="utf-8")
         cls.commands = COMMANDS.read_text(encoding="utf-8")
         cls.diagnostic_log = DIAGNOSTIC_LOG.read_text(encoding="utf-8")
@@ -334,10 +339,52 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("GetSelectedLayers().FirstOrDefault(layer =>", self.view_model)
         self.assertIn('RunToolAsync("RasterIntelligence", selectedLayer', self.view_model)
         self.assertIn('RunToolAsync("VectorIntelligence", selectedLayer', self.view_model)
-        self.assertIn('GeoprocessingService.Open("RasterIntelligence", selectedLayer', self.view_model)
+        self.assertIn("new RasterEngineWindow(selectedLayer)", self.view_model)
+        self.assertNotIn('GeoprocessingService.Open("RasterIntelligence", selectedLayer', self.view_model)
         self.assertIn("CommandManager.RequerySuggested", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.commands)
         self.assertIn("CommandManager.InvalidateRequerySuggested()", self.view_model)
+
+    def test_raster_engine_keeps_qgis_tabs_controls_and_actions(self):
+        self.assertEqual(
+            [item.attrib.get("Header") for item in self.raster_window_root.iter(NS + "TabItem")],
+            ["Diagnostic", "Classes", "Symbologie", "Métadonnées"],
+        )
+        expected = [
+            "Analyser", "Analyse approfondie", "Exporter le diagnostic",
+            "Considérer comme NoData visuel", "Conserver comme classe",
+            "Appliquer la symbologie", "Ajouter une classe visuelle", "Masquer la sélection",
+            "Fusionner visuellement", "Restaurer l’analyse automatique", "Retirer du rendu",
+            "Monter", "Descendre", "Prévisualiser", "Appliquer la symbologie",
+            "Annuler l’aperçu", "Rétablir le rendu précédent", "Enregistrer le style QML…", "Fermer",
+        ]
+        buttons = list(self.raster_window_root.iter(NS + "Button"))
+        self.assertEqual([item.attrib.get("Content") for item in buttons], expected)
+        for item in buttons:
+            self.assertIn("Click", item.attrib)
+            self.assertIn(f" {item.attrib['Click']}(", self.raster_window_code)
+
+    def test_raster_engine_parameters_are_consumed_not_decorative(self):
+        for value in (
+            "SelectedThemeMode", "SelectedThemeProfile", "SelectedRenderMode", "SelectedBand",
+            "SelectedPalette", "ClassCount", "SelectedClassificationMethod", "Minimum", "Maximum",
+            "RedBand", "GreenBand", "BlueBand", "ExpertConfirmed",
+        ):
+            self.assertGreater(self.raster_window_code.count(value), 1, value)
+        for parameter in (
+            '"deep_analysis"', '"class_plan"', '"theme_mode"', '"theme_profile"',
+            '"render_band"', '"classification_method"', '"render_minimum"',
+            '"render_maximum"', '"red_band"', '"green_band"', '"blue_band"',
+        ):
+            self.assertIn(parameter, self.toolbox)
+        self.assertIn("new RGBColorizerDefinition", self.raster_window_code)
+        self.assertIn("_layer.SetColorizer(colorizer)", self.raster_window_code)
+        self.assertIn("protected override async void OnClosing", self.raster_window_code)
+
+    def test_raster_engine_uses_native_arcgis_theme(self):
+        self.assertNotIn("Foreground=", self.raster_window_xaml)
+        self.assertNotIn("FontFamily=", self.raster_window_xaml)
+        self.assertNotIn('Background="#', self.raster_window_xaml)
 
     def test_geoprocessing_bridge_is_null_safe_and_non_blocking(self):
         for required in (

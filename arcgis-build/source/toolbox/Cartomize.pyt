@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
+import json
 import os
 import traceback
 
@@ -503,23 +504,121 @@ class RasterIntelligence:
         source = arcpy.Parameter(displayName="Couche raster", name="input_raster", datatype="GPRasterLayer", parameterType="Required", direction="Input")
         apply_style = _bool_parameter("Appliquer le coloriseur recommandé", "apply_style", False)
         output = _file_parameter("Rapport JSON", "output_report")
-        render_mode = _choice_parameter("Mode de rendu", "render_mode", [("single", "Symbole unique"), ("categorized", "Catégorisé"), ("graduated", "Gradué — quantiles")], "graduated")
+        render_choices = (("categorical", "Catégoriel"), ("continuous", "Continu"), ("gray", "Niveaux de gris"), ("rgb", "Composition RGB"))
+        render_mode = _choice_parameter("Mode", "render_mode", render_choices, "continuous")
         thematic = arcpy.Parameter(displayName="Champ thématique", name="thematic_field", datatype="GPString", parameterType="Optional", direction="Input")
         max_classes = _integer_parameter("Nombre maximal de classes", "max_classes", 5, 2, 12)
-        palette = _choice_parameter("Palette", "palette", [("qualitative", "Qualitative"), ("sequential", "Séquentielle"), ("diverging", "Divergente")], "sequential")
+        palette_choices = tuple(
+            (key, key.replace("_", " ").title())
+            for key in (
+                "land_cover", "ndvi", "elevation", "temperature", "precipitation",
+                "risk", "probability", "slope", "forest_dynamics", "deforestation",
+                "forest_degradation", "land_cover_change", "categorical", "population",
+                "water", "continuous", "diverging", "gray",
+            )
+        )
+        palette = _choice_parameter("Palette", "palette", palette_choices, "continuous")
         label_field = arcpy.Parameter(displayName="Champ d'étiquette", name="label_field", datatype="GPString", parameterType="Optional", direction="Input")
         labels = _bool_parameter("Activer les étiquettes", "labels_enabled", False)
         label_size = _double_parameter("Taille des étiquettes (pt)", "label_size", 9.5, 5.0, 48.0)
         placement = _choice_parameter("Placement", "label_placement", [("auto", "Automatique selon la géométrie"), ("around", "Autour du point"), ("on", "Sur le point"), ("line", "Le long de la ligne"), ("curved", "Courbe"), ("horizontal", "Horizontal"), ("free", "Libre")], "auto")
         opacity = _integer_parameter("Opacité de la couche (%)", "opacity_percent", 100, 0, 100)
         confirmed = _bool_parameter("Confirmer les paramètres avant application", "expert_confirmed", False)
-        return [source, apply_style, output, render_mode, thematic, max_classes, palette, label_field, labels, label_size, placement, opacity, confirmed, _status_parameter()]
+        deep = _bool_parameter("Analyse approfondie", "deep_analysis", False)
+        class_plan = _file_parameter("Plan de classes visuelles JSON", "class_plan", direction="Input")
+        theme_mode_choices = (("automatic", "Détection automatique"), ("manual", "Choisir manuellement"))
+        theme_choices = (
+            ("land_cover", "Occupation du sol"), ("forest_dynamics", "Dynamique forestière"),
+            ("deforestation", "Déforestation"), ("forest_degradation", "Dégradation forestière"),
+            ("land_cover_change", "Changement d'occupation du sol"), ("ndvi", "NDVI / végétation"),
+            ("elevation", "Altitude / MNT"), ("slope", "Pente"), ("temperature", "Température"),
+            ("precipitation", "Précipitations"), ("risk", "Risque"), ("probability", "Probabilité"),
+            ("categorical", "Classification raster"), ("rgb", "Image satellite RGB"),
+            ("false_color", "Image satellite fausses couleurs"),
+            ("continuous", "Autre carte thématique continue"),
+        )
+        theme_mode = _choice_parameter("Type de carte", "theme_mode", theme_mode_choices, "automatic")
+        theme_profile = _choice_parameter("Schéma thématique", "theme_profile", theme_choices, "continuous")
+        render_band = _integer_parameter("Bande analysée", "render_band", 1, 1, 999)
+        classification_choices = (("sample_quantiles", "Quantiles de l’échantillon valide"), ("equal_interval", "Intervalles égaux"))
+        classification = _choice_parameter("Méthode de classification", "classification_method", classification_choices, "sample_quantiles")
+        minimum = _double_parameter("Minimum", "render_minimum", 0.0, -1.0e30, 1.0e30)
+        maximum = _double_parameter("Maximum", "render_maximum", 1.0, -1.0e30, 1.0e30)
+        red_band = _integer_parameter("Bande rouge", "red_band", 1, 1, 999)
+        green_band = _integer_parameter("Bande verte", "green_band", 2, 1, 999)
+        blue_band = _integer_parameter("Bande bleue", "blue_band", 3, 1, 999)
+        return [
+            source, apply_style, output, render_mode, thematic, max_classes, palette,
+            label_field, labels, label_size, placement, opacity, confirmed, deep,
+            class_plan, theme_mode, theme_profile, render_band, classification,
+            minimum, maximum, red_band, green_band, blue_band, _status_parameter(),
+        ]
 
     def execute(self, parameters, messages):
         try:
             source = parameters[0].value
             source_text = _text(parameters[0])
-            diagnosis = analyze_raster(arcpy, source, source_text)
+            diagnosis = analyze_raster(
+                arcpy, source, source_text,
+                deep=bool(parameters[13].value),
+            )
+            render_choices = (("categorical", "Catégoriel"), ("continuous", "Continu"), ("gray", "Niveaux de gris"), ("rgb", "Composition RGB"))
+            render_mode = _choice_key(parameters[3].value, render_choices, "continuous")
+            palette_choices = tuple(
+                (key, key.replace("_", " ").title())
+                for key in (
+                    "land_cover", "ndvi", "elevation", "temperature", "precipitation",
+                    "risk", "probability", "slope", "forest_dynamics", "deforestation",
+                    "forest_degradation", "land_cover_change", "categorical", "population",
+                    "water", "continuous", "diverging", "gray",
+                )
+            )
+            palette_key = _choice_key(parameters[6].value, palette_choices, "continuous")
+            theme_mode = _choice_key(parameters[15].value, (("automatic", "Détection automatique"), ("manual", "Choisir manuellement")), "automatic")
+            theme_choices = (
+                ("land_cover", "Occupation du sol"), ("forest_dynamics", "Dynamique forestière"),
+                ("deforestation", "Déforestation"), ("forest_degradation", "Dégradation forestière"),
+                ("land_cover_change", "Changement d'occupation du sol"), ("ndvi", "NDVI / végétation"),
+                ("elevation", "Altitude / MNT"), ("slope", "Pente"), ("temperature", "Température"),
+                ("precipitation", "Précipitations"), ("risk", "Risque"), ("probability", "Probabilité"),
+                ("categorical", "Classification raster"), ("rgb", "Image satellite RGB"),
+                ("false_color", "Image satellite fausses couleurs"),
+                ("continuous", "Autre carte thématique continue"),
+            )
+            if theme_mode == "manual":
+                diagnosis["theme"] = _choice_key(parameters[16].value, theme_choices, "continuous")
+            diagnosis["raster_type"] = {
+                "categorical": "categorized", "continuous": "continuous",
+                "gray": "continuous", "rgb": "rgb",
+            }[render_mode]
+            class_plan_path = _text(parameters[14])
+            if class_plan_path:
+                payload = json.loads(Path(class_plan_path).expanduser().resolve().read_text(encoding="utf-8-sig"))
+                classes = payload.get("classes") if isinstance(payload, dict) else None
+                if not isinstance(classes, list):
+                    raise RuntimeError("Le plan de classes visuelles est invalide.")
+                normalized = []
+                for index, item in enumerate(classes, 1):
+                    if not isinstance(item, dict):
+                        raise RuntimeError(f"Classe visuelle {index} invalide.")
+                    values = [float(value) for value in item.get("values", ())]
+                    if not values:
+                        raise RuntimeError(f"Classe visuelle {index} : indiquez au moins une valeur source.")
+                    normalized.append({
+                        **item,
+                        "values": values,
+                        "label": str(item.get("label") or f"Classe {index}"),
+                        "color": str(item.get("color") or "#808080"),
+                        "opacity": max(0.0, min(1.0, float(item.get("opacity", 1.0)))),
+                        "visible": bool(item.get("visible", True)),
+                        "show_in_legend": bool(item.get("show_in_legend", True)),
+                    })
+                diagnosis["classes"] = normalized
+                diagnosis["legend"] = [
+                    [item["label"], item["color"]]
+                    for item in normalized
+                    if item["visible"] and item["show_in_legend"]
+                ]
             style_result = {"applied": False}
             if bool(parameters[1].value):
                 if float(diagnosis.get("confidence", 0.0) or 0.0) < 0.70 and not bool(parameters[12].value):
@@ -535,8 +634,35 @@ class RasterIntelligence:
                 else:
                     if is_basemap_layer(layer):
                         raise RuntimeError("Le rendu du fond cartographique est protégé. Sélectionnez une couche thématique pour la symbologie.")
-                    style_result = apply_raster_symbology(aprx, layer, diagnosis, int(parameters[5].value or 5), palette=_text(parameters[6]), opacity_percent=int(parameters[11].value or 100), expert_confirmed=bool(parameters[12].value))
-            expert = {"render_mode": _text(parameters[3]), "max_classes": int(parameters[5].value or 5), "palette": _text(parameters[6]), "opacity_percent": int(parameters[11].value or 100), "expert_confirmed": bool(parameters[12].value)}
+                    style_result = apply_raster_symbology(
+                        aprx, layer, diagnosis, int(parameters[5].value or 5),
+                        palette=palette_key,
+                        opacity_percent=int(parameters[11].value or 100),
+                        expert_confirmed=bool(parameters[12].value),
+                        mode=render_mode,
+                        band=int(parameters[17].value or 1),
+                        classification_method=_choice_key(
+                            parameters[18].value,
+                            (("sample_quantiles", "Quantiles de l’échantillon valide"), ("equal_interval", "Intervalles égaux")),
+                            "sample_quantiles",
+                        ),
+                        minimum=float(parameters[19].value),
+                        maximum=float(parameters[20].value),
+                        red_band=int(parameters[21].value or 1),
+                        green_band=int(parameters[22].value or 2),
+                        blue_band=int(parameters[23].value or 3),
+                    )
+            expert = {
+                "render_mode": render_mode, "theme_mode": theme_mode,
+                "theme_profile": diagnosis.get("theme"),
+                "render_band": int(parameters[17].value or 1),
+                "classification_method": _choice_key(parameters[18].value, (("sample_quantiles", "Quantiles de l’échantillon valide"), ("equal_interval", "Intervalles égaux")), "sample_quantiles"),
+                "minimum": float(parameters[19].value), "maximum": float(parameters[20].value),
+                "red_band": int(parameters[21].value or 1), "green_band": int(parameters[22].value or 2), "blue_band": int(parameters[23].value or 3),
+                "max_classes": int(parameters[5].value or 5), "palette": palette_key,
+                "opacity_percent": int(parameters[11].value or 100),
+                "expert_confirmed": bool(parameters[12].value),
+            }
             payload = {"kind": "raster_intelligence", "diagnosis": diagnosis, "expert_parameters": expert, "styling": style_result}
             if _text(parameters[2]):
                 write_json(_text(parameters[2]), payload)
@@ -545,7 +671,7 @@ class RasterIntelligence:
                 f"confiance {round(100 * diagnosis['confidence'])}% · "
                 f"{len(diagnosis['classes'])} classe(s)"
             )
-            parameters[13].value = status
+            parameters[24].value = status
             _message(messages, status)
         except Exception as exc:
             _fail(messages, exc)

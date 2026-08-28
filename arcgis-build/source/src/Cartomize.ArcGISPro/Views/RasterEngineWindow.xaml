@@ -1,0 +1,148 @@
+<controls:ProWindow x:Class="Cartomize.ArcGISPro.Views.RasterEngineWindow"
+                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ArcGIS.Desktop.Framework.Controls;assembly=ArcGIS.Desktop.Framework"
+                    Title="Raster Engine" Width="980" Height="720"
+                    MinWidth="760" MinHeight="560"
+                    WindowStartupLocation="CenterOwner">
+  <Grid Margin="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Margin="0,0,0,10">
+      <TextBlock Text="Raster Engine" Style="{DynamicResource Esri_TextBlockH1}" />
+      <TextBlock Text="Analyse les métadonnées, le NoData, les classes et les anomalies avant toute symbologie. Les réglages visuels ne modifient jamais les pixels du raster source."
+                 TextWrapping="Wrap" Style="{DynamicResource Esri_TextBlockRegular}" />
+    </StackPanel>
+
+    <TabControl Grid.Row="1">
+      <TabItem Header="Diagnostic">
+        <Grid Margin="8">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Analyser" Click="AnalyzeClick" Style="{DynamicResource Esri_Button}" Margin="0,0,6,0" />
+            <Button Content="Analyse approfondie" Click="DeepAnalyzeClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="0,0,6,0" />
+            <Button Content="Exporter le diagnostic" Click="ExportDiagnosticClick" Style="{DynamicResource Esri_ButtonBorderless}" />
+          </StackPanel>
+          <TextBox Grid.Row="1" Text="{Binding SummaryText, Mode=OneWay}" IsReadOnly="True"
+                   AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+          <TextBlock Grid.Row="2" Text="Valeurs NoData potentielles" Style="{DynamicResource Esri_TextBlockH3}" Margin="0,8,0,4" />
+          <DataGrid x:Name="NoDataGrid" Grid.Row="3" ItemsSource="{Binding NoDataCandidates}" AutoGenerateColumns="False"
+                    CanUserAddRows="False" SelectionMode="Extended" HeadersVisibility="Column">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Valeur" Binding="{Binding Value}" Width="Auto" />
+              <DataGridTextColumn Header="Confiance" Binding="{Binding Confidence}" Width="Auto" />
+              <DataGridTextColumn Header="Diagnostic" Binding="{Binding Reason}" Width="*" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
+            <Button Content="Considérer comme NoData visuel" Click="MarkNoDataClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="0,0,6,0" />
+            <Button Content="Conserver comme classe" Click="KeepClassClick" Style="{DynamicResource Esri_ButtonBorderless}" />
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Classes">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+          <TextBlock Text="Modifiez les noms, couleurs, visibilité et regroupements de légende. Ajouter, masquer ou fusionner ici agit uniquement sur la représentation."
+                     TextWrapping="Wrap" Margin="0,0,0,8" />
+          <DataGrid x:Name="ClassGrid" Grid.Row="1" ItemsSource="{Binding Classes}" AutoGenerateColumns="False"
+                    CanUserAddRows="False" SelectionMode="Extended" SelectionUnit="FullRow" HeadersVisibility="Column">
+            <DataGrid.Columns>
+              <DataGridCheckBoxColumn Header="Visible" Binding="{Binding Visible}" Width="Auto" />
+              <DataGridTextColumn Header="Valeur(s) source" Binding="{Binding ValuesText}" Width="Auto" />
+              <DataGridTextColumn Header="Nom" Binding="{Binding Label}" Width="*" />
+              <DataGridTextColumn Header="Couleur" Binding="{Binding Color}" Width="Auto" />
+              <DataGridTextColumn Header="Opacité %" Binding="{Binding OpacityPercent}" Width="Auto" />
+              <DataGridTextColumn Header="Pixels" Binding="{Binding PixelCount}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="%" Binding="{Binding Percentage}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Bordure" Binding="{Binding BorderPercentage}" IsReadOnly="True" Width="Auto" />
+              <DataGridTextColumn Header="Statut" Binding="{Binding Status}" IsReadOnly="True" Width="Auto" />
+              <DataGridCheckBoxColumn Header="Légende" Binding="{Binding ShowInLegend}" Width="Auto" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <UniformGrid Grid.Row="2" Columns="3" Margin="0,8,0,0">
+            <Button Content="Appliquer la symbologie" Click="ApplyClassesClick" Style="{DynamicResource Esri_Button}" Margin="2" />
+            <Button Content="Ajouter une classe visuelle" Click="AddClassClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Masquer la sélection" Click="HideClassesClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Fusionner visuellement" Click="MergeClassesClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Restaurer l’analyse automatique" Click="ResetClassesClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Retirer du rendu" Click="DeleteClassesClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Monter" Click="MoveClassUpClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            <Button Content="Descendre" Click="MoveClassDownClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+          </UniformGrid>
+          <TextBlock Grid.Row="3" Text="La reclassification réelle des pixels est séparée de cet éditeur et doit être lancée explicitement dans les outils de géotraitement ArcGIS Pro."
+                     TextWrapping="Wrap" Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Symbologie">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="8">
+            <TextBlock Text="La recommandation est un point de départ. Vérifiez et modifiez le mode, la bande, la palette, les bornes, le nombre de classes ou la composition RGB avant application."
+                       TextWrapping="Wrap" Margin="0,0,0,8" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <Label Grid.Row="0" Content="Type de carte" />
+              <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding ThemeModes}" SelectedItem="{Binding SelectedThemeMode}" />
+              <Label Grid.Row="1" Content="Schéma thématique" />
+              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ThemeProfiles}" SelectedItem="{Binding SelectedThemeProfile}" IsEnabled="{Binding IsManualTheme}" />
+              <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="{DynamicResource Esri_BorderBrush}" BorderThickness="1" Padding="8" Margin="0,4,0,8">
+                <TextBlock Text="{Binding ThemeEvidenceText, Mode=OneWay}" TextWrapping="Wrap" />
+              </Border>
+            </Grid>
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+              <Label Grid.Row="0" Content="Mode" /><ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RenderModes}" SelectedItem="{Binding SelectedRenderMode}" />
+              <Label Grid.Row="1" Content="Bande analysée" /><ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Bands}" SelectedItem="{Binding SelectedBand}" />
+              <Label Grid.Row="2" Content="Palette" /><ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}" />
+              <Label Grid.Row="3" Content="Nombre de classes" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ClassCount}" />
+              <Label Grid.Row="4" Content="Méthode de classification" /><ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding ClassificationMethods}" SelectedItem="{Binding SelectedClassificationMethod}" />
+              <Label Grid.Row="5" Content="Minimum" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Minimum}" />
+              <Label Grid.Row="6" Content="Maximum" /><TextBox Grid.Row="6" Grid.Column="1" Text="{Binding Maximum}" />
+              <Label Grid.Row="0" Grid.Column="2" Content="Bande rouge" /><ComboBox Grid.Row="0" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding RedBand}" />
+              <Label Grid.Row="1" Grid.Column="2" Content="Bande verte" /><ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding GreenBand}" />
+              <Label Grid.Row="2" Grid.Column="2" Content="Bande bleue" /><ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding BlueBand}" />
+              <CheckBox Grid.Row="7" Grid.ColumnSpan="4" Content="Confirmer les paramètres avant application" IsChecked="{Binding ExpertConfirmed}" Margin="4" />
+            </Grid>
+            <UniformGrid Columns="2" Margin="0,8,0,0">
+              <Button Content="Prévisualiser" Click="PreviewClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+              <Button Content="Appliquer la symbologie" Click="ApplyRenderingClick" Style="{DynamicResource Esri_Button}" Margin="2" />
+              <Button Content="Annuler l’aperçu" Click="CancelPreviewClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+              <Button Content="Rétablir le rendu précédent" Click="UndoRenderingClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+              <Button Content="Enregistrer le style QML…" Click="SaveStyleClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+            </UniformGrid>
+            <TextBlock Text="Le rendu reste réversible et n’écrit jamais dans les pixels. Pour une transformation de données, utilisez explicitement les algorithmes de traitement QGIS."
+                       TextWrapping="Wrap" Margin="0,8,0,0" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Métadonnées">
+        <TextBox Margin="8" Text="{Binding MetadataText, Mode=OneWay}" IsReadOnly="True"
+                 AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+      </TabItem>
+    </TabControl>
+
+    <Grid Grid.Row="2" Margin="0,10,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <TextBlock Text="{Binding StatusText, Mode=OneWay}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Content="Fermer" Click="CloseClick" Style="{DynamicResource Esri_ButtonBorderless}" MinWidth="90" />
+    </Grid>
+  </Grid>
+</controls:ProWindow>

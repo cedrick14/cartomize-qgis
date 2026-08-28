@@ -80,6 +80,8 @@ def analyze_raster(
     arcpy: Any,
     source: Any,
     source_text: str | None = None,
+    *,
+    deep: bool = False,
 ) -> dict[str, Any]:
     """Analyse un raster avec le noyau déterministe de Cartomize QGIS 10.5.1."""
 
@@ -129,7 +131,7 @@ def analyze_raster(
     sample, warnings = _sample_raster(
         arcpy, raster_source, raster, width, height,
         nodata_values[0] if nodata_values else None,
-        integer_type=integer_type,
+        integer_type=integer_type, deep=deep,
     )
     profiles = _merge_rat_counts(sample.profiles, rat_counts)
     observed_unique_count = max(sample.observed_unique_count, len(rat_counts))
@@ -292,18 +294,20 @@ def _sample_raster(
     nodata: float | None,
     *,
     integer_type: bool,
+    deep: bool = False,
 ) -> tuple[RasterSampleSummary, tuple[str, ...]]:
     warnings: list[str] = []
     temporary = ""
     sample_source = source
     try:
-        if width > 512 or height > 512:
+        maximum_dimension = 2048 if deep else 512
+        if width > maximum_dimension or height > maximum_dimension:
             temporary = _temporary_raster_path(arcpy)
             cell_width = abs(float(getattr(raster, "meanCellWidth", 1.0) or 1.0))
             cell_height = abs(float(getattr(raster, "meanCellHeight", 1.0) or 1.0))
             target_cell = max(
-                cell_width * max(1.0, width / 512.0),
-                cell_height * max(1.0, height / 512.0),
+                cell_width * max(1.0, width / maximum_dimension),
+                cell_height * max(1.0, height / maximum_dimension),
             )
             method = "NEAREST" if integer_type else "BILINEAR"
             arcpy.management.Resample(source, temporary, target_cell, method)
