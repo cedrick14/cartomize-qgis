@@ -23,7 +23,11 @@ def main() -> int:
         except Exception as exc:
             errors.append(f"Python invalide {path.relative_to(ROOT)} : {exc}")
 
-    xml_files = [ROOT / "src/Cartomize.ArcGISPro/Config.daml", ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"]
+    xml_files = [
+        ROOT / "src/Cartomize.ArcGISPro/Config.daml",
+        ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml",
+        ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml",
+    ]
     for path in xml_files:
         try:
             ET.parse(path)
@@ -69,7 +73,8 @@ def main() -> int:
         if label not in toolbox_text:
             errors.append(f"Libellé attendu absent de la boîte à outils ArcGIS : {label}")
 
-    xaml_text = (ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml").read_text(encoding="utf-8")
+    host_xaml_text = (ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml").read_text(encoding="utf-8")
+    xaml_text = (ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml").read_text(encoding="utf-8")
     visible_toolbox_labels = "\n".join(
         re.findall(r'self\.label\s*=\s*"([^"]*)"', toolbox_text)
     )
@@ -102,6 +107,11 @@ def main() -> int:
                 "Le DockPane doit hériter du thème ArcGIS Pro sans style forcé : "
                 f"{forbidden}"
             )
+    if "TabControl" in host_xaml_text or "DataGrid" in host_xaml_text:
+        errors.append(
+            "Le conteneur initial du DockPane doit rester léger ; l’interface "
+            "complète doit être chargée après l’événement Loaded."
+        )
 
     view_model_text = (
         ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"

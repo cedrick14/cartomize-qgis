@@ -10,8 +10,10 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
-XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"
+HOST_XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml"
+XAML = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml"
 VIEW_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneView.xaml.cs"
+CONTENT_CODE = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeContentView.xaml.cs"
 VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs"
 BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
 COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
@@ -49,8 +51,11 @@ class QgisParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.root = ET.parse(XAML).getroot()
+        cls.host_root = ET.parse(HOST_XAML).getroot()
+        cls.host_xaml_text = HOST_XAML.read_text(encoding="utf-8")
         cls.xaml_text = XAML.read_text(encoding="utf-8")
         cls.view_code = VIEW_CODE.read_text(encoding="utf-8")
+        cls.content_code = CONTENT_CODE.read_text(encoding="utf-8")
         cls.view_model = VIEW_MODEL.read_text(encoding="utf-8")
         cls.buttons = BUTTONS.read_text(encoding="utf-8")
         cls.commands = COMMANDS.read_text(encoding="utf-8")
@@ -176,6 +181,9 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("InitializeAfterViewLoadedAsync", self.view_model)
         self.assertIn("Loaded += OnLoaded", self.view_code)
         self.assertIn("DispatcherPriority.ContextIdle", self.view_code)
+        self.assertIn("ContentHost.Content = new CartomizeContentView()", self.view_code)
+        self.assertIn("ContentHost.UpdateLayout()", self.view_code)
+        self.assertIn('DiagnosticLog.Write("Chargement XAML du contenu Cartomize", exception)', self.content_code)
         self.assertIn("RefreshProjectSafelyAsync", self.view_model)
         self.assertIn("RefreshLayerFieldsSafelyAsync", self.view_model)
         constructor = self.view_model.split("protected CartomizeDockPaneViewModel()", 1)[1].split("public ObservableCollection", 1)[0]
@@ -184,6 +192,13 @@ class QgisParityTests(unittest.TestCase):
         self.assertNotIn("LoadTemplateCatalog();", framework_initialize)
         loaded_initialize = self.view_model.split("internal async Task InitializeAfterViewLoadedAsync()", 1)[1].split("protected override void OnActivate", 1)[0]
         self.assertIn("LoadTemplateCatalog();", loaded_initialize)
+
+    def test_arcgis_dockpane_uses_a_lightweight_initial_visual_tree(self):
+        self.assertEqual(len(list(self.host_root.iter(NS + "ContentControl"))), 1)
+        self.assertNotIn("TabControl", self.host_xaml_text)
+        self.assertNotIn("DataGrid", self.host_xaml_text)
+        self.assertNotIn("MinWidth", self.host_xaml_text)
+        self.assertNotIn("MinWidth", self.root.attrib)
 
     def test_scrollable_lists_have_bounded_heights(self):
         for item in self.root.iter(NS + "DataGrid"):
