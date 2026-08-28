@@ -14,7 +14,7 @@
 
     <StackPanel Margin="0,0,0,10">
       <TextBlock Text="Raster Engine" Style="{DynamicResource Esri_TextBlockH1}" />
-      <TextBlock Text="Analyse les métadonnées, le NoData, les classes et les anomalies avant toute symbologie. Les réglages visuels ne modifient jamais les pixels du raster source."
+      <TextBlock Text="Détecte le type de raster, masque automatiquement le NoData, reconnaît les codes de classes et propose une nomenclature avec couleurs. Les réglages visuels ne modifient jamais les pixels du raster source."
                  TextWrapping="Wrap" Style="{DynamicResource Esri_TextBlockRegular}" />
     </StackPanel>
 
@@ -41,6 +41,7 @@
             <DataGrid.Columns>
               <DataGridTextColumn Header="Valeur" Binding="{Binding Value}" Width="Auto" />
               <DataGridTextColumn Header="Confiance" Binding="{Binding Confidence}" Width="Auto" />
+              <DataGridTextColumn Header="Décision" Binding="{Binding State}" Width="Auto" />
               <DataGridTextColumn Header="Diagnostic" Binding="{Binding Reason}" Width="*" />
             </DataGrid.Columns>
           </DataGrid>
@@ -107,6 +108,7 @@
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
               <Label Grid.Row="0" Content="Mode" /><ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RenderModes}" SelectedItem="{Binding SelectedRenderMode}" />
               <Label Grid.Row="1" Content="Bande analysée" /><ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Bands}" SelectedItem="{Binding SelectedBand}" />
@@ -118,7 +120,13 @@
               <Label Grid.Row="0" Grid.Column="2" Content="Bande rouge" /><ComboBox Grid.Row="0" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding RedBand}" />
               <Label Grid.Row="1" Grid.Column="2" Content="Bande verte" /><ComboBox Grid.Row="1" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding GreenBand}" />
               <Label Grid.Row="2" Grid.Column="2" Content="Bande bleue" /><ComboBox Grid.Row="2" Grid.Column="3" ItemsSource="{Binding Bands}" SelectedItem="{Binding BlueBand}" />
-              <CheckBox Grid.Row="7" Grid.ColumnSpan="4" Content="Confirmer les paramètres avant application" IsChecked="{Binding ExpertConfirmed}" Margin="4" />
+              <CheckBox Grid.Row="7" Grid.ColumnSpan="4" Content="Masquer automatiquement le NoData détecté (transparence réversible)" IsChecked="{Binding MaskNoDataAutomatically}" Margin="4" />
+              <StackPanel Grid.Row="8" Grid.ColumnSpan="4" Orientation="Horizontal" Margin="4">
+                <CheckBox Content="Ajouter un contour noir autour de l’emprise du raster" IsChecked="{Binding AddBlackOutline}" VerticalAlignment="Center" />
+                <Label Content="Épaisseur (pt)" Margin="12,0,0,0" />
+                <TextBox Text="{Binding OutlineWidth}" Width="70" VerticalAlignment="Center" />
+              </StackPanel>
+              <CheckBox Grid.Row="9" Grid.ColumnSpan="4" Content="Confirmer les paramètres avant application" IsChecked="{Binding ExpertConfirmed}" Margin="4" />
             </Grid>
             <UniformGrid Columns="2" Margin="0,8,0,0">
               <Button Content="Prévisualiser" Click="PreviewClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />

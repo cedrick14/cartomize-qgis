@@ -1,4 +1,5 @@
 using System.Globalization;
+using ArcGIS.Core.Data;
 using ArcGIS.Core.Data.Raster;
 using ArcGIS.Desktop.Framework.Threading.Tasks;
 using ArcGIS.Desktop.Mapping;
@@ -29,11 +30,18 @@ internal sealed record NativeRasterSample(
     double Mean,
     double Median,
     IReadOnlyList<double> QuantileBreaks,
+    IReadOnlyDictionary<double, int> AllFrequencies,
     IReadOnlyDictionary<double, int> Frequencies,
+    IReadOnlyDictionary<double, double> BorderPercentages,
     bool IsCategorical,
+    string RasterType,
     string Theme,
     double ThemeConfidence,
     IReadOnlyList<string> ThemeRationale,
+    NativeRasterNomenclature Nomenclature,
+    IReadOnlyList<NativeRasterRangeProposal> ContinuousClasses,
+    IReadOnlyList<double> AutomaticNoDataValues,
+    bool HasRasterAttributeTable,
     IReadOnlyList<NativeRasterCandidate> NoDataCandidates,
     IReadOnlyList<double> AnomalousValues,
     IReadOnlyList<int> PossibleMissingCodes);
@@ -60,6 +68,7 @@ internal static class NativeRasterAnalysisService
             var noDataObject = raster.GetNoDataValue();
             var noData = Convert.ToString(noDataObject, CultureInfo.InvariantCulture) ?? string.Empty;
             var hasNoData = TryNumber(noDataObject, out var noDataNumber);
+            var attributeClasses = ReadAttributeClasses(raster);
             var limit = deep ? 40000 : 10000;
             var blockWidth = Math.Min(32, width);
             var blockHeight = Math.Min(32, height);
@@ -137,13 +146,6 @@ internal static class NativeRasterAnalysisService
             if (values.Count == 0)
                 throw new InvalidOperationException("Aucun pixel numérique valide n'a pu être échantillonné.");
 
-            values.Sort();
-            var classes = Math.Clamp(classCount, 2, 12);
-            var breaks = Enumerable.Range(1, classes)
-                .Select(index => Quantile(values, (double)index / classes))
-                .ToArray();
-            var observedUnique = frequencies.Count;
-            var categorical = !profileLimited && observedUnique is >= 2 and <= 64;
             var candidates = DetectNoDataCandidates(
                 hasNoData ? noDataNumber : null,
                 frequencies,
@@ -153,9 +155,81 @@ internal static class NativeRasterAnalysisService
                 borderTotal,
                 centerTotal,
                 cornerTotal);
-            var anomalies = DetectAnomalies(values, candidates.Select(candidate => candidate.Value));
-            var missingCodes = DetectMissingCodes(frequencies.Keys, categorical);
-            var (theme, themeConfidence, rationale) = InferTheme(layer.Name, bandCount, categorical, values[0], values[^1]);
+            var automaticNoData = SelectAutomaticNoDataValues(
+                hasNoData ? noDataNumber : null,
+                bandCount,
+                frequencies,
+                candidates);
+            var automaticSet = automaticNoData.ToHashSet();
+            var validValues = values.Where(value => !automaticSet.Any(candidate => SameNumber(candidate, value))).ToList();
+            if (validValues.Count == 0)
+                throw new InvalidOperationException("Toutes les valeurs échantillonnées correspondent au NoData détecté.");
+            validValues.Sort();
+            var validFrequencies = frequencies
+                .Where(item => !automaticSet.Any(candidate => SameNumber(candidate, item.Key)))
+                .ToDictionary(item => item.Key, item => item.Value);
+            var observedUnique = validFrequencies.Count;
+            var integerCodes = validFrequencies.Keys.All(IntegerLike);
+            var categorical = bandCount == 1
+                              && !profileLimited
+                              && observedUnique is >= 2 and <= 128
+                              && (integerCodes || attributeClasses.Count > 1);
+            var rasterType = bandCount >= 3 && !categorical
+                ? "rgb"
+                : categorical && observedUnique == 2
+                    ? "binary"
+                    : categorical ? "categorized" : "continuous";
+            var classes = Math.Clamp(classCount, 2, 12);
+            var breaks = Enumerable.Range(1, classes)
+                .Select(index => Quantile(validValues, (double)index / classes))
+                .Distinct()
+                .ToArray();
+            var context = string.Join(" ", new[]
+            {
+                layer.Name,
+                layer.URI ?? string.Empty,
+                string.Join(" ", attributeClasses.Select(item => item.Label)),
+            });
+            var (theme, themeConfidence, rationale) = InferTheme(
+                context,
+                bandCount,
+                rasterType,
+                validValues[0],
+                validValues[^1]);
+            var nomenclature = categorical
+                ? NativeRasterNomenclatureService.ProposeCategorical(
+                    context,
+                    rasterType,
+                    theme,
+                    validFrequencies.Keys.ToArray(),
+                    attributeClasses)
+                : new NativeRasterNomenclature(
+                    rasterType,
+                    rasterType == "rgb" ? "Composition multibande" : "Classes continues",
+                    theme,
+                    theme,
+                    themeConfidence,
+                    rationale,
+                    []);
+            if (!string.IsNullOrWhiteSpace(nomenclature.Theme)
+                && nomenclature.Theme != "categorical"
+                && nomenclature.Confidence > themeConfidence)
+            {
+                theme = nomenclature.Theme;
+                themeConfidence = nomenclature.Confidence;
+                rationale = rationale.Concat(nomenclature.Rationale).Distinct().ToArray();
+            }
+            var continuousClasses = rasterType == "continuous"
+                ? NativeRasterNomenclatureService.ProposeContinuous(theme, validValues[0], validValues[^1], breaks)
+                : [];
+            var anomalies = DetectAnomalies(validValues, automaticNoData);
+            var missingCodes = DetectMissingCodes(validFrequencies.Keys, categorical);
+            var borderPercentages = frequencies.Keys.ToDictionary(
+                value => value,
+                value => 100d * borderFrequencies.GetValueOrDefault(value) / Math.Max(1, borderTotal));
+            var automaticallyMaskedSamples = frequencies
+                .Where(item => automaticSet.Any(candidate => SameNumber(candidate, item.Key)))
+                .Sum(item => item.Value);
 
             return new NativeRasterSample(
                 bandCount,
@@ -165,19 +239,26 @@ internal static class NativeRasterAnalysisService
                 noData,
                 sampledPixels,
                 values.Count,
-                noDataPixels,
+                noDataPixels + automaticallyMaskedSamples,
                 observedUnique,
                 profileLimited,
-                values[0],
-                values[^1],
-                values.Average(),
-                Quantile(values, 0.5),
+                validValues[0],
+                validValues[^1],
+                validValues.Average(),
+                Quantile(validValues, 0.5),
                 breaks,
-                frequencies,
+                new Dictionary<double, int>(frequencies),
+                validFrequencies,
+                borderPercentages,
                 categorical,
+                rasterType,
                 theme,
                 themeConfidence,
                 rationale,
+                nomenclature,
+                continuousClasses,
+                automaticNoData,
+                attributeClasses.Count > 0,
                 candidates,
                 anomalies,
                 missingCodes);
@@ -246,6 +327,136 @@ internal static class NativeRasterAnalysisService
         return candidates.Values.OrderByDescending(candidate => candidate.Confidence).ThenBy(candidate => candidate.Value).ToArray();
     }
 
+    private static IReadOnlyList<double> SelectAutomaticNoDataValues(
+        double? sourceNoData,
+        int bandCount,
+        IReadOnlyDictionary<double, int> frequencies,
+        IReadOnlyList<NativeRasterCandidate> candidates)
+    {
+        var selected = new HashSet<double>();
+        if (sourceNoData is double declared && double.IsFinite(declared))
+            selected.Add(declared);
+
+        var categoricalShape = bandCount == 1
+                               && frequencies.Count is >= 2 and <= 65
+                               && frequencies.Keys.All(IntegerLike);
+        if (!categoricalShape) return selected.OrderBy(value => value).ToArray();
+
+        foreach (var candidate in candidates)
+        {
+            if (sourceNoData is double source && SameNumber(source, candidate.Value)) continue;
+            var borderSignal = candidate.BorderPercentage - candidate.CenterPercentage;
+            var strongPerimeter = candidate.Confidence >= 0.78
+                                  && candidate.BorderPercentage >= 0.65
+                                  && candidate.CenterPercentage <= 0.38
+                                  && borderSignal >= 0.42;
+            var strongCorners = candidate.Confidence >= 0.78
+                                && candidate.CornerPercentage >= 0.85
+                                && candidate.BorderPercentage >= 0.55
+                                && candidate.CenterPercentage <= 0.55
+                                && borderSignal >= 0.25;
+            if (strongPerimeter || strongCorners)
+                selected.Add(candidate.Value);
+        }
+        return selected.OrderBy(value => value).ToArray();
+    }
+
+    private static IReadOnlyList<NativeRasterAttributeClass> ReadAttributeClasses(Raster raster)
+    {
+        try
+        {
+            using var table = raster.GetAttributeTable();
+            if (table is null) return [];
+            using var definition = table.GetDefinition();
+            var fields = definition.GetFields().ToArray();
+            if (fields.Length == 0) return [];
+
+            static string FieldKey(string value)
+                => new(value.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+            var valueNames = new HashSet<string>(
+                ["value", "classvalue", "code", "gridcode", "classcode", "classecode"],
+                StringComparer.OrdinalIgnoreCase);
+            var labelNames = new HashSet<string>(
+                ["classname", "class", "classe", "label", "libelle", "nom", "name", "description", "category", "categorie", "landcover"],
+                StringComparer.OrdinalIgnoreCase);
+            var valueField = fields.FirstOrDefault(field => valueNames.Contains(FieldKey(field.Name)))
+                             ?? fields.FirstOrDefault(field =>
+                                 IsNumericField(field.FieldType.ToString())
+                                 && !FieldKey(field.Name).Contains("count", StringComparison.Ordinal));
+            if (valueField is null) return [];
+            var labelField = fields.FirstOrDefault(field =>
+                labelNames.Contains(FieldKey(field.Name))
+                && !field.Name.Equals(valueField.Name, StringComparison.OrdinalIgnoreCase));
+            var colorField = fields.FirstOrDefault(field =>
+                FieldKey(field.Name) is "color" or "colour" or "hex" or "rgb");
+            var redField = fields.FirstOrDefault(field => FieldKey(field.Name) is "red" or "rouge");
+            var greenField = fields.FirstOrDefault(field => FieldKey(field.Name) is "green" or "vert");
+            var blueField = fields.FirstOrDefault(field => FieldKey(field.Name) is "blue" or "bleu");
+            var result = new List<NativeRasterAttributeClass>();
+            using var cursor = table.Search(new QueryFilter { WhereClause = "1=1", SubFields = "*" }, true);
+            while (result.Count < 512 && cursor.MoveNext())
+            {
+                using var row = cursor.Current;
+                if (!TryNumber(ReadRow(row, valueField.Name), out var value)) continue;
+                var label = Convert.ToString(
+                    labelField is null ? null : ReadRow(row, labelField.Name),
+                    CultureInfo.CurrentCulture)?.Trim() ?? string.Empty;
+                var color = NormalizeColor(colorField is null ? null : ReadRow(row, colorField.Name));
+                if (string.IsNullOrWhiteSpace(color)
+                    && TryByte(redField is null ? null : ReadRow(row, redField.Name), out var red)
+                    && TryByte(greenField is null ? null : ReadRow(row, greenField.Name), out var green)
+                    && TryByte(blueField is null ? null : ReadRow(row, blueField.Name), out var blue))
+                    color = $"#{red:X2}{green:X2}{blue:X2}";
+                result.Add(new NativeRasterAttributeClass(value, label, color));
+            }
+            return result
+                .GroupBy(item => item.Value)
+                .Select(group => group.First())
+                .OrderBy(item => item.Value)
+                .ToArray();
+        }
+        catch
+        {
+            // Une table attributaire raster est facultative et parfois virtuelle.
+            return [];
+        }
+    }
+
+    private static object? ReadRow(Row row, string field)
+    {
+        try { return row[field]; }
+        catch { return null; }
+    }
+
+    private static bool IsNumericField(string fieldType)
+        => fieldType.Contains("Integer", StringComparison.OrdinalIgnoreCase)
+           || fieldType.Contains("Single", StringComparison.OrdinalIgnoreCase)
+           || fieldType.Contains("Double", StringComparison.OrdinalIgnoreCase)
+           || fieldType.Contains("Float", StringComparison.OrdinalIgnoreCase)
+           || fieldType.Contains("Decimal", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryByte(object? value, out byte number)
+    {
+        if (TryNumber(value, out var parsed) && parsed is >= 0 and <= 255)
+        {
+            number = (byte)Math.Round(parsed);
+            return true;
+        }
+        number = 0;
+        return false;
+    }
+
+    private static string NormalizeColor(object? value)
+    {
+        var text = Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+        if (text.Length == 6 && text.All(Uri.IsHexDigit)) text = "#" + text;
+        return text.Length is 7 or 9
+               && text.StartsWith('#')
+               && text.Skip(1).All(Uri.IsHexDigit)
+            ? text.ToUpperInvariant()
+            : string.Empty;
+    }
+
     private static IReadOnlyList<double> DetectAnomalies(IReadOnlyList<double> sortedValues, IEnumerable<double> noDataValues)
     {
         if (sortedValues.Count < 20) return [];
@@ -281,15 +492,16 @@ internal static class NativeRasterAnalysisService
     }
 
     private static (string Theme, double Confidence, IReadOnlyList<string> Rationale) InferTheme(
-        string layerName,
+        string context,
         int bandCount,
-        bool categorical,
+        string rasterType,
         double minimum,
         double maximum)
     {
-        var text = (layerName ?? string.Empty).ToLowerInvariant();
+        var text = (context ?? string.Empty).ToLowerInvariant();
         (string Theme, string[] Tokens, double Confidence)[] rules =
         [
+            ("land_cover_change", ["land cover change", "changement occupation", "transition occupation"], 0.96),
             ("deforestation", ["deforest", "déforest"], 0.96),
             ("forest_degradation", ["degrad", "dégrad"], 0.94),
             ("forest_dynamics", ["forest", "forêt", "couvert végétal", "couvert_vegetal"], 0.90),
@@ -304,10 +516,10 @@ internal static class NativeRasterAnalysisService
         ];
         foreach (var rule in rules)
             if (rule.Tokens.Any(text.Contains))
-                return (rule.Theme, rule.Confidence, [$"Nom de couche compatible avec le thème {rule.Theme}."]);
-        if (bandCount >= 3)
+                return (rule.Theme, rule.Confidence, [$"Le nom, le chemin ou les libellés du raster concordent avec le thème {rule.Theme}."]);
+        if (rasterType == "rgb" || bandCount >= 3)
             return ("rgb", 0.62, ["Le raster contient au moins trois bandes, sans métadonnée thématique décisive."]);
-        if (categorical)
+        if (rasterType is "binary" or "categorized")
             return ("categorical", 0.60, ["Les valeurs sont discrètes; les libellés métier doivent être confirmés."]);
         if (minimum >= -1.05 && maximum <= 1.05)
             return ("continuous", 0.58, ["La plage observée est compatible avec un indice normalisé, sans le prouver."]);
@@ -326,6 +538,9 @@ internal static class NativeRasterAnalysisService
 
     private static bool SameNumber(double left, double right)
         => Math.Abs(left - right) <= Math.Max(1e-12, Math.Abs(right) * 1e-12);
+
+    private static bool IntegerLike(double value)
+        => Math.Abs(value - Math.Round(value)) <= 1e-9;
 
     private static bool TryNumber(object? value, out double number)
     {

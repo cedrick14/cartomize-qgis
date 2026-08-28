@@ -4,7 +4,12 @@ using ArcGIS.Desktop.Mapping;
 
 namespace Cartomize.ArcGISPro.Services;
 
-internal sealed record NativeRasterClassStyle(double UpperBound, string Label, string Color);
+internal sealed record NativeRasterClassStyle(
+    double UpperBound,
+    string Label,
+    string Color,
+    bool Visible,
+    double OpacityPercent);
 
 internal sealed record NativeRasterStyleRequest(
     string RenderMode,
@@ -14,7 +19,9 @@ internal sealed record NativeRasterStyleRequest(
     double Minimum,
     double Maximum,
     string Palette,
-    IReadOnlyList<NativeRasterClassStyle> Classes);
+    IReadOnlyList<NativeRasterClassStyle> Classes,
+    bool MaskNoData,
+    IReadOnlyList<double> NoDataValues);
 
 /// <summary>
 /// Symbologie Cartomize appliquée par les RendererDefinition et
@@ -89,6 +96,8 @@ internal static class NativeStyleService
                 throw new InvalidOperationException("ArcGIS Pro ne peut pas créer ce coloriseur pour le raster sélectionné.");
             var colorizer = layer.CreateColorizer(definition)
                 ?? throw new InvalidOperationException("ArcGIS Pro n’a retourné aucun coloriseur.");
+            if (request.MaskNoData)
+                colorizer.NoDataColor = TransparentColor();
             if (colorizer is CIMRasterStretchColorizer stretch && request.Maximum > request.Minimum)
             {
                 stretch.UseCustomStretchMinMax = true;
@@ -96,6 +105,8 @@ internal static class NativeStyleService
                 stretch.CustomStretchMax = request.Maximum;
             }
             ApplyRasterPalette(colorizer, request.Palette);
+            if (colorizer is CIMRasterUniqueValueColorizer unique)
+                ApplyRasterUniqueClasses(unique, request);
             if (colorizer is CIMRasterClassifyColorizer classify && request.Classes.Count > 0)
             {
                 classify.MinimumBreak = request.Minimum;
@@ -105,7 +116,7 @@ internal static class NativeStyleService
                     var source = request.Classes[index];
                     classBreaks[index].UpperBound = source.UpperBound;
                     classBreaks[index].Label = source.Label;
-                    classBreaks[index].Color = ParseColor(source.Color);
+                    classBreaks[index].Color = ParseColor(source.Color, source.Visible ? source.OpacityPercent : 0);
                 }
                 classify.ClassBreaks = classBreaks;
             }
@@ -232,6 +243,7 @@ internal static class NativeStyleService
             throw new InvalidOperationException("ArcGIS Pro ne peut pas créer ce coloriseur pour le raster sélectionné.");
         var colorizer = layer.CreateColorizer(definition)
             ?? throw new InvalidOperationException("ArcGIS Pro n’a retourné aucun coloriseur.");
+        colorizer.NoDataColor = TransparentColor();
         ApplyRasterPalette(colorizer, palette);
         layer.SetColorizer(colorizer);
     }
@@ -289,6 +301,46 @@ internal static class NativeStyleService
         }
     }
 
+    private static void ApplyRasterUniqueClasses(
+        CIMRasterUniqueValueColorizer colorizer,
+        NativeRasterStyleRequest request)
+    {
+        colorizer.UseDefaultColor = false;
+        colorizer.IsDefaultColorVisible = false;
+        colorizer.ShowClassVisibility = true;
+        foreach (var group in colorizer.Groups ?? [])
+        foreach (var item in group.Classes ?? [])
+        {
+            if (!TryUniqueValue(item, out var value)) continue;
+            if (request.MaskNoData && request.NoDataValues.Any(noData => SameNumber(noData, value)))
+            {
+                item.Color = TransparentColor();
+                item.Label = "NoData";
+                item.Visible = false;
+                continue;
+            }
+            var style = request.Classes.FirstOrDefault(candidate => SameNumber(candidate.UpperBound, value));
+            if (style is null)
+            {
+                item.Visible = false;
+                continue;
+            }
+            item.Label = style.Label;
+            item.Color = ParseColor(style.Color, style.Visible ? style.OpacityPercent : 0);
+            item.Visible = style.Visible && style.OpacityPercent > 0;
+        }
+    }
+
+    private static bool TryUniqueValue(CIMRasterUniqueValueClass item, out double value)
+    {
+        foreach (var text in item.Values ?? [])
+            if (double.TryParse(text?.Replace(',', '.'), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out value))
+                return true;
+        value = 0;
+        return false;
+    }
+
     internal static IReadOnlyList<string> ResolvePalette(string palette, int count)
     {
         var key = palette ?? string.Empty;
@@ -312,14 +364,20 @@ internal static class NativeStyleService
             .ToArray();
     }
 
-    private static CIMColor ParseColor(string value)
+    private static CIMColor ParseColor(string value, double opacityPercent = 100)
     {
         var text = (value ?? string.Empty).Trim().TrimStart('#');
         if (text.Length >= 6
             && byte.TryParse(text[..2], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var red)
             && byte.TryParse(text.Substring(2, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var green)
             && byte.TryParse(text.Substring(4, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var blue))
-            return CIMColor.CreateRGBColor(red, green, blue);
+            return CIMColor.CreateRGBColor(red, green, blue, Math.Clamp(opacityPercent, 0, 100));
         return ColorFactory.Instance.GreyRGB;
     }
+
+    private static CIMColor TransparentColor()
+        => CIMColor.CreateRGBColor(255, 255, 255, 0);
+
+    private static bool SameNumber(double left, double right)
+        => Math.Abs(left - right) <= Math.Max(1e-12, Math.Abs(right) * 1e-12);
 }

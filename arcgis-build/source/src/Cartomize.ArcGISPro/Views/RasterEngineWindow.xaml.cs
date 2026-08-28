@@ -19,7 +19,11 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     private readonly RasterLayer _layer;
     private readonly List<RasterClassRow> _automaticClasses = [];
     private readonly Stack<CIMBaseLayer> _history = new();
+    private readonly Stack<bool> _outlineHistory = new();
+    private readonly HashSet<double> _selectedNoDataValues = [];
+    private readonly HashSet<double> _declaredNoDataValues = [];
     private CIMBaseLayer? _previewDefinition;
+    private NativeRasterSample? _lastSample;
     private string _summaryText = "Analyse du raster…";
     private string _metadataText = string.Empty;
     private string _themeEvidenceText = "Analyse thématique en cours…";
@@ -36,6 +40,9 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     private string _classCount = "5";
     private string _minimum = "0";
     private string _maximum = "1";
+    private string _outlineWidth = "1.2";
+    private bool _maskNoDataAutomatically = true;
+    private bool _addBlackOutline = true;
     private bool _expertConfirmed;
     private string _lastReportPath = string.Empty;
     private bool _busy;
@@ -106,6 +113,9 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     public string ClassCount { get => _classCount; set => Set(ref _classCount, value); }
     public string Minimum { get => _minimum; set => Set(ref _minimum, value); }
     public string Maximum { get => _maximum; set => Set(ref _maximum, value); }
+    public string OutlineWidth { get => _outlineWidth; set => Set(ref _outlineWidth, value); }
+    public bool MaskNoDataAutomatically { get => _maskNoDataAutomatically; set => Set(ref _maskNoDataAutomatically, value); }
+    public bool AddBlackOutline { get => _addBlackOutline; set => Set(ref _addBlackOutline, value); }
     public bool ExpertConfirmed { get => _expertConfirmed; set => Set(ref _expertConfirmed, value); }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -147,11 +157,23 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                 mean = sample.Mean,
                 median = sample.Median,
                 categorical = sample.IsCategorical,
+                raster_type = sample.RasterType,
                 theme = sample.Theme,
                 confidence = sample.ThemeConfidence,
                 rationale = sample.ThemeRationale,
+                nomenclature = new
+                {
+                    key = sample.Nomenclature.Key,
+                    name = sample.Nomenclature.Name,
+                    confidence = sample.Nomenclature.Confidence,
+                    rationale = sample.Nomenclature.Rationale,
+                    classes = sample.Nomenclature.Classes,
+                },
                 quantile_breaks = sample.QuantileBreaks,
+                continuous_classes = sample.ContinuousClasses,
                 frequencies = sample.Frequencies.Select(item => new { value = item.Key, count = item.Value }).ToArray(),
+                automatic_nodata_values = sample.AutomaticNoDataValues,
+                has_raster_attribute_table = sample.HasRasterAttributeTable,
                 nodata_candidates = sample.NoDataCandidates,
                 anomalous_values = sample.AnomalousValues,
                 possible_missing_codes = sample.PossibleMissingCodes,
@@ -169,13 +191,16 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
 
     private void LoadNativeDiagnosis(NativeRasterSample sample)
     {
-        var rasterType = sample.BandCount >= 3 ? "rgb" : sample.IsCategorical ? "categorized" : "continuous";
-        SummaryText = $"Type : {rasterType}\nBandes : {sample.BandCount}\nDimensions : {sample.Width:N0} × {sample.Height:N0}\n" +
+        _lastSample = sample;
+        SummaryText = $"Type : {RasterTypeLabel(sample.RasterType)}\nBandes : {sample.BandCount}\nDimensions : {sample.Width:N0} × {sample.Height:N0}\n" +
             $"Pixels échantillonnés : {sample.SampledPixelCount:N0}\nPixels valides : {sample.SampleCount:N0}\n" +
             $"Valeurs distinctes : {sample.ObservedUniqueCount:N0}{(sample.ProfileLimited ? " ou plus" : string.Empty)}\n" +
-            $"Minimum : {sample.Minimum:G15}\nMaximum : {sample.Maximum:G15}\nMoyenne : {sample.Mean:G15}\nMédiane : {sample.Median:G15}";
+            $"Minimum valide : {sample.Minimum:G15}\nMaximum valide : {sample.Maximum:G15}\nMoyenne : {sample.Mean:G15}\nMédiane : {sample.Median:G15}\n" +
+            $"Nomenclature : {sample.Nomenclature.Name} ({sample.Nomenclature.Confidence:P0})\n" +
+            $"NoData masqué automatiquement : {FormatValues(sample.AutomaticNoDataValues)}";
         ThemeEvidenceText = $"{ThemeLabel(sample.Theme)} · confiance {sample.ThemeConfidence:P0}\n" +
-            string.Join("\n", sample.ThemeRationale);
+            $"Schéma proposé : {sample.Nomenclature.Name} · confiance {sample.Nomenclature.Confidence:P0}\n" +
+            string.Join("\n", sample.ThemeRationale.Concat(sample.Nomenclature.Rationale).Distinct());
         MetadataText = JsonSerializer.Serialize(new
         {
             sample.BandCount,
@@ -192,17 +217,33 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             sample.Maximum,
             sample.Mean,
             sample.Median,
+            sample.RasterType,
             sample.Theme,
             sample.ThemeConfidence,
+            sample.Nomenclature,
+            sample.ContinuousClasses,
+            sample.AutomaticNoDataValues,
+            sample.HasRasterAttributeTable,
             sample.AnomalousValues,
             sample.PossibleMissingCodes,
         }, new JsonSerializerOptions { WriteIndented = true });
+        _selectedNoDataValues.Clear();
+        _declaredNoDataValues.Clear();
+        foreach (var value in sample.AutomaticNoDataValues)
+            _selectedNoDataValues.Add(value);
         NoDataCandidates.Clear();
         foreach (var candidate in sample.NoDataCandidates)
+        {
+            var declared = candidate.Reason.Contains("déclarée", StringComparison.OrdinalIgnoreCase);
+            var automatic = sample.AutomaticNoDataValues.Any(value => SameNumber(value, candidate.Value));
+            if (declared) _declaredNoDataValues.Add(candidate.Value);
             NoDataCandidates.Add(new NoDataCandidateRow(
                 candidate.Value.ToString("G15", CultureInfo.InvariantCulture),
                 candidate.Confidence.ToString("P0", CultureInfo.CurrentCulture),
-                candidate.Reason));
+                candidate.Reason,
+                declared ? "NoData fournisseur" : automatic ? "Masquage automatique" : "À vérifier",
+                declared));
+        }
         Bands.Clear();
         for (var index = 1; index <= Math.Max(1, sample.BandCount); index++) Bands.Add($"{index} · Bande {index}");
         SelectedBand = Bands.First();
@@ -211,53 +252,83 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         BlueBand = Bands.ElementAtOrDefault(2) ?? SelectedBand;
         Minimum = sample.Minimum.ToString("G15", CultureInfo.InvariantCulture);
         Maximum = sample.Maximum.ToString("G15", CultureInfo.InvariantCulture);
-        SelectedRenderMode = sample.BandCount >= 3 ? "Composition RGB" : sample.IsCategorical ? "Catégoriel" : "Continu";
+        SelectedRenderMode = sample.RasterType == "rgb" ? "Composition RGB" : sample.IsCategorical ? "Catégoriel" : "Continu";
         SelectedThemeProfile = ThemeLabel(sample.Theme);
-        SelectedPalette = sample.Theme == "rgb" ? "Continuous" : PaletteLabel(sample.Theme, rasterType);
-        var colors = NativeStyleService.ResolvePalette(SelectedPalette, Math.Max(2, sample.IsCategorical ? sample.Frequencies.Count : sample.QuantileBreaks.Count));
+        SelectedPalette = sample.RasterType == "rgb"
+            ? "Continuous"
+            : sample.IsCategorical && !string.IsNullOrWhiteSpace(sample.Nomenclature.Palette)
+                ? sample.Nomenclature.Palette
+                : PaletteLabel(sample.Theme, sample.RasterType);
         Classes.Clear();
         if (sample.IsCategorical)
         {
             var total = Math.Max(1, sample.Frequencies.Values.Sum());
-            var index = 0;
-            foreach (var entry in sample.Frequencies.OrderBy(item => item.Key).Take(64))
+            var proposals = sample.Nomenclature.Classes.Count > 0
+                ? sample.Nomenclature.Classes
+                : sample.Frequencies.OrderBy(item => item.Key)
+                    .Select((item, index) => new NativeRasterClassProposal(
+                        item.Key,
+                        $"Classe {item.Key:G15}",
+                        NativeStyleService.ResolvePalette(SelectedPalette, sample.Frequencies.Count)[index],
+                        0.60,
+                        "Code détecté"))
+                    .ToArray();
+            foreach (var proposal in proposals.Take(128))
             {
+                var count = sample.Frequencies.FirstOrDefault(item => SameNumber(item.Key, proposal.Value)).Value;
                 Classes.Add(new RasterClassRow
                 {
                     Visible = true,
-                    ValuesText = entry.Key.ToString("G15", CultureInfo.InvariantCulture),
-                    Label = entry.Key.ToString("G15", CultureInfo.CurrentCulture),
-                    Color = colors[index++ % colors.Count],
+                    ValuesText = proposal.Value.ToString("G15", CultureInfo.InvariantCulture),
+                    Label = proposal.Label,
+                    Color = proposal.Color,
                     OpacityPercent = 100,
-                    PixelCount = entry.Value,
-                    Percentage = 100d * entry.Value / total,
-                    Status = "détectée",
+                    PixelCount = count,
+                    Percentage = 100d * count / total,
+                    BorderPercentage = sample.BorderPercentages.GetValueOrDefault(proposal.Value),
+                    Status = $"{proposal.Source} · {proposal.Confidence:P0}",
                     ShowInLegend = true,
+                });
+            }
+            var allTotal = Math.Max(1, sample.AllFrequencies.Values.Sum());
+            foreach (var value in sample.AutomaticNoDataValues)
+            {
+                var entry = sample.AllFrequencies.FirstOrDefault(item => SameNumber(item.Key, value));
+                if (entry.Value <= 0 || Classes.Any(item => item.Values().Any(current => SameNumber(current, value)))) continue;
+                Classes.Add(new RasterClassRow
+                {
+                    Visible = false,
+                    ValuesText = value.ToString("G15", CultureInfo.InvariantCulture),
+                    Label = "NoData détecté",
+                    Color = "#FFFFFF",
+                    OpacityPercent = 0,
+                    PixelCount = entry.Value,
+                    Percentage = 100d * entry.Value / allTotal,
+                    BorderPercentage = sample.BorderPercentages.GetValueOrDefault(entry.Key),
+                    Status = "NoData automatique",
+                    ShowInLegend = false,
                 });
             }
         }
         else
         {
-            var lower = sample.Minimum;
-            var index = 0;
-            foreach (var upper in sample.QuantileBreaks)
+            foreach (var range in sample.ContinuousClasses)
             {
                 Classes.Add(new RasterClassRow
                 {
                     Visible = true,
-                    ValuesText = $"{lower.ToString("G15", CultureInfo.InvariantCulture)}; {upper.ToString("G15", CultureInfo.InvariantCulture)}",
-                    Label = $"{lower:G5} – {upper:G5}",
-                    Color = colors[index++ % colors.Count],
+                    ValuesText = $"{range.LowerBound.ToString("G15", CultureInfo.InvariantCulture)}; {range.UpperBound.ToString("G15", CultureInfo.InvariantCulture)}",
+                    Label = range.Label,
+                    Color = range.Color,
                     OpacityPercent = 100,
-                    Status = "quantile",
+                    Status = $"{range.Source} · {range.Confidence:P0}",
                     ShowInLegend = true,
                 });
-                lower = upper;
             }
         }
         _automaticClasses.Clear();
         _automaticClasses.AddRange(Classes.Select(item => item.Clone()));
-        ClassCount = Math.Clamp(Classes.Count, 2, 64).ToString(CultureInfo.InvariantCulture);
+        ClassCount = Math.Clamp(Classes.Count(item => item.Visible), 2, 64).ToString(CultureInfo.InvariantCulture);
     }
 
     private void LoadDiagnosis(string report)
@@ -293,7 +364,9 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             NoDataCandidates.Add(new NoDataCandidateRow(
                 CartomizeDataService.Number(item, "value").ToString("G15", CultureInfo.InvariantCulture),
                 CartomizeDataService.Number(item, "confidence").ToString("P0", CultureInfo.CurrentCulture),
-                CartomizeDataService.Text(item, "reason")));
+                CartomizeDataService.Text(item, "reason"),
+                "À vérifier",
+                false));
 
         Classes.Clear();
         _automaticClasses.Clear();
@@ -335,6 +408,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         _busy = true;
         try
         {
+            var previousOutline = false;
             if (preview && _previewDefinition is null)
                 _previewDefinition = await QueuedTask.Run(() => _layer.GetDefinition());
             if (!preview)
@@ -343,6 +417,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                     await RestoreDefinitionAsync(_previewDefinition);
                 _previewDefinition = null;
                 _history.Push(await QueuedTask.Run(() => _layer.GetDefinition()));
+                previousOutline = await NativeRasterOutlineService.ExistsAsync(_layer);
             }
 
             var report = CartomizeDataService.ReportPath(preview ? "raster-engine-preview.json" : "raster-engine-style.json");
@@ -359,12 +434,25 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                         ParseDouble(Minimum, 0),
                         ParseDouble(Maximum, 1),
                         SelectedPalette,
-                        Classes.Where(item => item.Visible)
+                        Classes.Where(item => item.Values().Any())
                             .Select(item => new NativeRasterClassStyle(
                                 item.Values().LastOrDefault(),
                                 item.ShowInLegend ? item.Label : string.Empty,
-                                item.Color))
-                            .ToArray()));
+                                item.Color,
+                                item.Visible,
+                                item.OpacityPercent))
+                            .ToArray(),
+                        MaskNoDataAutomatically,
+                        _selectedNoDataValues.ToArray()));
+            var outlineApplied = false;
+            if (!preview)
+            {
+                _outlineHistory.Push(previousOutline);
+                outlineApplied = await NativeRasterOutlineService.ApplyAsync(
+                    _layer,
+                    AddBlackOutline,
+                    ParseDouble(OutlineWidth, 1.2));
+            }
             CartomizeDataService.WriteJson(report, new
             {
                 schema_version = 1,
@@ -378,12 +466,21 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                 red_band = BandNumber(RedBand),
                 green_band = BandNumber(GreenBand),
                 blue_band = BandNumber(BlueBand),
+                automatic_nodata_mask = MaskNoDataAutomatically,
+                visual_nodata_values = _selectedNoDataValues.OrderBy(value => value).ToArray(),
+                black_raster_outline = AddBlackOutline,
+                outline_width_points = ParseDouble(OutlineWidth, 1.2),
+                outline_applied = outlineApplied,
                 expert_confirmed = ExpertConfirmed,
                 classes = Classes.Select(item => item.ToPayload()).ToArray(),
                 preview,
                 non_destructive = true,
             });
-            StatusText = preview ? "Aperçu actif · pixels et NoData source inchangés." : "Symbologie appliquée · pixels du raster inchangés.";
+            StatusText = preview
+                ? "Aperçu actif · NoData transparent · pixels source inchangés."
+                : AddBlackOutline && !outlineApplied
+                    ? "Symbologie appliquée; contour indisponible hors d’une carte 2D active."
+                    : "Symbologie appliquée · NoData masqué · contour noir actualisé · pixels source inchangés.";
         }
         catch (Exception exception)
         {
@@ -412,6 +509,11 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         }
         if (_history.Count == 0) { StatusText = "Aucun rendu antérieur à restaurer."; return; }
         await RestoreDefinitionAsync(_history.Pop());
+        if (_outlineHistory.Count > 0)
+            await NativeRasterOutlineService.ApplyAsync(
+                _layer,
+                _outlineHistory.Pop(),
+                ParseDouble(OutlineWidth, 1.2));
         StatusText = "Rendu précédent restauré.";
     }
 
@@ -436,6 +538,8 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
             var colorizer = _layer.CreateColorizer(definition);
             if (colorizer is CIMRasterRGBColorizer rgb)
             {
+                if (MaskNoDataAutomatically)
+                    rgb.NoDataColor = CIMColor.CreateRGBColor(255, 255, 255, 0);
                 var minimum = ParseDouble(Minimum, 0);
                 var maximum = ParseDouble(Maximum, 1);
                 if (maximum > minimum)
@@ -470,6 +574,10 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     {
         Classes.Clear();
         foreach (var item in _automaticClasses) Classes.Add(item.Clone());
+        _selectedNoDataValues.Clear();
+        if (_lastSample is not null)
+            foreach (var value in _lastSample.AutomaticNoDataValues)
+                _selectedNoDataValues.Add(value);
         StatusText = "Analyse automatique restaurée.";
     }
 
@@ -503,14 +611,46 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
 
     private void SetSelectedNoData(bool keep)
     {
-        foreach (var candidate in NoDataGrid.SelectedItems.OfType<NoDataCandidateRow>())
+        foreach (var candidate in NoDataGrid.SelectedItems.OfType<NoDataCandidateRow>().ToArray())
         {
             if (!double.TryParse(candidate.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)) continue;
+            if (keep && candidate.IsDeclared)
+            {
+                StatusText = "Le NoData déclaré par le fournisseur reste masqué; seule une reclassification explicite peut le convertir en donnée.";
+                continue;
+            }
+            if (keep) _selectedNoDataValues.RemoveWhere(item => SameNumber(item, value));
+            else _selectedNoDataValues.Add(value);
             var row = Classes.FirstOrDefault(item => item.Values().Any(current => Math.Abs(current - value) < 1e-12));
+            if (row is null && _lastSample is not null)
+            {
+                var frequency = _lastSample.AllFrequencies.FirstOrDefault(item => SameNumber(item.Key, value));
+                if (frequency.Value > 0)
+                {
+                    row = new RasterClassRow
+                    {
+                        ValuesText = value.ToString("G15", CultureInfo.InvariantCulture),
+                        Label = $"Classe {value:G15}",
+                        Color = NativeStyleService.ResolvePalette(SelectedPalette, Math.Max(2, Classes.Count + 1))[Classes.Count],
+                        PixelCount = frequency.Value,
+                        BorderPercentage = _lastSample.BorderPercentages.GetValueOrDefault(frequency.Key),
+                        Visible = keep,
+                        ShowInLegend = keep,
+                        OpacityPercent = keep ? 100 : 0,
+                    };
+                    Classes.Add(row);
+                }
+            }
             if (row is null) continue;
             row.Visible = keep;
             row.ShowInLegend = keep;
+            row.OpacityPercent = keep ? Math.Max(1, row.OpacityPercent) : 0;
+            if (keep && row.Color.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase))
+                row.Color = NativeStyleService.ResolvePalette(SelectedPalette, Math.Max(2, Classes.Count))[Math.Max(0, Classes.IndexOf(row))];
             row.Status = keep ? "conservée" : "NoData visuel";
+            var index = NoDataCandidates.IndexOf(candidate);
+            if (index >= 0)
+                NoDataCandidates[index] = candidate with { State = keep ? "Conservée comme classe" : "Masquage demandé" };
         }
         ClassGrid.Items.Refresh();
     }
@@ -574,6 +714,24 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         "false_color" => "Image satellite fausses couleurs", _ => "Autre carte thématique continue",
     };
 
+    private static string RasterTypeLabel(string key) => (key ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "binary" => "Carte binaire",
+        "categorized" => "Raster catégoriel",
+        "rgb" => "Image multibande RGB",
+        "continuous" => "Surface continue",
+        _ => key,
+    };
+
+    private static string FormatValues(IEnumerable<double> values)
+    {
+        var formatted = values.Select(value => value.ToString("G15", CultureInfo.InvariantCulture)).ToArray();
+        return formatted.Length == 0 ? "aucune valeur supplémentaire" : string.Join(", ", formatted);
+    }
+
+    private static bool SameNumber(double left, double right)
+        => Math.Abs(left - right) <= Math.Max(1e-12, Math.Abs(right) * 1e-12);
+
     private static string PaletteLabel(string theme, string rasterType)
     {
         var key = string.IsNullOrWhiteSpace(theme)
@@ -619,7 +777,12 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-public sealed record NoDataCandidateRow(string Value, string Confidence, string Reason);
+public sealed record NoDataCandidateRow(
+    string Value,
+    string Confidence,
+    string Reason,
+    string State,
+    bool IsDeclared);
 
 public sealed class RasterClassRow
 {
