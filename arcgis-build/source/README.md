@@ -1,18 +1,21 @@
 # Cartomize 10.5.1 for ArcGIS Pro
 
-Édition native ArcGIS Pro de Cartomize, issue de l'audit fonctionnel du plugin QGIS 10.5.1. Elle combine :
+Édition native ArcGIS Pro de Cartomize, issue du plugin QGIS 10.5.1. Elle comprend :
 
 - un add-in C#/WPF intégré au ruban et au panneau latéral d'ArcGIS Pro ;
-- une boîte à outils Python `Cartomize.pyt` compatible avec la Géotraitement, ModelBuilder et l'historique ArcGIS Pro ;
-- 24 maquettes hors ligne converties en objets `arcpy.mp` éditables ;
-- les moteurs Cartomize QGIS 10.5.1 portés vers ArcPy : audit, analyse
-  vectorielle et raster, relations entre couches, piles de couches,
-  symbologie, recettes, MapOps, validation et production par manifeste.
+- des services C# utilisant directement le SDK ArcGIS Pro 3.7 pour les couches,
+  géométries, rasters, rendus, mises en page et exports ;
+- 24 maquettes hors ligne converties en mises en page ArcGIS Pro éditables ;
+- les règles Cartomize QGIS 10.5.1 portées vers les objets natifs ArcGIS Pro :
+  audit, profils vectoriels et raster, symbologie, recettes, MapOps,
+  validation et production par manifeste.
 
 ## Livrables et niveau de disponibilité
 
-Le paquet `Cartomize-ArcGISPro-10.5.1.esriAddInX` contient l’interface native
-et la boîte à outils. Le code source complet permet de reconstruire ce paquet
+Le paquet `Cartomize-ArcGISPro-10.5.1.esriAddInX` contient l’interface et les
+moteurs natifs. Le dossier `toolbox` reste dans le dépôt comme implémentation
+ArcPy indépendante et référence de parité; il n'est pas requis par l'add-in.
+Le code source complet permet de reconstruire le paquet
 sur Windows avec ArcGIS Pro 3.7, .NET 10 et Visual Studio 2026.
 
 ## Fonctions livrées
@@ -33,13 +36,12 @@ SVG, PNG, JPEG et TIFF, et enregistre la maquette native ArcGIS Pro en PAGX.
 Les fonds de carte restent dans la carte et dans les cadres ; Cartomize retire
 seulement leurs éléments de la légende lorsque cette option est activée.
 
-## Installation rapide de la boîte à outils
+## Installation rapide
 
-1. Décompressez l'archive sans séparer `Cartomize.pyt`, `cartomize_core` et `templates_library`.
-2. Dans ArcGIS Pro, ouvrez le volet **Catalogue**.
-3. Sous **Boîtes à outils**, choisissez **Ajouter une boîte à outils**.
-4. Sélectionnez `toolbox/Cartomize.pyt`.
-5. Ouvrez **Créer une mise en page** ou **Autopilote Cartomize**.
+1. Fermez ArcGIS Pro.
+2. Double-cliquez sur `Cartomize-ArcGISPro-10.5.1.esriAddInX`.
+3. Cliquez sur **Installer le complément**.
+4. Relancez ArcGIS Pro et ouvrez l’onglet **Cartomize**.
 
 Le guide complet est dans [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
@@ -56,12 +58,13 @@ Le script restaure `Esri.ArcGISPro.Extensions30` 3.7.0.1901, compile en Release,
 
 ## Validation exécutée
 
-- analyse syntaxique de toutes les sources Python et de la boîte `.pyt` ;
+- compilation C# x64 contre le SDK ArcGIS Pro 3.7 ;
+- analyse syntaxique de la boîte `.pyt` de référence ;
 - validation XML de `Config.daml` et du panneau WPF ;
 - validation des 24 maquettes et de leurs limites de page ;
 - test de non-régression : retirer un fond de la légende ne retire jamais la couche de la carte ;
-- test des recettes QGIS/ArcGIS, manifestes, profils raster, piles de couches
-  et empreintes MapOps détaillées.
+- tests des recettes QGIS/ArcGIS, manifestes, profils vectoriels/raster,
+  palettes, piles de couches et empreintes MapOps détaillées.
 
 Exécuter localement :
 

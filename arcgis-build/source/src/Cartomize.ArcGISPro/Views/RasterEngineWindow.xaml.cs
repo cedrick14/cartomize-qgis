@@ -87,7 +87,17 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     public bool IsManualTheme => string.Equals(SelectedThemeMode, "Choisir manuellement", StringComparison.Ordinal);
     public string SelectedThemeProfile { get => _selectedThemeProfile; set => Set(ref _selectedThemeProfile, value); }
     public string SelectedRenderMode { get => _selectedRenderMode; set => Set(ref _selectedRenderMode, value); }
-    public string SelectedPalette { get => _selectedPalette; set => Set(ref _selectedPalette, value); }
+    public string SelectedPalette
+    {
+        get => _selectedPalette;
+        set
+        {
+            if (string.Equals(_selectedPalette, value, StringComparison.Ordinal)) return;
+            _selectedPalette = value;
+            OnPropertyChanged();
+            RecolorClasses();
+        }
+    }
     public string SelectedClassificationMethod { get => _selectedClassificationMethod; set => Set(ref _selectedClassificationMethod, value); }
     public string SelectedBand { get => _selectedBand; set => Set(ref _selectedBand, value); }
     public string RedBand { get => _redBand; set => Set(ref _redBand, value); }
@@ -126,14 +136,25 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                 width = sample.Width,
                 height = sample.Height,
                 nodata = sample.NoData,
+                total_pixel_count = sample.TotalPixelCount,
+                sampled_pixel_count = sample.SampledPixelCount,
                 sample_count = sample.SampleCount,
+                nodata_sample_count = sample.NoDataSampleCount,
+                observed_unique_count = sample.ObservedUniqueCount,
+                profile_limited = sample.ProfileLimited,
                 minimum = sample.Minimum,
                 maximum = sample.Maximum,
                 mean = sample.Mean,
                 median = sample.Median,
                 categorical = sample.IsCategorical,
+                theme = sample.Theme,
+                confidence = sample.ThemeConfidence,
+                rationale = sample.ThemeRationale,
                 quantile_breaks = sample.QuantileBreaks,
                 frequencies = sample.Frequencies.Select(item => new { value = item.Key, count = item.Value }).ToArray(),
+                nodata_candidates = sample.NoDataCandidates,
+                anomalous_values = sample.AnomalousValues,
+                possible_missing_codes = sample.PossibleMissingCodes,
             });
             _lastReportPath = report;
             StatusText = deep ? "Analyse approfondie terminée" : "Analyse terminée";
@@ -150,23 +171,38 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
     {
         var rasterType = sample.BandCount >= 3 ? "rgb" : sample.IsCategorical ? "categorized" : "continuous";
         SummaryText = $"Type : {rasterType}\nBandes : {sample.BandCount}\nDimensions : {sample.Width:N0} × {sample.Height:N0}\n" +
-            $"Échantillon : {sample.SampleCount:N0}\nMinimum : {sample.Minimum:G15}\nMaximum : {sample.Maximum:G15}\nMédiane : {sample.Median:G15}";
-        ThemeEvidenceText = sample.IsCategorical ? "Classification raster" : sample.BandCount >= 3 ? "Image satellite RGB" : "Raster continu";
+            $"Pixels échantillonnés : {sample.SampledPixelCount:N0}\nPixels valides : {sample.SampleCount:N0}\n" +
+            $"Valeurs distinctes : {sample.ObservedUniqueCount:N0}{(sample.ProfileLimited ? " ou plus" : string.Empty)}\n" +
+            $"Minimum : {sample.Minimum:G15}\nMaximum : {sample.Maximum:G15}\nMoyenne : {sample.Mean:G15}\nMédiane : {sample.Median:G15}";
+        ThemeEvidenceText = $"{ThemeLabel(sample.Theme)} · confiance {sample.ThemeConfidence:P0}\n" +
+            string.Join("\n", sample.ThemeRationale);
         MetadataText = JsonSerializer.Serialize(new
         {
             sample.BandCount,
             sample.Width,
             sample.Height,
+            sample.TotalPixelCount,
             sample.NoData,
+            sample.SampledPixelCount,
             sample.SampleCount,
+            sample.NoDataSampleCount,
+            sample.ObservedUniqueCount,
+            sample.ProfileLimited,
             sample.Minimum,
             sample.Maximum,
             sample.Mean,
             sample.Median,
+            sample.Theme,
+            sample.ThemeConfidence,
+            sample.AnomalousValues,
+            sample.PossibleMissingCodes,
         }, new JsonSerializerOptions { WriteIndented = true });
         NoDataCandidates.Clear();
-        if (!string.IsNullOrWhiteSpace(sample.NoData))
-            NoDataCandidates.Add(new NoDataCandidateRow(sample.NoData, "100 %", "Valeur NoData déclarée par le raster"));
+        foreach (var candidate in sample.NoDataCandidates)
+            NoDataCandidates.Add(new NoDataCandidateRow(
+                candidate.Value.ToString("G15", CultureInfo.InvariantCulture),
+                candidate.Confidence.ToString("P0", CultureInfo.CurrentCulture),
+                candidate.Reason));
         Bands.Clear();
         for (var index = 1; index <= Math.Max(1, sample.BandCount); index++) Bands.Add($"{index} · Bande {index}");
         SelectedBand = Bands.First();
@@ -176,9 +212,9 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         Minimum = sample.Minimum.ToString("G15", CultureInfo.InvariantCulture);
         Maximum = sample.Maximum.ToString("G15", CultureInfo.InvariantCulture);
         SelectedRenderMode = sample.BandCount >= 3 ? "Composition RGB" : sample.IsCategorical ? "Catégoriel" : "Continu";
-        SelectedThemeProfile = sample.BandCount >= 3 ? "Image satellite RGB" : sample.IsCategorical ? "Classification raster" : "Autre carte thématique continue";
-        SelectedPalette = sample.IsCategorical ? "Categorical" : "Continuous";
-        var colors = new[] { "#1F78B4", "#33A02C", "#E31A1C", "#FF7F00", "#6A3D9A", "#B15928", "#A6CEE3", "#B2DF8A", "#FB9A99", "#FDBF6F", "#CAB2D6", "#FFFF99" };
+        SelectedThemeProfile = ThemeLabel(sample.Theme);
+        SelectedPalette = sample.Theme == "rgb" ? "Continuous" : PaletteLabel(sample.Theme, rasterType);
+        var colors = NativeStyleService.ResolvePalette(SelectedPalette, Math.Max(2, sample.IsCategorical ? sample.Frequencies.Count : sample.QuantileBreaks.Count));
         Classes.Clear();
         if (sample.IsCategorical)
         {
@@ -191,7 +227,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                     Visible = true,
                     ValuesText = entry.Key.ToString("G15", CultureInfo.InvariantCulture),
                     Label = entry.Key.ToString("G15", CultureInfo.CurrentCulture),
-                    Color = colors[index++ % colors.Length],
+                    Color = colors[index++ % colors.Count],
                     OpacityPercent = 100,
                     PixelCount = entry.Value,
                     Percentage = 100d * entry.Value / total,
@@ -211,7 +247,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                     Visible = true,
                     ValuesText = $"{lower.ToString("G15", CultureInfo.InvariantCulture)}; {upper.ToString("G15", CultureInfo.InvariantCulture)}",
                     Label = $"{lower:G5} – {upper:G5}",
-                    Color = colors[index++ % colors.Length],
+                    Color = colors[index++ % colors.Count],
                     OpacityPercent = 100,
                     Status = "quantile",
                     ShowInLegend = true,
@@ -322,6 +358,7 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
                         SelectedClassificationMethod,
                         ParseDouble(Minimum, 0),
                         ParseDouble(Maximum, 1),
+                        SelectedPalette,
                         Classes.Where(item => item.Visible)
                             .Select(item => new NativeRasterClassStyle(
                                 item.Values().LastOrDefault(),
@@ -491,10 +528,22 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
 
     private async void SaveStyleClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog { Filter = "Style QGIS (*.qml)|*.qml", FileName = $"Cartomize-{SafeName(_layer.Name)}.qml" };
+        var dialog = new SaveFileDialog { Filter = "Fichier de couche ArcGIS Pro (*.lyrx)|*.lyrx", FileName = $"Cartomize-{SafeName(_layer.Name)}.lyrx" };
         if (dialog.ShowDialog() != true) return;
-        await File.WriteAllTextAsync(dialog.FileName, BuildQmlStyle());
-        StatusText = $"Style QML enregistré : {dialog.FileName}";
+        try
+        {
+            await QueuedTask.Run(() =>
+            {
+                var document = new LayerDocument(_layer);
+                document.Save(dialog.FileName);
+            });
+            StatusText = $"Style ArcGIS Pro enregistré : {dialog.FileName}";
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Raster Engine — enregistrement LYRX", exception);
+            StatusText = exception.Message;
+        }
     }
 
     private static IEnumerable<JsonElement> ReadObjects(JsonElement root, string name)
@@ -533,12 +582,13 @@ public partial class RasterEngineWindow : ProWindow, INotifyPropertyChanged
         return string.Join(" ", key.Split('_').Select(word => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(word)));
     }
 
-    private string BuildQmlStyle()
+    private void RecolorClasses()
     {
-        static string Escape(string value) => System.Security.SecurityElement.Escape(value) ?? string.Empty;
-        var entries = Classes.Where(item => item.Visible).SelectMany(item => item.Values().Select(value =>
-            $"<paletteEntry alpha=\"{Math.Clamp((int)Math.Round(item.OpacityPercent * 2.55), 0, 255)}\" color=\"{Escape(item.Color)}\" label=\"{Escape(item.Label)}\" value=\"{value.ToString("G15", CultureInfo.InvariantCulture)}\"/>"));
-        return $"<?xml version=\"1.0\" encoding=\"UTF-8\"?><qgis version=\"3\" styleCategories=\"Symbology\"><pipe><rasterrenderer opacity=\"1\" alphaBand=\"-1\" band=\"{BandNumber(SelectedBand)}\" type=\"paletted\"><colorPalette>{string.Concat(entries)}</colorPalette></rasterrenderer></pipe></qgis>";
+        if (Classes.Count == 0) return;
+        var colors = NativeStyleService.ResolvePalette(SelectedPalette, Classes.Count);
+        for (var index = 0; index < Classes.Count; index++)
+            Classes[index].Color = colors[index % colors.Count];
+        ClassGrid?.Items.Refresh();
     }
 
     protected override async void OnClosing(CancelEventArgs e)

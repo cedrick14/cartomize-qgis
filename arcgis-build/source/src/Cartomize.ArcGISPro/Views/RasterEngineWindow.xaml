@@ -125,9 +125,9 @@
               <Button Content="Appliquer la symbologie" Click="ApplyRenderingClick" Style="{DynamicResource Esri_Button}" Margin="2" />
               <Button Content="Annuler l’aperçu" Click="CancelPreviewClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
               <Button Content="Rétablir le rendu précédent" Click="UndoRenderingClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
-              <Button Content="Enregistrer le style QML…" Click="SaveStyleClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
+              <Button Content="Enregistrer le style ArcGIS…" Click="SaveStyleClick" Style="{DynamicResource Esri_ButtonBorderless}" Margin="2" />
             </UniformGrid>
-            <TextBlock Text="Le rendu reste réversible et n’écrit jamais dans les pixels. Pour une transformation de données, utilisez explicitement les algorithmes de traitement QGIS."
+            <TextBlock Text="Le rendu reste réversible et n’écrit jamais dans les pixels. Pour transformer les données, utilisez explicitement les outils de géotraitement ArcGIS Pro."
                        TextWrapping="Wrap" Margin="0,8,0,0" />
           </StackPanel>
         </ScrollViewer>

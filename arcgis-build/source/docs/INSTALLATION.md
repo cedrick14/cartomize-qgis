@@ -1,19 +1,16 @@
 # Installation et compilation
 
-## Option A — Utiliser immédiatement la boîte à outils
+## Option A — Installer le complément compilé
 
-Cette option ne nécessite ni Visual Studio ni compilation.
+Cette option ne nécessite ni Visual Studio ni compilation :
 
-1. Décompressez le paquet Cartomize.
-2. Conservez ensemble :
-   - `Cartomize.pyt` ;
-   - `cartomize_core/` ;
-   - `templates_library/`.
-3. Ouvrez un projet ArcGIS Pro 3.7.
-4. Dans le volet **Catalogue**, cliquez droit sur **Boîtes à outils**.
-5. Choisissez **Ajouter une boîte à outils**.
-6. Sélectionnez `Cartomize.pyt`.
-7. Commencez par **Auditer le projet**, puis **Autopilote Cartomize**.
+1. Fermez ArcGIS Pro.
+2. Double-cliquez sur `Cartomize-ArcGISPro-10.5.1.esriAddInX`.
+3. Vérifiez l'auteur, puis cliquez sur **Installer le complément**.
+4. Relancez ArcGIS Pro et ouvrez l'onglet **Cartomize**.
+
+La boîte `toolbox/Cartomize.pyt` du dépôt peut être ajoutée séparément au
+Géotraitement, mais elle n'est pas nécessaire au fonctionnement du DockPane.
 
 ## Option B — Compiler l'interface complète
 

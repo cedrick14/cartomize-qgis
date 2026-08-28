@@ -302,7 +302,7 @@ class QgisParityTests(unittest.TestCase):
             "Appliquer la symbologie", "Ajouter une classe visuelle", "Masquer la sélection",
             "Fusionner visuellement", "Restaurer l’analyse automatique", "Retirer du rendu",
             "Monter", "Descendre", "Prévisualiser", "Appliquer la symbologie",
-            "Annuler l’aperçu", "Rétablir le rendu précédent", "Enregistrer le style QML…", "Fermer",
+            "Annuler l’aperçu", "Rétablir le rendu précédent", "Enregistrer le style ArcGIS…", "Fermer",
         ]
         buttons = list(self.raster_window_root.iter(NS + "Button"))
         self.assertEqual([item.attrib.get("Content") for item in buttons], expected)
@@ -339,11 +339,17 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("LayoutFactory.Instance.CreateLayout", layout)
         self.assertIn("ElementFactory.Instance.CreateMapFrameElement", layout)
         self.assertIn("layout.Export(format)", layout)
-        self.assertIn("raster.GetPixelValue", raster)
+        self.assertIn("raster.CreatePixelBlock", raster)
+        self.assertIn("raster.Read(", raster)
+        self.assertIn("GetPixelData", raster)
+        self.assertIn("GetNoDataMaskValue", raster)
+        self.assertNotIn("raster.GetPixelValue", raster)
         self.assertIn("layer.CreateRenderer", style)
         self.assertIn("layer.CreateColorizer", style)
         self.assertIn("labelClass.SetTextSymbol", style)
         self.assertIn("labelClass.SetMaplexLabelPlacementProperties", style)
+        self.assertIn("new LayerDocument(_layer)", self.raster_window_code)
+        self.assertNotIn("BuildQmlStyle", self.raster_window_code)
 
     def test_qgis_palette_is_passed_to_the_native_arcgis_renderer(self):
         style = self.native_services["NativeStyleService"]
@@ -353,6 +359,32 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("ApplyRasterPalette(colorizer, palette)", style)
         apply_call = self.view_model.split("await NativeStyleService.ApplyAsync(", 1)[1].split(");", 1)[0]
         self.assertIn("SelectedPalette", apply_call)
+
+    def test_vector_profile_ports_qgis_10_5_1_evidence(self):
+        vector = self.native_services["NativeLayerService"]
+        for evidence in (
+            "NullPercent", "UniqueRatio", "Median", "Mean", "Skewness",
+            "RecommendedUse", "SampledFeatures", "InvalidGeometryCount",
+            "EmptyGeometryCount", "MultipartCount", "DuplicateGeometryCount",
+            "RoleConfidence", "GeometryEngine.Instance.IsSimpleAsFeature",
+            "shape.ToJson()", "identifier_or_label", "diverging_quantitative",
+        ):
+            self.assertIn(evidence, vector)
+        for multilingual_hint in ("población", "população", "ocupación", "ocupação", "município"):
+            self.assertIn(multilingual_hint, vector)
+
+    def test_raster_profile_uses_spatial_blocks_and_qgis_evidence(self):
+        raster = self.native_services["NativeRasterAnalysisService"]
+        style = self.native_services["NativeStyleService"]
+        for evidence in (
+            "NoDataCandidates", "AnomalousValues", "PossibleMissingCodes",
+            "BorderPercentage", "CenterPercentage", "CornerPercentage",
+            "ThemeConfidence", "ObservedUniqueCount", "ProfileLimited",
+        ):
+            self.assertIn(evidence, raster)
+        self.assertIn("ResolvePalette(SelectedPalette", self.raster_window_code)
+        self.assertIn("string Palette", style)
+        self.assertIn("ApplyRasterPalette(colorizer, request.Palette)", style)
 
     def test_default_layer_selection_prefers_data_over_basemap(self):
         self.assertIn("LayerChoices.FirstOrDefault(item => !item.IsBasemap)", self.view_model)

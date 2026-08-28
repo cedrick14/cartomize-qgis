@@ -13,6 +13,7 @@ internal sealed record NativeRasterStyleRequest(
     string ClassificationMethod,
     double Minimum,
     double Maximum,
+    string Palette,
     IReadOnlyList<NativeRasterClassStyle> Classes);
 
 /// <summary>
@@ -35,6 +36,29 @@ internal static class NativeStyleService
 
     private static readonly string[] DivergingPalette =
         ["#7f1d1d", "#ef4444", "#f8fafc", "#3b82f6", "#1e3a8a"];
+
+    private static readonly IReadOnlyDictionary<string, string[]> RasterPalettes =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Land Cover"] = ["#1B5E20", "#7CB342", "#F9A825", "#8D6E63", "#D32F2F", "#1565C0", "#90A4AE"],
+            ["Forest Dynamics"] = ["#1B5E20", "#D32F2F", "#F57C00", "#66BB6A", "#9E9E9E"],
+            ["Deforestation"] = ["#1B5E20", "#D32F2F", "#81C784", "#BDBDBD"],
+            ["Forest Degradation"] = ["#0B5D1E", "#A5D66A", "#F9A825", "#D84315", "#BDBDBD"],
+            ["Land Cover Change"] = ["#546E7A", "#2E7D32", "#C62828", "#F9A825", "#1565C0"],
+            ["Ndvi"] = ["#8B0000", "#D73027", "#FEE08B", "#D9EF8B", "#1A9850", "#006837"],
+            ["Elevation"] = ["#1B7837", "#7FBF7B", "#DFC27D", "#A6611A", "#8C6D5A", "#FFFFFF"],
+            ["Slope"] = ["#FFFFE5", "#FFF7BC", "#FEC44F", "#D95F0E", "#7F2704"],
+            ["Temperature"] = ["#313695", "#4575B4", "#74ADD1", "#FEE090", "#F46D43", "#A50026"],
+            ["Precipitation"] = ["#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B"],
+            ["Risk"] = ["#FFFFCC", "#FFEDA0", "#FEB24C", "#F03B20", "#BD0026"],
+            ["Probability"] = ["#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B"],
+            ["Categorical"] = ["#2E7D32", "#F9A825", "#1565C0", "#8D6E63", "#6A1B9A", "#546E7A"],
+            ["Population"] = ["#FFF5EB", "#FDD0A2", "#FDAE6B", "#E6550D", "#A63603"],
+            ["Water"] = ["#F7FBFF", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B"],
+            ["Continuous"] = ["#440154", "#3B528B", "#21918C", "#5EC962", "#FDE725"],
+            ["Diverging"] = ["#7F1D1D", "#EF4444", "#F8FAFC", "#3B82F6", "#1E3A8A"],
+            ["Gray"] = ["#000000", "#404040", "#808080", "#BFBFBF", "#FFFFFF"],
+        };
 
     public static Task ApplyRasterAsync(RasterLayer layer, NativeRasterStyleRequest request)
         => QueuedTask.Run(() =>
@@ -71,6 +95,7 @@ internal static class NativeStyleService
                 stretch.CustomStretchMin = request.Minimum;
                 stretch.CustomStretchMax = request.Maximum;
             }
+            ApplyRasterPalette(colorizer, request.Palette);
             if (colorizer is CIMRasterClassifyColorizer classify && request.Classes.Count > 0)
             {
                 classify.MinimumBreak = request.Minimum;
@@ -243,9 +268,7 @@ internal static class NativeStyleService
 
     private static void ApplyRasterPalette(CIMRasterColorizer colorizer, string palette)
     {
-        var source = IsDiverging(palette) ? DivergingPalette
-            : palette.Contains("Qualitative", StringComparison.OrdinalIgnoreCase) ? QualitativePalette
-            : SequentialPalette;
+        var source = ResolvePalette(palette, 0);
         if (colorizer is CIMRasterClassifyColorizer classified)
         {
             var breaks = classified.ClassBreaks ?? [];
@@ -260,14 +283,24 @@ internal static class NativeStyleService
             foreach (var group in unique.Groups ?? [])
             foreach (var item in group.Classes ?? [])
             {
-                item.Color = ParseColor(source[index % source.Length]);
+                item.Color = ParseColor(source[index % source.Count]);
                 index++;
             }
         }
     }
 
+    internal static IReadOnlyList<string> ResolvePalette(string palette, int count)
+    {
+        IReadOnlyList<string> source = RasterPalettes.TryGetValue(palette ?? string.Empty, out var rasterPalette)
+            ? rasterPalette
+            : IsDiverging(palette) ? DivergingPalette
+            : palette.Contains("Qualitative", StringComparison.OrdinalIgnoreCase) ? QualitativePalette
+            : SequentialPalette;
+        return count > 0 ? Resample(source, count) : source;
+    }
+
     private static bool IsDiverging(string palette)
-        => palette.Contains("Diverg", StringComparison.OrdinalIgnoreCase);
+        => (palette ?? string.Empty).Contains("Diverg", StringComparison.OrdinalIgnoreCase);
 
     private static IReadOnlyList<string> Resample(IReadOnlyList<string> palette, int count)
     {
