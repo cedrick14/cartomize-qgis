@@ -630,7 +630,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         var pane = await ActivateSelectedLayoutPaneAsync();
         if (pane is not null)
         {
-            await QueuedTask.Run(pane.LayoutView.ZoomToWholePage);
+            await QueuedTask.Run(() => pane.LayoutView.ZoomToWholePage());
             StatusText = $"Mise en page ouverte : {SelectedLayoutName}";
         }
     }
