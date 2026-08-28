@@ -1,6 +1,7 @@
 using System.IO;
 using ArcGIS.Desktop.Core.Geoprocessing;
 using ArcGIS.Desktop.Framework.Dialogs;
+using ArcGIS.Desktop.Framework.Threading.Tasks;
 
 namespace Cartomize.ArcGISPro.Services;
 
@@ -49,8 +50,7 @@ internal static class GeoprocessingService
                 toolPath,
                 Geoprocessing.MakeValueArray(values),
                 null,
-                CancellationToken.None,
-                null,
+                CancelableProgressor.None,
                 GPExecuteToolFlags.RefreshProjectItems |
                 GPExecuteToolFlags.AddToHistory |
                 GPExecuteToolFlags.GPThread);
