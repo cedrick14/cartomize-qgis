@@ -87,6 +87,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     protected CartomizeDockPaneViewModel()
     {
+        StartupGuard.EnsureInitialized("Construction du modèle de vue Cartomize");
+        StartupGuard.Stage("Initialisation des listes");
         foreach (var item in ObjectiveChoices()) Objectives.Add(item);
         foreach (var item in StyleProfileChoices()) StyleProfiles.Add(item);
         foreach (var item in new[] { "Symbole unique", "Catégorisé", "Gradué — quantiles" }) RenderModes.Add(item);
@@ -94,8 +96,8 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         foreach (var item in new[] { "Automatique selon la géométrie", "Autour du point", "Sur le point", "Le long de la ligne", "Courbe", "Horizontal", "Libre" }) PlacementChoices.Add(item);
         _selectedObjective = Objectives.FirstOrDefault();
         _selectedStyleProfile = StyleProfiles.FirstOrDefault();
-        LoadTemplateCatalog();
 
+        StartupGuard.Stage("Initialisation des commandes");
         AnalyzeAutomationCommand = new AsyncDelegateCommand(AnalyzeAutomationAsync, () => !IsBusy);
         AutopilotCommand = new AsyncDelegateCommand(GenerateSelectedVariantAsync, () => SelectedProposal is not null && !IsBusy);
         GenerateAllCommand = new AsyncDelegateCommand(GenerateAllVariantsAsync, () => Proposals.Count > 0 && !IsBusy);
@@ -133,7 +135,7 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
         OpenCommunityResourceCommand = new DelegateCommand(OpenSelectedCommunityResource);
         CommunityCommand = new DelegateCommand(() => OpenUrl("https://cartomizeplugin.com/"));
         DiagnosticsCommand = new AsyncDelegateCommand(RunDiagnosticsAsync, () => !IsBusy);
-
+        StartupGuard.Stage("Construction du modèle de vue terminée");
     }
 
     public ObservableCollection<string> MapNames { get; } = [];
@@ -276,14 +278,32 @@ internal sealed class CartomizeDockPaneViewModel : DockPane
 
     protected override async Task InitializeAsync()
     {
-        await RefreshProjectSafelyAsync();
+        StartupGuard.Stage("InitializeAsync commencé");
+        try
+        {
+            LoadTemplateCatalog();
+            StartupGuard.Stage("Catalogue des maquettes chargé");
+            await RefreshProjectSafelyAsync();
+            StartupGuard.Stage("Projet ArcGIS Pro actualisé");
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Initialisation du dockpane Cartomize", exception);
+            await SetStatusSafelyAsync($"Initialisation incomplète : {exception.Message}");
+        }
+        finally
+        {
+            StartupGuard.Stage("InitializeAsync terminé");
+        }
     }
 
     public static void Show()
     {
+        StartupGuard.Stage("DockPaneManager.Find appelé");
         var pane = FrameworkApplication.DockPaneManager.Find(DockPaneId)
                    ?? throw new InvalidOperationException(
                        "Le panneau Cartomize n’a pas pu être créé par ArcGIS Pro.");
+        StartupGuard.Stage("Dockpane trouvé, activation demandée");
         pane.Activate();
     }
 

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Reflection;
 using ArcGIS.Desktop.Framework;
+using Cartomize.ArcGISPro.Services;
 
 namespace Cartomize.ArcGISPro;
 
@@ -33,6 +34,20 @@ internal sealed class Module : ArcGIS.Desktop.Framework.Contracts.Module
             var directory = Path.Combine(root, "ESRI", "Cartomize", "10.5.1");
             Directory.CreateDirectory(directory);
             return directory;
+        }
+    }
+
+    protected override bool Initialize()
+    {
+        StartupGuard.EnsureInitialized("Initialisation du module Cartomize");
+        try
+        {
+            return base.Initialize();
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Write("Initialisation du module ArcGIS Pro", exception);
+            return false;
         }
     }
 

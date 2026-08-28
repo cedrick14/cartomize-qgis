@@ -16,6 +16,7 @@ VIEW_MODEL = ROOT / "src/Cartomize.ArcGISPro/Views/CartomizeDockPaneViewModel.cs
 BUTTONS = ROOT / "src/Cartomize.ArcGISPro/Commands/Buttons.cs"
 COMMANDS = ROOT / "src/Cartomize.ArcGISPro/Views/DelegateCommand.cs"
 DIAGNOSTIC_LOG = ROOT / "src/Cartomize.ArcGISPro/Services/DiagnosticLog.cs"
+STARTUP_GUARD = ROOT / "src/Cartomize.ArcGISPro/Services/StartupGuard.cs"
 CSPROJ = ROOT / "src/Cartomize.ArcGISPro/Cartomize.ArcGISPro.csproj"
 TOOLBOX = ROOT / "toolbox/Cartomize.pyt"
 PUBLIC_API = ROOT / "tests/qgis_public_api_10_5_1.json"
@@ -54,6 +55,7 @@ class QgisParityTests(unittest.TestCase):
         cls.buttons = BUTTONS.read_text(encoding="utf-8")
         cls.commands = COMMANDS.read_text(encoding="utf-8")
         cls.diagnostic_log = DIAGNOSTIC_LOG.read_text(encoding="utf-8")
+        cls.startup_guard = STARTUP_GUARD.read_text(encoding="utf-8")
         cls.csproj = CSPROJ.read_text(encoding="utf-8")
         cls.toolbox = TOOLBOX.read_text(encoding="utf-8")
 
@@ -160,14 +162,23 @@ class QgisParityTests(unittest.TestCase):
         self.assertIn("DiagnosticLog.FilePath", self.view_code)
         self.assertIn("try", self.buttons)
         self.assertIn('DiagnosticLog.Write("Ouverture du panneau Cartomize", exception)', self.buttons)
+        self.assertIn('StartupGuard.EnsureInitialized("Clic sur Ouvrir Cartomize")', self.buttons)
+        self.assertLess(self.buttons.index("StartupGuard.EnsureInitialized"), self.buttons.index("CartomizeDockPaneViewModel.Show"))
         self.assertIn("catch (Exception exception)", self.commands)
         self.assertIn('DiagnosticLog.Write("Commande asynchrone Cartomize", exception)', self.commands)
         self.assertIn('"ESRI"', self.diagnostic_log)
         self.assertIn('"10.5.1"', self.diagnostic_log)
         self.assertIn('"cartomize.log"', self.diagnostic_log)
+        self.assertIn("DispatcherUnhandledException", self.startup_guard)
+        self.assertIn("args.Handled = true", self.startup_guard)
+        self.assertIn("TaskScheduler.UnobservedTaskException", self.startup_guard)
         self.assertIn("protected override async Task InitializeAsync()", self.view_model)
         self.assertIn("RefreshProjectSafelyAsync", self.view_model)
         self.assertIn("RefreshLayerFieldsSafelyAsync", self.view_model)
+        constructor = self.view_model.split("protected CartomizeDockPaneViewModel()", 1)[1].split("public ObservableCollection", 1)[0]
+        self.assertNotIn("LoadTemplateCatalog();", constructor)
+        initialize = self.view_model.split("protected override async Task InitializeAsync()", 1)[1].split("public static void Show()", 1)[0]
+        self.assertIn("LoadTemplateCatalog();", initialize)
 
     def test_arcgis_pro_37_runtime_contract(self):
         self.assertIn("<TargetFramework>net10.0-windows</TargetFramework>", self.csproj)

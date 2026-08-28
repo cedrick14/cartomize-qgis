@@ -8,9 +8,13 @@ public partial class CartomizeDockPaneView : UserControl
 {
     public CartomizeDockPaneView()
     {
+        StartupGuard.EnsureInitialized("Construction de la vue Cartomize");
         try
         {
+            StartupGuard.Stage("Chargement XAML commencé");
             InitializeComponent();
+            StartupGuard.Stage("Chargement XAML terminé");
+            Loaded += (_, _) => StartupGuard.Stage("Vue Cartomize affichée");
         }
         catch (Exception exception)
         {

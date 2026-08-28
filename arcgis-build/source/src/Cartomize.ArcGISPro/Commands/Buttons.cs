@@ -9,9 +9,12 @@ internal sealed class OpenDockPaneButton : Button
 {
     protected override void OnClick()
     {
+        StartupGuard.EnsureInitialized("Clic sur Ouvrir Cartomize");
         try
         {
+            StartupGuard.Stage("Recherche du dockpane");
             CartomizeDockPaneViewModel.Show();
+            StartupGuard.Stage("Activation du dockpane terminée");
         }
         catch (Exception exception)
         {
