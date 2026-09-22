@@ -6,7 +6,7 @@ Bibliothèque Python de cartographie et d'analyse spatiale, dérivée des source
 de **Cartomize for ArcGIS Pro 10.5.1**, par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.1.0a1 : première version alpha.** Elle reprend les règles Python
+**Version 0.2.0a1 : version alpha avec préparation d’images multiscènes.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.1.0a1-py3-none-any.whl
+python -m pip install cartomize-0.2.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -58,6 +58,36 @@ carte.add_layer("occupation.tif", name="Occupation du sol", classes={
 })
 carte.export("occupation.png", dpi=300)
 ```
+
+## Des scènes satellite à la carte
+
+La nouvelle chaîne reconnaît les bandes Landsat C2 L2 et Sentinel-2 L2A,
+aligne les grilles, applique les facteurs de calibration et masques de qualité,
+assemble les scènes en GeoTIFF multibande et découpe selon la zone d'étude.
+Elle exporte aussi l'origine des pixels et un rapport de couverture.
+
+```python
+scenes = cm.discover_scenes("donnees/scenes")
+image = cm.prepare_imagery(
+    scenes, "resultats/multibande.tif", aoi="zone.gpkg",
+    band_order=["blue", "green", "red", "nir"],
+    target_crs="EPSG:32733",  # À adapter à votre zone.
+)
+carte = cm.compose_map([
+    {"data": "routes.gpkg", "name": "Routes"},
+    {"data": "localites.gpkg", "name": "Localités", "labels": "auto"},
+    {"data": image.path, "rgb": "natural"},
+], aoi="zone.gpkg", title="Ma carte")
+carte.export("resultats/carte.pdf")
+```
+
+Les couches sont ordonnées automatiquement par rôle; `role` et `zorder`
+permettent de corriger l'inférence. Une composition colorée n'est pas une
+classification d'occupation du sol. Les sources sans métadonnées reconnues
+peuvent être décrites explicitement par `Scene` et `Band`.
+
+Voir le [guide détaillé et les principes cartographiques](docs/IMAGERY_WORKFLOW.md)
+et la démonstration `python examples/imagery_workflow.py`.
 
 ## Traitements vectoriels compatibles avec GeoPandas
 
@@ -94,7 +124,7 @@ diagnostic = cm.raster.inspect("classes.tif")
 `ndvi` exige les numéros réels des bandes, à partir de 1; il ne devine pas le
 capteur. Les facteurs d'échelle et décalages GDAL sont appliqués; utiliser
 `scale=` et `offset=` si le produit les fournit séparément. `raster.clip` et
-`raster.reproject` complètent les traitements. Les transformations écrivent
+`raster.reproject` complètent les traitements. Les transformations de ce module écrivent
 une seule bande; elles ne modifient pas les fichiers sources.
 
 Les masques, NoData, NaN et Inf sont exclus des calculs. Un zéro valide est

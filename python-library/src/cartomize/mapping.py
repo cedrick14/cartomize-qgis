@@ -21,6 +21,8 @@ import matplotlib.patheffects as path_effects
 
 from ._validation import frame, output_path
 from .templates import layout_plan
+from .composition import ORDER, COLORS, infer_role, default_label
+from .color import read_rgb, resolve_rgb
 
 
 @dataclass
@@ -39,6 +41,11 @@ class Layer:
     alpha: float = 1.0
     legend: bool = True
     style: dict = field(default_factory=dict)
+    role: str = "thematic"
+    zorder: float | None = None
+    rgb: str | tuple | None = None
+    percentiles: tuple = (2,98)
+    gamma: float = 1.0
 
 
 def _extent(bounds):
@@ -56,12 +63,13 @@ class Map:
     """
 
     def __init__(self, *, title="", subtitle="", credits="", crs=None,
-                 format="A4", orientation="landscape", template=None):
+                 format="A4", orientation="landscape", template=None, auto_order=True):
         if format not in {"A4", "A3"} or orientation not in {"landscape", "portrait"}:
             raise ValueError("Use A4/A3 and landscape/portrait.")
         self.title, self.subtitle, self.credits = title, subtitle, credits
         self.crs = CRS.from_user_input(crs) if crs is not None else None
         self.layers: list[Layer] = []
+        self.auto_order = bool(auto_order)
         self.plan = layout_plan(template) if template else None
         width, height = (210, 297) if format == "A4" else (297, 420)
         if orientation == "landscape":
@@ -77,8 +85,9 @@ class Map:
         return [i.item_id for i in self.plan.map_items] if self.plan else ["main"]
 
     def add_layer(self, data, *, name=None, kind=None, column=None, labels=None,
-                  color="#56866c", cmap="viridis", categorical=False, classes=None,
-                  band=1, alpha=1.0, legend=True, **style):
+                  color=None, cmap="viridis", categorical=False, classes=None,
+                  band=1, alpha=1.0, legend=None, role=None, zorder=None,
+                  rgb=None, percentiles=(2,98), gamma=1.0, **style):
         """Add vector data or a raster path; classes={code: (label, color)}.
 
         Use kind='raster' for raster formats without a .tif/.tiff/.vrt suffix.
@@ -87,14 +96,18 @@ class Map:
         if not 0 <= alpha <= 1:
             raise ValueError("alpha must be between zero and one.")
         if kind is None:
-            kind = "raster" if isinstance(data, (str, Path)) and Path(data).suffix.lower() in {".tif", ".tiff", ".vrt", ".img"} else "vector"
+            kind = "raster" if isinstance(data, (str, Path)) and Path(data).suffix.lower() in {".tif", ".tiff", ".vrt", ".img", ".jp2"} else "vector"
         if kind not in {"raster", "vector"}:
             raise ValueError("kind must be raster or vector.")
         layer_name = name or (Path(data).stem if isinstance(data, (str, Path)) else f"Layer {len(self.layers)+1}")
         if layer_name in {l.name for l in self.layers}:
             raise ValueError("Each layer needs a unique name.")
         if kind == "vector":
+            if rgb is not None:
+                raise ValueError("RGB compositions require a raster layer.")
             data = frame(data)
+            if labels == "auto":
+                labels = default_label(data)
             for field_name in (column, labels):
                 if field_name and field_name not in data.columns:
                     raise KeyError(field_name)
@@ -107,11 +120,47 @@ class Map:
                     raise ValueError("Raster has no CRS.")
                 if not isinstance(band, int) or not 1 <= band <= src.count:
                     raise ValueError("Invalid raster band.")
+                if rgb is None and src.count >= 3 and src.dtypes[:3] == ("uint8",)*3 and tuple(c.name for c in src.colorinterp[:3]) == ("red","green","blue"):
+                    rgb = "native"
+                if rgb is not None:
+                    resolve_rgb(src,rgb)
+                    if classes or column:
+                        raise ValueError("RGB display cannot also use categorical or single-band styling.")
                 layer_crs = src.crs
+        role = role or infer_role(layer_name,kind,data.geom_type.dropna() if kind=="vector" else (),column=column,classes=classes,rgb=rgb)
+        if role not in ORDER:
+            raise ValueError(f"Unknown cartographic role. Choose from {list(ORDER)}.")
+        if zorder is not None and not np.isfinite(zorder):
+            raise ValueError("zorder must be finite.")
+        color = color if color is not None else COLORS[role]
+        if kind=="vector" and role=="localities" and labels is None:
+            labels=default_label(data)
+        if kind=="vector" and role=="boundaries" and not column:
+            style.setdefault("edgecolor",color)
+            style.setdefault("linewidth",1.1)
+            if data.geom_type.dropna().str.contains("Polygon").all():
+                color="none"
+        if kind=="vector" and role=="roads":
+            style.setdefault("linewidth",1.1)
+            style.setdefault("path_effects",[path_effects.withStroke(linewidth=2.2,foreground="#ffffff")])
         if self.crs is None:
             self.crs = CRS.from_user_input(layer_crs)
-        self.layers.append(Layer(data, layer_name, kind, column, labels, color, cmap,
-                                 categorical, dict(classes or {}), band, alpha, legend, style))
+        self.layers.append(Layer(data=data,name=layer_name,kind=kind,column=column,labels=labels,color=color,cmap=cmap,
+                                 categorical=categorical,classes=dict(classes or {}),band=band,alpha=alpha,
+                                 legend=(rgb is None) if legend is None else legend,style=style,role=role,zorder=zorder,
+                                 rgb=rgb,percentiles=tuple(percentiles),gamma=gamma))
+        return self
+
+    def layer_plan(self):
+        """Explain the effective layer order from bottom to top."""
+        result=[{"name":l.name,"kind":l.kind,"role":l.role,"labels":l.labels,
+                 "zorder":l.zorder if l.zorder is not None else ORDER[l.role] if self.auto_order else i,
+                 "insertion_index":i} for i,l in enumerate(self.layers)]
+        return sorted(result,key=lambda r:(r["zorder"],r["insertion_index"]))
+
+    def add_layers(self,layers):
+        for item in layers:
+            self.add_layer(**item) if isinstance(item,dict) else self.add_layer(item)
         return self
 
     def set_extent(self, bounds):
@@ -179,7 +228,7 @@ class Map:
             fig.set_facecolor(self.plan.background_color)
         else:
             landscape = self.width > self.height
-            map_items = [("main", (12, 38, self.width-82 if landscape else self.width-24,
+            map_items = [("main", (16, 38, self.width-86 if landscape else self.width-28,
                                     self.height-55 if landscape else self.height-99))]
         for ident, box in map_items:
             ax = self._axes(fig, box)
@@ -216,6 +265,8 @@ class Map:
 
     def _draw_layers(self, ax, layers, crs, bounds, max_size):
         legends, annotations = [], []
+        priorities={r["name"]:r["zorder"] for r in self.layer_plan()}
+        layers=sorted(layers,key=lambda l:priorities[l.name])
         automatic_extent = bounds is None
         initial_position = ax.get_position(original=True)
         frame_ratio = (initial_position.width*ax.figure.bbox.width /
@@ -245,7 +296,7 @@ class Map:
                 data = data.loc[present]
                 if data.empty:
                     continue
-                style = dict(alpha=layer.alpha, aspect=None)
+                style = dict(alpha=layer.alpha, aspect=None,zorder=priorities[layer.name])
                 kinds = set(data.geom_type)
                 point = all("Point" in kind for kind in kinds)
                 line = all("Line" in kind for kind in kinds)
@@ -273,7 +324,7 @@ class Map:
                     entries = [(layer.name, layer.color)]
                 if layer.legend:
                     for label, color in entries:
-                        handle = Line2D([], [], marker="o", linestyle="none", color=color, markersize=5, label=str(label)) if point else Line2D([], [], color=color, label=str(label)) if line else Patch(facecolor=color, edgecolor="#64706b", linewidth=.3, label=str(label))
+                        handle = Line2D([], [], marker="o", linestyle="none", color=color, markersize=5, label=str(label)) if point else Line2D([], [], color=color, label=str(label)) if line else Patch(facecolor=color, edgecolor=style.get("edgecolor","#64706b"), linewidth=max(.3,style.get("linewidth",.3)), label=str(label))
                         legends.append(("discrete", handle))
                 if layer.labels:
                     for geometry, text in zip(data.geometry, data[layer.labels]):
@@ -282,8 +333,15 @@ class Map:
                         p = geometry.representative_point()
                         annotations.append((p.x, p.y, str(text)))
             else:
+                if layer.rgb is not None:
+                    rgba,extent,_=read_rgb(layer.data,bands=layer.rgb,crs=crs,max_size=max_size,
+                                          percentiles=layer.percentiles,gamma=layer.gamma)
+                    ax.imshow(rgba,extent=extent,origin="upper",alpha=layer.alpha,interpolation="nearest",zorder=priorities[layer.name])
+                    if layer.legend:
+                        legends.append(("discrete",Patch(facecolor="#c6d2ca",label=layer.name)))
+                    continue
                 with rasterio.open(layer.data) as src:
-                    with WarpedVRT(src, crs=crs, dtype="float64", nodata=np.nan) as vrt:
+                    with WarpedVRT(src, crs=crs, dtype="float64", nodata=np.nan, UNIFIED_SRC_NODATA="NO") as vrt:
                         ratio = min(1, max_size/max(vrt.width, vrt.height))
                         data = np.ma.masked_invalid(vrt.read(layer.band, masked=True,
                                      out_shape=(max(1, int(vrt.height*ratio)), max(1, int(vrt.width*ratio)))))
@@ -298,12 +356,12 @@ class Map:
                         raise ValueError(f"Layer {layer.name}: class labels/colors are missing for observed values.")
                     cmap = ListedColormap([layer.classes[k][1] for k in keys])
                     norm = BoundaryNorm(np.arange(len(keys)+1)-.5, len(keys))
-                    ax.imshow(display, extent=extent, origin="upper", cmap=cmap, norm=norm, alpha=layer.alpha, interpolation="nearest")
+                    ax.imshow(display, extent=extent, origin="upper", cmap=cmap, norm=norm, alpha=layer.alpha, interpolation="nearest",zorder=priorities[layer.name])
                     if layer.legend:
                         legends.extend(("discrete", Patch(facecolor=layer.classes[k][1], label=str(layer.classes[k][0]))) for k in keys)
                 else:
                     cmap = colormaps[layer.cmap]
-                    artist = ax.imshow(data, extent=extent, origin="upper", cmap=cmap, alpha=layer.alpha, interpolation="nearest")
+                    artist = ax.imshow(data, extent=extent, origin="upper", cmap=cmap, alpha=layer.alpha, interpolation="nearest",zorder=priorities[layer.name])
                     if layer.legend:
                         legends.append(("continuous", layer.name, cmap, artist.norm))
         if bounds and automatic_extent:
@@ -341,6 +399,7 @@ class Map:
                 continue
             text = ax.annotate(label, (x, y), xytext=(4, 4), textcoords="offset points",
                                fontsize=7, color="#182d35", clip_on=True,
+                               zorder=max(priorities.values(),default=0)+100,
                                path_effects=[path_effects.withStroke(linewidth=2, foreground="white")])
             box = text.get_window_extent(ax.figure.canvas.get_renderer()).expanded(1.08, 1.12)
             if any(box.overlaps(previous) for previous in occupied):
@@ -391,12 +450,12 @@ class Map:
         pixels = 22*ax.figure.dpi/72
         dx, dy = delta[0]*pixels/ax.bbox.width, delta[1]*pixels/ax.bbox.height
         tip = (position[0]+dx, position[1]+dy)
-        arrow = ax.annotate("", xy=tip, xytext=position, annotation_clip=False,
+        arrow = ax.annotate("", xy=tip, xytext=position, annotation_clip=False,zorder=1_000_000,
                     xycoords="axes fraction", textcoords="axes fraction",
                     arrowprops={"arrowstyle": "-|>", "color": "#182d35", "lw": 1.4})
         arrow.arrow_patch.set_path_effects([path_effects.withStroke(linewidth=3, foreground="white")])
         ax.annotate("N", tip, xycoords="axes fraction", xytext=(0, 3), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=9, weight="bold", annotation_clip=False,
+                    ha="center", va="bottom", fontsize=9, weight="bold", annotation_clip=False,zorder=1_000_000,
                     bbox={"facecolor": "white", "alpha": .8, "edgecolor": "none", "pad": 1})
 
     def _scale(self, ax, crs, position=(.06, .06), length_fraction=.22):
@@ -422,10 +481,10 @@ class Map:
             else:
                 high = mid
         end = x+(low+high)/2
-        line, = ax.plot([x, end], [y, y], color="#182d35", linewidth=2, marker="|", markersize=7, clip_on=False)
+        line, = ax.plot([x, end], [y, y], color="#182d35", linewidth=2, marker="|", markersize=7, clip_on=False,zorder=1_000_000)
         line.set_path_effects([path_effects.withStroke(linewidth=4, foreground="white")])
         label = f"{nice/1000:g} km" if nice >= 1000 else f"{nice:g} m"
-        ax.annotate(label, ((x+end)/2, y), xytext=(0, 5), textcoords="offset points", ha="center", fontsize=7,
+        ax.annotate(label, ((x+end)/2, y), xytext=(0, 5), textcoords="offset points", ha="center", fontsize=7,zorder=1_000_000,
                     bbox={"facecolor": "white", "alpha": .85, "edgecolor": "none", "pad": 1}, annotation_clip=False)
 
     def _draw_template(self, fig, axes, legends, crss):

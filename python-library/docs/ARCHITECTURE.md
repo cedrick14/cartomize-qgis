@@ -1,4 +1,4 @@
-# Architecture et périmètre 0.1.0a1
+# Architecture et périmètre 0.2.0a1
 
 ## Base retrouvée
 
@@ -13,7 +13,7 @@ natifs Esri et une boîte à outils Python ArcPy. La bibliothèque reprend les
 modules Python indépendants d'ArcPy et les maquettes de cette édition.
 Les dix modules repris sont conservés dans `_core`, à usage interne.
 Leur version interne 10.5.1 exprime leur provenance; la version du nouveau
-paquet est 0.1.0a1. Les fichiers originaux ne sont pas modifiés.
+paquet est 0.2.0a1. Les fichiers originaux ne sont pas modifiés.
 
 ## Fonctionnalités
 
@@ -26,6 +26,8 @@ paquet est 0.1.0a1. Les fichiers originaux ne sont pas modifiés.
 | Géométrie | GeoPandas/Shapely : clip, overlay, sjoin, dissolve, buffer, réparation et audit |
 | Mesures | Distances en mètres, surfaces m²/ha/km² et conversion des unités projetées |
 | Raster | NDVI/différence normalisée, reclassification, découpage, reprojection, statistiques zonales, surfaces et transitions |
+| Imagerie | Découverte des scènes, calibration, masques, mosaïque cohérente, multibande, AOI, compositions RGB/RGBA et traçabilité |
+| Superposition | Ordre par rôle, styles des routes/limites/localités et explication par layer_plan |
 | Production | Atlas, CLI, wheel, distribution source et procédure PyPI |
 
 ## Choix techniques
@@ -34,7 +36,7 @@ paquet est 0.1.0a1. Les fichiers originaux ne sont pas modifiés.
 - Objets GeoPandas standards, sans nouvelle classe concurrente de GeoDataFrame.
 - CRS explicite, entrées copiées pour les opérations vectorielles.
 - Masques déclarés prioritaires; les suggestions heuristiques restent un diagnostic.
-- Écritures raster temporaires puis remplacement atomique, sources protégées.
+- Écritures raster temporaires puis remplacement atomique de chaque fichier, sources protégées. Les trois fichiers d’un produit multiscène sont remplacés successivement; une panne système pendant cette phase peut interrompre la livraison du groupe.
 - Les grands calculs NDVI/reclassification et comptages sont lus par fenêtres.
 - Les exports utilisent des images raster rééchantillonnées à 2048 pixels par
   dimension par défaut. `max_raster_size` ajuste cette limite d'affichage.
@@ -71,3 +73,6 @@ comme réussies avant d'avoir consulté leurs résultats.
 - https://geopandas.org/en/stable/docs/reference/api/geopandas.sjoin.html
 - https://rasterio.readthedocs.io/en/stable/topics/masks.html
 - https://packaging.python.org/en/latest/tutorials/packaging-projects/
+
+Le [guide imagerie](IMAGERY_WORKFLOW.md) précise les formats reconnus, les masques,
+les contraintes scientifiques et les fonctionnalités encore à développer.
