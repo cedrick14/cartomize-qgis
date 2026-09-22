@@ -6,7 +6,7 @@ Bibliothèque Python de cartographie et d'analyse spatiale, dérivée des source
 de **Cartomize for ArcGIS Pro 10.5.1**, par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.2.0a1 : version alpha avec préparation d’images multiscènes.** Elle reprend les règles Python
+**Version 0.3.0a1 : version alpha avec interface graphique et algèbre raster.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,11 +23,61 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.2.0a1-py3-none-any.whl
+python -m pip install cartomize-0.3.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
 réseau n'est nécessaire pour traiter des fichiers locaux après installation.
+
+## Interface graphique
+
+```bash
+python -m pip install ".[gui]"
+cartomize gui
+```
+
+Depuis Python :
+
+```python
+import cartomize as cm
+cm.launch()
+```
+
+La fenêtre comprend **Indices spectraux**, **Calculatrice raster**,
+**Statistiques focales**, **Statistiques multirasters**, **Prétraitement
+multispectral** et **Composition cartographique**. Les calculs s'exécutent en
+arrière-plan, avec progression et annulation des traitements raster.
+L'import Python reste utilisable sans interface ni dépendance Qt.
+
+Voir le [guide de l'interface graphique](docs/DESKTOP.md).
+
+## Algèbre raster et indices spectraux
+
+```python
+import cartomize as cm
+
+cm.spectral_indices("multibande.tif", "indices.tif",
+                    ["NDVI", "EVI", "SAVI", "NDMI"], workers=4)
+cm.calculate("where((nir-red)/(nir+red) > 0.4, 1, 0)",
+             {"nir": ("multibande.tif", 4), "red": ("multibande.tif", 3)},
+             "seuil.tif")
+cm.focal("ndvi.tif", "moyenne_locale.tif", statistic="mean", size=5)
+cm.reduce_rasters(["ndvi_2020.tif", "ndvi_2026.tif"], "moyenne_temporelle.tif")
+```
+
+Le catalogue comprend 18 indices documentés et accepte des définitions
+supplémentaires avec `register_index`. Le calculateur accepte des expressions
+arithmétiques, logiques, conditionnelles et statistiques. Les bandes doivent
+être nommées ou affectées explicitement, et leurs valeurs correctement calibrées.
+
+Les blocs bornent les données chargées en mémoire. Plusieurs indices partagent
+une même lecture des bandes et peuvent être calculés sur plusieurs threads.
+Sur le benchmark local documenté, trois indices sur 2 048 × 2 048 pixels passent
+de 2,55 s (appels séparés) à 1,37 s (traitement groupé, quatre threads).
+Ce résultat dépend du matériel et du jeu d'essai; les données de sortie sont identiques.
+
+- [Formules, opérations, masques et paramètres](docs/RASTER_CALCULATIONS.md)
+- [Protocole et résultats de performances](docs/PERFORMANCE.md)
 
 ## Produire une carte
 

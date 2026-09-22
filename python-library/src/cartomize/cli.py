@@ -5,7 +5,8 @@ from pathlib import Path
 import sys
 import math
 
-from . import __version__, list_templates, raster, vector, Map, discover_scenes, prepare_imagery, color_composite
+from . import (__version__, list_templates, raster, vector, Map, discover_scenes, prepare_imagery,
+               color_composite, calculate, spectral_indices, list_indices, focal, reduce_rasters)
 from .color import COMPOSITIONS
 
 
@@ -23,6 +24,27 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="cartomize", description="Cartographic layouts and spatial analysis")
     parser.add_argument("--version", action="version", version=__version__)
     subs = parser.add_subparsers(dest="command", required=True)
+    subs.add_parser("gui", help="Open the Cartomize desktop interface")
+    subs.add_parser("indices", help="List spectral indices and formulas")
+    calc=subs.add_parser("calculate", help="Evaluate a raster algebra expression")
+    calc.add_argument("expression");calc.add_argument("destination")
+    calc.add_argument("--input",nargs=3,action="append",required=True,metavar=("NAME","PATH","BAND"))
+    calc.add_argument("--align",action="store_true")
+    index=subs.add_parser("index",help="Calculate spectral indices in one pass")
+    index.add_argument("source");index.add_argument("destination")
+    index.add_argument("--indices",default="NDVI");index.add_argument("--band",action="append",default=[],help="Semantic mapping, e.g. red=3")
+    index.add_argument("--scale",type=float);index.add_argument("--offset",type=float)
+    focal_parser=subs.add_parser("focal",help="Calculate moving-window statistics")
+    focal_parser.add_argument("source");focal_parser.add_argument("destination")
+    focal_parser.add_argument("--statistic",default="mean");focal_parser.add_argument("--size",type=int,default=3)
+    focal_parser.add_argument("--band",type=int,default=1)
+    reduction=subs.add_parser("reduce",help="Calculate per-pixel statistics across rasters")
+    reduction.add_argument("destination");reduction.add_argument("sources",nargs="+")
+    reduction.add_argument("--statistic",default="mean");reduction.add_argument("--min-valid",type=int,default=1)
+    reduction.add_argument("--band",type=int,default=1)
+    for command in (calc,index,focal_parser,reduction):
+        command.add_argument("--workers",type=int,default=1);command.add_argument("--block-size",type=int,default=512)
+        command.add_argument("--memory-limit-mb",type=int,default=512);command.add_argument("--overwrite",action="store_true")
     templates = subs.add_parser("templates", help="List the 24 bundled templates")
     templates.add_argument("--category", default="")
     inspect = subs.add_parser("inspect", help="Inspect raster/vector data")
@@ -55,7 +77,28 @@ def main(argv=None):
     composite.add_argument("--overwrite", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.command == "templates":
+        if args.command == "gui":
+            from .desktop import main as desktop_main
+            return desktop_main()
+        elif args.command == "indices":result=list_indices()
+        elif args.command in {"calculate","index","focal","reduce"}:
+            options=dict(workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,overwrite=args.overwrite)
+            if args.command=="calculate":
+                inputs={name:(path,int(band)) for name,path,band in args.input}
+                if len(inputs)!=len(args.input):raise ValueError("Input variable names must be unique.")
+                output=calculate(args.expression,inputs,args.destination,align=args.align,**options)
+            elif args.command=="index":
+                mapping={}
+                for item in args.band:
+                    name,separator,value=item.partition("=")
+                    if not separator or name in mapping:raise ValueError("Band mapping must use distinct name=number entries.")
+                    mapping[name]=int(value)
+                output=spectral_indices(args.source,args.destination,args.indices.split(","),band_map=mapping,
+                         scale=args.scale,offset=args.offset,**options)
+            elif args.command=="focal":output=focal(args.source,args.destination,statistic=args.statistic,size=args.size,band=args.band,**options)
+            else:output=reduce_rasters(args.sources,args.destination,statistic=args.statistic,band=args.band,min_valid=args.min_valid,**options)
+            result={"output":str(output)}
+        elif args.command == "templates":
             result = list_templates(args.category)
         elif args.command == "inspect":
             kind = args.kind or ("raster" if Path(args.source).suffix.lower() in {".tif", ".tiff", ".vrt", ".img"} else "vector")
@@ -80,7 +123,7 @@ def main(argv=None):
                       .export(args.destination, dpi=args.dpi, overwrite=args.overwrite))}
         print(json.dumps(_json_value(result), ensure_ascii=False, indent=2, allow_nan=False))
         return 0
-    except (ValueError, OSError, KeyError) as exc:
+    except (ValueError, OSError, KeyError, ImportError) as exc:
         print(f"cartomize: {exc}", file=sys.stderr)
         return 2
 

@@ -9,10 +9,28 @@ from .scenes import Scene, Band, discover_scenes
 from .imagery import PreparedImage, prepare_imagery
 from .color import color_composite, read_rgb
 from .composition import compose_map
+from .algebra import calculate, reduce_rasters, ProcessingCancelled
+from .indices import spectral_indices, list_indices, get_index, register_index
+from .focal import focal
 
-__version__ = "0.2.0a1"
+__version__ = "0.3.0a1"
+
+
+def launch(*,block=None):
+    """Open the optional desktop interface; scripts remain usable without Qt."""
+    from .desktop import launch as open_desktop
+    return open_desktop(block=block)
+
+
+# Retain convenient access through the raster module without import cycles.
+raster.calculate=calculate
+raster.reduce=reduce_rasters
+raster.focal=focal
+raster.indices=spectral_indices
 __all__ = ["Map", "Layer", "GeoDataFrame", "GeoSeries", "points_from_xy", "read_file",
            "from_xy", "reproject", "clip", "overlay", "sjoin", "dissolve", "buffer",
            "area", "length", "validate", "make_valid", "list_templates", "get_template",
            "layout_plan", "atlas", "raster", "vector", "Scene", "Band", "discover_scenes",
-           "PreparedImage", "prepare_imagery", "color_composite", "read_rgb", "compose_map"]
+           "PreparedImage", "prepare_imagery", "color_composite", "read_rgb", "compose_map",
+           "calculate", "reduce_rasters", "ProcessingCancelled", "spectral_indices", "list_indices",
+           "get_index", "register_index", "focal", "launch"]

@@ -49,7 +49,13 @@ def _quality_valid(values, kind):
     return valid
 
 
-def _calibrate(asset, scene, destination, mask_clouds, mask_saturation):
+def _check_cancel(cancel):
+    if cancel is not None and cancel.is_set():
+        from .algebra import ProcessingCancelled
+        raise ProcessingCancelled("Traitement interrompu.")
+
+
+def _calibrate(asset, scene, destination, mask_clouds, mask_saturation, cancel=None):
     """Mask/calibrate on the native grid *before* spectral interpolation."""
     with ExitStack() as stack:
         src = stack.enter_context(rasterio.open(asset.path))
@@ -70,6 +76,7 @@ def _calibrate(asset, scene, destination, mask_clouds, mask_saturation):
             masks.append((vrt,kind))
         with rasterio.open(destination,"w",**profile) as dst:
             for _,window in dst.block_windows(1):
+                _check_cancel(cancel)
                 values=_read(src,asset.index,window=window).astype("float64")
                 valid=~np.ma.getmaskarray(values)
                 if asset.nodata is not None:
@@ -85,7 +92,7 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
                     target_crs=None, resolution=None, overlap="first",
                     resampling="nearest", mask_clouds=True, mask_saturation=True,
                     allow_mixed_dates=False, all_touched=False,
-                    max_pixels=250_000_000, overwrite=False):
+                    max_pixels=250_000_000, overwrite=False, progress=None, cancel=None):
     """Mosaic scenes, stack spectral bands and clip to an AOI on one grid.
 
     Resolution is in metres; default is the coarsest selected native resolution
@@ -96,6 +103,7 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
     Bands are calibrated and cloud-masked before warping. The result includes
     a source-scene index raster and a JSON processing manifest.
     """
+    _check_cancel(cancel)
     if isinstance(scenes,(str,Path)):
         scenes=discover_scenes(scenes)
     scenes=list(scenes)
@@ -180,6 +188,8 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
                  crs=crs,transform=transform,nodata=np.nan,compress="lzw",tiled=True,
                  blockxsize=256,blockysize=256,BIGTIFF="IF_SAFER")
     counts=Counter(); aoi_pixels=0; valid_pixels=0
+    progress_total=len(records)+math.ceil(width/256)*math.ceil(height/256);progress_done=0
+    if progress:progress(0,progress_total)
     with tempfile.TemporaryDirectory(prefix=".cartomize-scenes-",dir=destination.parent) as temporary:
         work=Path(temporary)
         with ExitStack() as stack:
@@ -188,7 +198,9 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
                 bands=[]
                 for band_index,name in enumerate(names):
                     calibrated=work/f"s{scene_index}_b{band_index}.tif"
-                    _calibrate(scene.bands[name],scene,calibrated,mask_clouds,mask_saturation)
+                    _calibrate(scene.bands[name],scene,calibrated,mask_clouds,mask_saturation,cancel)
+                    progress_done+=1
+                    if progress:progress(progress_done,progress_total)
                     src=stack.enter_context(rasterio.open(calibrated))
                     bands.append(stack.enter_context(WarpedVRT(src,crs=crs,transform=transform,width=width,height=height,
                                  dtype="float32",nodata=np.nan,resampling=Resampling[resampling])))
@@ -197,6 +209,7 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
             index_profile={**profile,"count":1,"dtype":"uint16","nodata":0}
             with rasterio.open(staged,"w",**profile) as dst, rasterio.open(staged_index,"w",**index_profile) as ids:
                 for _,window in dst.block_windows(1):
+                    _check_cancel(cancel)
                     shape=(int(window.height),int(window.width))
                     inside=geometry_mask(geometries,out_shape=shape,transform=dst.window_transform(window),
                                          invert=True,all_touched=all_touched) if geometries is not None else np.ones(shape,dtype=bool)
@@ -213,6 +226,8 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
                     unique,n=np.unique(chosen[chosen>0],return_counts=True)
                     counts.update({int(k):int(v) for k,v in zip(unique,n)})
                     valid_pixels+=int((chosen>0).sum())
+                    progress_done+=1
+                    if progress:progress(progress_done,progress_total)
                 dst.descriptions=names
                 for k,name in enumerate(names,1):
                     dst.update_tags(k,semantic_name=name,unit=scenes[0].bands[name].unit)
@@ -222,7 +237,8 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
                 ids.set_band_description(1,"source_scene_index")
         if valid_pixels==0:
             raise ValueError("No valid pixels in the AOI after masking and alignment; no product was saved.")
-        report={"version":"0.2.0a1","product":str(destination),"source_index":str(index_path),
+        from . import __version__
+        report={"version":__version__,"product":str(destination),"source_index":str(index_path),
                 "band_order":names,"crs":str(crs),"resolution_m":resolution,"width":width,"height":height,
                 "transform":list(transform)[:6],"aoi_pixels":aoi_pixels,"valid_pixels":valid_pixels,
                 "coverage_percent":100*valid_pixels/max(1,aoi_pixels),"overlap":overlap,"resampling":resampling,
@@ -239,5 +255,6 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
         staged_manifest=work/"manifest.json"
         staged_manifest.write_text(json.dumps(report,ensure_ascii=False,indent=2,allow_nan=False)+"\n",encoding="utf-8")
         # All processing must succeed before replacing the final deliverables.
+        _check_cancel(cancel)
         os.replace(staged_index,index_path);os.replace(staged_manifest,manifest_path);os.replace(staged,destination)
     return PreparedImage(destination,index_path,manifest_path,names,report)

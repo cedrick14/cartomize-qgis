@@ -1,4 +1,4 @@
-# Architecture et périmètre 0.2.0a1
+# Architecture et périmètre 0.3.0a1
 
 ## Base retrouvée
 
@@ -13,7 +13,7 @@ natifs Esri et une boîte à outils Python ArcPy. La bibliothèque reprend les
 modules Python indépendants d'ArcPy et les maquettes de cette édition.
 Les dix modules repris sont conservés dans `_core`, à usage interne.
 Leur version interne 10.5.1 exprime leur provenance; la version du nouveau
-paquet est 0.2.0a1. Les fichiers originaux ne sont pas modifiés.
+paquet est 0.3.0a1. Les fichiers originaux ne sont pas modifiés.
 
 ## Fonctionnalités
 
@@ -28,6 +28,10 @@ paquet est 0.2.0a1. Les fichiers originaux ne sont pas modifiés.
 | Raster | NDVI/différence normalisée, reclassification, découpage, reprojection, statistiques zonales, surfaces et transitions |
 | Imagerie | Découverte des scènes, calibration, masques, mosaïque cohérente, multibande, AOI, compositions RGB/RGBA et traçabilité |
 | Superposition | Ordre par rôle, styles des routes/limites/localités et explication par layer_plan |
+| Algèbre raster | Interpréteur AST sans exécution Python, traitement par blocs, lecture commune et calculs concurrents |
+| Indices spectraux | 18 formules documentées, paramètres et registre extensible |
+| Statistiques | Voisinages avec marges de blocs et synthèse multirasters |
+| Interface graphique | Qt facultatif, six outils, tâches en arrière-plan, progression et annulation |
 | Production | Atlas, CLI, wheel, distribution source et procédure PyPI |
 
 ## Choix techniques
@@ -76,3 +80,7 @@ comme réussies avant d'avoir consulté leurs résultats.
 
 Le [guide imagerie](IMAGERY_WORKFLOW.md) précise les formats reconnus, les masques,
 les contraintes scientifiques et les fonctionnalités encore à développer.
+
+Le moteur de calcul, ses paramètres de mémoire et ses limites sont décrits
+dans [Algèbre raster](RASTER_CALCULATIONS.md). Les commandes graphiques sont
+décrites dans [Interface graphique](DESKTOP.md).

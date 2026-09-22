@@ -1,54 +1,56 @@
-# Validation de Cartomize Python 0.2.0a1
+# Validation de Cartomize Python 0.3.0a1
 
-Validation locale effectuée le 22 septembre 2026 sous Linux, Python 3.12.14.
+Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 
 ## Résultats
 
-- **52 tests automatisés réussis**.
-- Les contrôles antérieurs sur les 24 maquettes sont conservés; leur provenance et
-  leur chargement sont couverts par la suite existante.
-- Nouvelle démonstration multiscène : cinq bandes à 10/20 m, deux scènes,
-  masque de qualité, zone polygonale, RGBA naturel/fausses couleurs, NDVI,
-  origine des pixels et carte PDF/PNG avec routes, limites et localités.
-- Résultat synthétique : 9 219 pixels valides sur 9 267 dans la zone (99,482 %);
-  5 644 pixels issus de A et 3 575 de B. Les zones invalides restent transparentes.
-- Données de démonstration explicitement fictives.
-- Wheel et archive source construits avec `python -m build`.
-- Métadonnées des deux distributions acceptées par `python -m twine check`.
-- Installation du wheel 0.2 dans un environnement distinct du code source, import,
-  accès aux 24 maquettes et démonstration multiscène complète réussis.
+- **84 tests automatisés réussis**, dont quatre tests de l'interface Qt réelle
+  en mode hors écran. Les 52 tests de la version 0.2 restent inclus.
+- Vérification de l'algèbre, des indices, des masques, des statistiques et de
+  l'égalité entre calcul séquentiel et calcul concurrent.
+- Lancement par les widgets des indices, du calculateur, du prétraitement
+  multiscène et de la composition cartographique; sortie raster/image vérifiée.
+- Réactivité de la boucle d'événements Qt et annulation vérifiées.
+- Benchmark reproductible : trois indices, quatre bandes, 2 048 × 2 048 pixels,
+  trois répétitions; 2,55 s contre 1,37 s en médiane, sorties identiques.
+- Wheel et archive source construits; métadonnées vérifiées avec Twine.
+- Installation du wheel avec dépendances graphiques dans un environnement
+  distinct du code source, calcul réel et ouverture de la fenêtre vérifiés.
 
-## Risques couverts par les tests
+## Calculs contrôlés
 
-Mesures en mètres et conversion des pieds; refus des calculs en degrés;
-alignement des CRS pour jointures/intersections; audit et réparation de
-géométries; profilage sémantique hérité; conservation des attributs et index;
-NoData, masques et zéro valide; NDVI et facteurs de mise à l'échelle;
-reclassification; zones sans intersection; surfaces sur grille tournée;
-contrôle d'alignement des matrices de changement; reprojection et découpage;
-dimensions physiques des exports; cadres indépendants; distance de la barre
-d'échelle vérifiée par calcul géodésique; atlas et collisions de noms;
-empreintes des modules/maquettes repris et absence d'import ArcPy/QGIS.
+Formules et paramètres NDVI/EVI/SAVI/NDMI; indice personnalisé; contrôle des
+bandes; calibration GDAL et remplacement explicite; domaines mathématiques
+invalides; divisions par zéro; débordement float32; zéro valide; sélection de
+branche conditionnelle; complément de valeurs absentes; masque de qualité
+par bits; logique et comparaisons chaînées; rejet de syntaxe Python exécutable.
 
-Nouveaux contrôles : mosaïque adjacente; cohérence de toutes les bandes dans
-les recouvrements; masque des nuages avant interpolation; résolutions
-10/20 m et trous d'une zone polygonale; facteurs de calibration; bits QA/SCL;
-saturation; rejet de capteurs/dates/bandes incompatibles; protection des
-sorties; noms standards Landsat/Sentinel et décalages Sentinel; conservation
-des pixels noirs et du canal alpha; NoData par bande pendant la reprojection
-RGB; rapport JSON strict; chaîne CLI; ordre effectif des artistes de la carte;
-reprojection et découpage des couches vectorielles.
+Statistiques multirasters avec observations manquantes et effectif minimal;
+sept statistiques focales comparées à des voisinages explicites, y compris
+aux bords de l'image et aux limites des blocs; grilles incompatibles et
+alignement explicite; paramètres de mémoire; expressions multibandes;
+progression; annulation préservant un fichier existant; nettoyage temporaire.
 
-103 avertissements de dépréciation proviennent de l'utilisation de l'opérateur
-matriciel d'Affine par Rasterio dans les tests. Aucun échec de test associé.
+Les tests antérieurs couvrent notamment les opérations GeoPandas, les mesures
+projetées, les NDVI/reclassifications, statistiques zonales, surfaces et
+changements, les mosaïques cohérentes, masques QA/SCL, calibration Sentinel,
+compositions RGBA, l'ordre des couches et les maquettes héritées.
 
-## Portée
+## Portée et limites
 
-Ces contrôles démontrent le fonctionnement de cette version sur
-les cas couverts. Ils ne valident pas tous les jeux de données SIG possibles,
-l'ingestion complète de produits SAFE réels, la parité avec le rendu Esri, ni les performances à l'échelle de
-rasters très volumineux. Le workflow GitHub prévoit Windows/Linux avec
-Python 3.11 et 3.12; consulter ses exécutions avant d'annoncer leur réussite.
+La suite produit 135 avertissements de dépréciation de l'opérateur Affine
+employé par Rasterio; ils ne provoquent pas d'échec de test.
 
-Les fichiers ont été préparés localement pour la distribution. Aucun envoi
-vers TestPyPI ou PyPI n'a été réalisé.
+Le benchmark utilise des données synthétiques et un cache non purgé. Il ne
+mesure pas la vitesse de tous les traitements. La consommation totale de
+mémoire dépasse le budget des seuls tableaux de blocs. Voir le
+[rapport de performances](PERFORMANCE.md) et ses données brutes.
+
+Les contrôles Qt hors écran ne remplacent pas un essai manuel de bureau
+Windows avec des scènes réelles. Le workflow prévoit Windows/Linux et
+Python 3.11/3.12, y compris les dépendances graphiques; consulter ses résultats
+avant de présenter ces autres environnements comme validés.
+
+Cette livraison reste une alpha. La classification automatique d'occupation
+du sol, les projets APRX/QGZ et les traitements spécialisés non implémentés
+ne sont pas couverts. Aucune publication TestPyPI/PyPI n'a été effectuée.
