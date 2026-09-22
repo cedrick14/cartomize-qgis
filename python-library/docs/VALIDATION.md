@@ -1,10 +1,10 @@
-# Validation de Cartomize Python 0.3.0a1
+# Validation de Cartomize Python 0.3.0a2
 
 Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 
 ## Résultats
 
-- **84 tests automatisés réussis**, dont quatre tests de l'interface Qt réelle
+- **88 tests automatisés réussis**, dont cinq tests de l'interface Qt réelle
   en mode hors écran. Les 52 tests de la version 0.2 restent inclus.
 - Vérification de l'algèbre, des indices, des masques, des statistiques et de
   l'égalité entre calcul séquentiel et calcul concurrent.
@@ -16,6 +16,22 @@ Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 - Wheel et archive source construits; métadonnées vérifiées avec Twine.
 - Installation du wheel avec dépendances graphiques dans un environnement
   distinct du code source, calcul réel et ouverture de la fenêtre vérifiés.
+
+## Parcours ajouté en 0.3.0a2
+
+Le test graphique principal démarre sur Production automatisée, vérifie
+l'icône embarquée, puis traite deux scènes Landsat synthétiques avec une zone
+d'étude et des localités. Il contrôle le nombre et les valeurs des bandes,
+le découpage, le GeoTIFF RGBA, les exports PDF/PNG, les chemins du rapport et
+la conservation du rôle et des étiquettes des localités.
+
+Trois tests supplémentaires couvrent la sélection de fichiers de bandes,
+l'annulation après mosaïque, l'échec d'un export, la préservation d'un
+répertoire existant et l'annulation de la composition colorée entre blocs.
+
+Le benchmark de la version 0.3.0a1 n'a pas été réexécuté pour cette correction
+d'interface et d'orchestration. Ses mesures sont conservées comme résultats
+de cette version, sans nouvelle promesse de performance.
 
 ## Calculs contrôlés
 
@@ -38,7 +54,7 @@ compositions RGBA, l'ordre des couches et les maquettes héritées.
 
 ## Portée et limites
 
-La suite produit 135 avertissements de dépréciation de l'opérateur Affine
+La suite produit 177 avertissements de dépréciation de l'opérateur Affine
 employé par Rasterio; ils ne provoquent pas d'échec de test.
 
 Le benchmark utilise des données synthétiques et un cache non purgé. Il ne

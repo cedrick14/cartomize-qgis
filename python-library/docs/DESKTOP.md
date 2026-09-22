@@ -2,89 +2,124 @@
 
 ## Installation et lancement
 
-Depuis le dossier source :
+Depuis le wheel fourni, avec Python 3.11 ou plus récent :
 
 ```bash
-python -m pip install ".[gui]"
-cartomize gui
-```
-
-Depuis le wheel fourni :
-
-```bash
-python -m pip install "cartomize-0.3.0a1-py3-none-any.whl[gui]"
+python -m pip install "cartomize-0.3.0a2-py3-none-any.whl[gui]"
 cartomize-desktop
 ```
 
-Depuis un script ou une console Python :
+Depuis les sources : `python -m pip install ".[gui]"`, puis `cartomize gui`.
+Depuis Python :
 
 ```python
 import cartomize as cm
 cm.launch()
 ```
 
-La fenêtre est une application Qt native, sans serveur web. Les dépendances
-graphiques sont facultatives pour les traitements Python. L'importation de
-`cartomize` n'ouvre pas de fenêtre : l'ouverture est demandée par `launch`,
-`cartomize gui` ou `cartomize-desktop`. Sur Windows, l'entrée
-`cartomize-desktop` est créée comme programme graphique par pip.
+La fenêtre Qt est indépendante d'ArcGIS Pro et de QGIS. Les dépendances
+graphiques sont facultatives pour les scripts. L'importation de `cartomize`
+n'ouvre pas de fenêtre. Cette alpha est distribuée par wheel; aucune
+publication PyPI n'a été effectuée.
 
-La commande est disponible dans l'environnement Python où le paquet a été
-installé. Activer cet environnement si nécessaire. Cette livraison reste
-une alpha distribuée par fichier wheel, sans publication PyPI effectuée.
+## Production cartographique automatisée
 
-## Outils
+L'écran d'ouverture est **Production automatisée**. Le bouton **Exécuter la
+chaîne** réalise le parcours suivant dans une seule opération :
 
-| Outil | Données et paramètres |
+1. Identification des scènes et des bandes spectrales.
+2. Calibration radiométrique et masque de qualité avant rééchantillonnage.
+3. Alignement des grilles, mosaïque des scènes et assemblage multibande.
+4. Extraction selon la zone d'étude sur la grille de sortie.
+5. Composition colorée enregistrée séparément du produit scientifique.
+6. Superposition des couches vectorielles, mise en page et export.
+
+La mosaïque, l'assemblage et l'extraction sont intégrés au même traitement
+par blocs; ils n'imposent pas des copies intermédiaires de toute la zone.
+
+### Données
+
+- Sélectionner un **Répertoire des scènes**, ou **Sélectionner les bandes**.
+  La reconnaissance automatique couvre Landsat Collection 2 L2 Surface
+  Reflectance et Sentinel-2 L2A avec leurs noms de fichiers et métadonnées
+  d'origine. Conserver les fichiers QA/SCL et les métadonnées du produit.
+- Indiquer une **Zone d'étude** polygonale, si un découpage est nécessaire.
+- Importer les **Couches à superposer** : routes, hydrographie, limites,
+  localités, occupation du sol vectorielle, etc. Vérifier les rôles dans le
+  tableau et préciser les champs d'étiquette si nécessaire. Les noms et
+  géométries servent à proposer un rôle; cette inférence n'est pas une
+  interprétation sémantique garantie. Les localités peuvent utiliser leur
+  champ `nom` ou `name` automatiquement.
+- Choisir le **Répertoire de sortie** et un nouveau **Nom de la production**.
+  Une production existante n'est jamais remplacée par ce parcours.
+
+### Prétraitement
+
+Le système de coordonnées, la résolution et les bandes sont réglables dans
+l'onglet **Prétraitement**. Les valeurs par défaut utilisent le système
+projeté approprié aux données et la résolution native la plus grossière des
+bandes retenues. Les bandes nécessaires à la composition colorée sont
+ajoutées à la sélection. Le masque de qualité est activé par défaut;
+l'autorisation d'une mosaïque multitemporelle est explicite.
+
+### Restitution cartographique
+
+Choisir la composition colorée, le titre, les sources et l'auteur, le format
+(PDF, PNG, SVG ou PDF et PNG) et la résolution d'export. La mise en page
+comporte légende, échelle et orientation. L'ordre des couches découle de leur
+rôle cartographique; la zone d'étude contrôle l'emprise et le découpage
+vectoriel. Le GeoTIFF multibande conserve les valeurs de réflectance.
+
+Les sorties comprennent `multibande.tif`, `multibande_source_index.tif`,
+`multibande.json`, `composition_coloree.tif`, les cartes et `production.json`.
+Les produits sont préparés dans un répertoire temporaire puis rendus
+accessibles ensemble après réussite. Une erreur ou une annulation avant
+l'enregistrement final ne laisse pas de production partielle publiée.
+
+## Outils complémentaires
+
+| Outil | Usage |
 |---|---|
-| Indices spectraux | Raster multibande, sélection des indices, correspondance des bandes, paramètres et calibration |
-| Calculatrice raster | Import des rasters, noms des variables, numéros de bandes, facteurs/décalages et expression |
-| Statistiques focales | Raster, bande, statistique, voisinage et conservation du NoData |
-| Statistiques multirasters | Liste de rasters, statistique et nombre minimal d'observations |
-| Prétraitement multispectral | Répertoire des scènes, zone d'étude, CRS, résolution, bandes, qualité et dates |
-| Composition cartographique | Couches raster/vectorielles, rôles, étiquettes, titre, sources, emprise et export |
+| Prétraitement multispectral | Produire seulement le GeoTIFF multibande et le rapport de mosaïque |
+| Composition colorée | Produire une visualisation RVB à partir d'un composite multibande nommé |
+| Composition cartographique | Assembler des couches raster et vectorielles existantes et exporter une carte |
+| Indices spectraux | Calculer un ou plusieurs indices sur les bandes préparées |
+| Calculatrice raster | Exécuter une expression algébrique ou conditionnelle |
+| Statistiques focales | Analyser le voisinage spatial |
+| Statistiques multirasters | Synthétiser des rasters superposés ou une série temporelle |
 
-## Calcul d'un indice
-
-1. Ouvrir **Indices spectraux** et sélectionner le raster multispectral.
-2. Cocher les indices à calculer. La formule et la référence sont accessibles
-   dans l'infobulle de chaque indice.
-3. Vérifier les numéros dans **Correspondance spectrale**. Les descriptions
-   reconnues sont renseignées automatiquement; les autres bandes sont à affecter.
-4. Vérifier la calibration. Les indices avec constantes additives exigent
-   une réflectance calibrée; un DN brut ne suffit pas.
-5. Choisir un **Fichier de sortie** GeoTIFF et sélectionner **Exécuter**.
-
-Plusieurs indices sélectionnés produisent un seul GeoTIFF à bandes nommées.
-La calculatrice permet les formules absentes du catalogue. Les descriptions
-des outils et les intitulés reprennent les opérations de géomatique.
+Les indices constituent une analyse complémentaire. Ils ne sont pas une
+étape obligatoire de la production cartographique. La classification
+supervisée d'occupation du sol n'est pas implémentée; une composition
+colorée ne constitue pas une classification.
 
 ## Traitement et résultats
 
-Les calculs se déroulent en arrière-plan. La progression et l'état sont
-affichés en bas de la fenêtre. **Annuler** interrompt les calculs raster entre
-blocs; le prétraitement répond également entre blocs de calibration/mosaïque.
-L'export cartographique se termine avant de pouvoir fermer la fenêtre.
+La fenêtre reste disponible pendant les traitements en arrière-plan. Le nom
+de l'étape et la progression apparaissent en bas. **Annuler** interrompt les
+opérations raster entre blocs; un export cartographique en cours doit se
+terminer avant l'interruption. **Ouvrir le répertoire de sortie** donne accès
+aux résultats après réussite.
 
-Les paramètres de threads, blocs et mémoire s'appliquent aux quatre outils
-de calcul. Ils sont désactivés pour les moteurs distincts de prétraitement et
-de cartographie. Le remplacement des fichiers existants demande de cocher
-explicitement l'option correspondante. **Ouvrir le répertoire de sortie**
-donne accès aux résultats après réussite.
+Les réglages de threads, blocs et mémoire apparaissent pour les outils de
+calcul qui les utilisent. La chaîne de production utilise les moteurs de
+prétraitement et de rendu; ces paramètres de calcul n'y sont pas proposés.
+Les outils individuels demandent de cocher **Remplacer les fichiers
+existants** avant un remplacement.
 
 Dans une application possédant déjà un `QApplication`, utiliser
-`cm.launch(block=False)` et conserver sa boucle d'événements Qt. Pour un
-notebook sans intégration Qt, privilégier le lancement depuis un terminal.
-L'application exige un environnement de bureau pour l'affichage normal.
+`cm.launch(block=False)` avec sa boucle Qt. Pour un notebook sans intégration
+Qt, lancer la fenêtre depuis un terminal. Un environnement de bureau est
+nécessaire pour l'affichage normal.
 
-## Périmètre de validation
+## Identité visuelle et validation
 
-Les contrôles automatisés utilisent les vrais widgets Qt et des traitements
-réels en mode hors écran sous Linux. Ils vérifient les indices, la
-calculatrice, la mosaïque et l'export cartographique, ainsi que la réactivité
-de la boucle d'événements et l'annulation. Un aperçu PNG provient de cette
-fenêtre, sans maquette illustrée.
+L'icône est celle du dépôt Cartomize original, conservée sans modification.
+La fenêtre emploie le bleu foncé `#142D68` et le bleu `#2F5597` de cette icône,
+avec des fonds blancs et gris. Voir [la provenance visuelle](BRANDING.md).
 
-Un essai manuel sous Windows sur les données de l'utilisateur reste utile
-avant diffusion stable. La fenêtre ne constitue pas un éditeur SIG complet
-et ne lit pas les projets QGIS ou ArcGIS Pro.
+Les tests locaux utilisent les vrais widgets Qt en mode hors écran sous
+Linux, avec de véritables sorties raster et cartographiques. Ils couvrent
+la chaîne multiscène, les outils de calcul, la réactivité et l'annulation.
+Un essai manuel de bureau sous Windows sur les données de l'utilisateur
+reste à réaliser. La fenêtre ne lit pas les projets QGZ/APRX.

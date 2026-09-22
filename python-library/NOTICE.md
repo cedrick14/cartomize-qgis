@@ -14,3 +14,8 @@ Cartomize / ONDON NKOUA Cédrick Belmich; their license is retained in
 The standalone GeoPandas/Rasterio/Matplotlib adapters are new. They do not
 include proprietary Esri binaries. ArcGIS Pro and ArcPy are Esri technologies.
 This project is independent and does not imply endorsement by Esri or GeoPandas.
+
+The unchanged Cartomize icon in `cartomize/assets/cartomize.png` comes from
+`cartomize_qgis/icon.png` in the same repository, original commit
+`4790f0e152834725d989e336199f799782bc3680`. The Cartomize name and visual identity
+are attributed to Cartomize / ONDON NKOUA Cédrick Belmich.

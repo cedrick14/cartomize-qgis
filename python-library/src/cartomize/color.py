@@ -92,23 +92,29 @@ def read_rgb(source,*,bands="natural",crs=None,max_size=2048,percentiles=(2,98),
         return _rgba(cube,limits,gamma),extent,{"bands":indices,"limits":limits,"percentiles":percentiles,"gamma":gamma,"sampled_pixels":cube.shape[1]*cube.shape[2]}
 
 
-def color_composite(source,destination,*,bands="natural",percentiles=(2,98),gamma=1.,overwrite=False):
+def color_composite(source,destination,*,bands="natural",percentiles=(2,98),gamma=1.,overwrite=False,progress=None,cancel=None):
     """Write a four-band uint8 RGBA GeoTIFF for display; retain source bands.
 
     The RGB byte channels are display values, not surface reflectance.
     Alpha encodes validity; zero RGB intensity is never declared NoData.
     """
+    from .imagery import _check_cancel
+    _check_cancel(cancel)
     _,_,display=read_rgb(source,bands=bands,percentiles=percentiles,gamma=gamma)
     with rasterio.open(source) as src:
         profile=dict(driver="GTiff",width=src.width,height=src.height,count=4,dtype="uint8",
                      transform=src.transform,crs=src.crs,nodata=None,compress="lzw",tiled=True,
                      blockxsize=256,blockysize=256,BIGTIFF="IF_SAFER")
         with _writer(destination,profile,overwrite=overwrite,sources=(source,)) as dst:
-            for _,window in dst.block_windows(1):
+            total=((src.width+255)//256)*((src.height+255)//256)
+            for number,(_,window) in enumerate(dst.block_windows(1),1):
+                _check_cancel(cancel)
                 cube=np.ma.masked_invalid(src.read(display["bands"],window=window,masked=True).astype("float64")).filled(np.nan)
                 dst.write(np.moveaxis(_rgba(cube,display["limits"],gamma),-1,0),window=window)
+                if progress:progress(number,total)
             dst.colorinterp=(ColorInterp.red,ColorInterp.green,ColorInterp.blue,ColorInterp.alpha)
             dst.descriptions=("red_display","green_display","blue_display","alpha")
             dst.update_tags(CARTOMIZE_PRODUCT="display_rgba",source_bands=str(display["bands"]),
                             stretch_limits=str(display["limits"]),percentiles=str(percentiles),gamma=gamma)
+            _check_cancel(cancel)
     return Path(destination)

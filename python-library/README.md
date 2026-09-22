@@ -6,7 +6,7 @@ Bibliothèque Python de cartographie et d'analyse spatiale, dérivée des source
 de **Cartomize for ArcGIS Pro 10.5.1**, par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.3.0a1 : version alpha avec interface graphique et algèbre raster.** Elle reprend les règles Python
+**Version 0.3.0a2 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.3.0a1-py3-none-any.whl
+python -m pip install cartomize-0.3.0a2-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -43,13 +43,34 @@ import cartomize as cm
 cm.launch()
 ```
 
-La fenêtre comprend **Indices spectraux**, **Calculatrice raster**,
-**Statistiques focales**, **Statistiques multirasters**, **Prétraitement
-multispectral** et **Composition cartographique**. Les calculs s'exécutent en
-arrière-plan, avec progression et annulation des traitements raster.
-L'import Python reste utilisable sans interface ni dépendance Qt.
+L'ouverture donne accès à **Production automatisée** : sélection des scènes et
+des couches, mosaïque, composite multibande, extraction par masque,
+composition colorée et export cartographique en une opération. Les indices,
+la calculatrice et les statistiques restent accessibles comme outils
+complémentaires. L'icône originale et les bleus de Cartomize sont intégrés.
+Les traitements s'exécutent en arrière-plan avec progression et annulation.
 
 Voir le [guide de l'interface graphique](docs/DESKTOP.md).
+
+## Automatiser la production depuis Python
+
+```python
+import cartomize as cm
+
+production = cm.cartographic_workflow(
+    "donnees/scenes", "resultats/production_01",
+    aoi="zone.gpkg",
+    layers=["routes.gpkg", "localites.gpkg", "limites.gpkg"],
+    composition="natural", title="Carte de la zone d'étude",
+    credits="Sources et auteur", formats=("pdf", "png"),
+)
+print(production.multiband, production.maps)
+```
+
+Le répertoire de production doit être nouveau. Les produits sont préparés
+ensemble avant leur enregistrement final. La reconnaissance automatique
+couvre Landsat C2 L2 SR et Sentinel-2 L2A; d'autres données peuvent être
+fournies en Python par des objets `Scene` et `Band` explicites.
 
 ## Algèbre raster et indices spectraux
 

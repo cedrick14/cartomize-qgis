@@ -6,11 +6,11 @@ import threading
 
 try:
     from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot, QUrl
-    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
     from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,
         QFormLayout,QLabel,QLineEdit,QPushButton,QFileDialog,QListWidget,QListWidgetItem,
         QStackedWidget,QComboBox,QSpinBox,QDoubleSpinBox,QCheckBox,QPlainTextEdit,
-        QTableWidget,QTableWidgetItem,QHeaderView,QProgressBar,QMessageBox,QGroupBox,QScrollArea)
+        QTableWidget,QTableWidgetItem,QHeaderView,QProgressBar,QMessageBox,QGroupBox,QScrollArea,QTabWidget)
 except ImportError as exc:
     raise ImportError('Interface graphique indisponible. Installer : python -m pip install "PySide6-Essentials>=6.7,<7"') from exc
 
@@ -49,6 +49,7 @@ def real(value=1.):
 
 
 class Page(QWidget):
+    staged=False
     cancellable=True
     engine=True
     def __init__(self,title,description):
@@ -280,35 +281,147 @@ class MappingPage(Page):
         return run
 
 
+class WorkflowPage(Page):
+    engine=False
+    staged=True
+    def __init__(self):
+        super().__init__("Production cartographique automatisée",
+            "Des scènes satellites à la carte : traitement multispectral, superposition des couches et mise en page.")
+        sequence=QLabel("01  Scènes satellites     →     02  Mosaïque     →     03  Composite multibande\n"
+                        "04  Extraction par masque     →     05  Composition colorée     →     06  Mise en page")
+        sequence.setObjectName("sequence");sequence.setWordWrap(True);self.form.addRow(sequence)
+        tabs=QTabWidget();self.form.addRow(tabs)
+        self.data_tab=QWidget();data=QFormLayout(self.data_tab);tabs.addTab(self.data_tab,"Données")
+        self.source=PathField("directory");data.addRow("Répertoire des scènes",self.source)
+        self.files=[];selection=QWidget();buttons=QHBoxLayout(selection);buttons.setContentsMargins(0,0,0,0)
+        select=QPushButton("Sélectionner les bandes…");clear=QPushButton("Utiliser le répertoire")
+        buttons.addWidget(select);buttons.addWidget(clear);buttons.addStretch();data.addRow(selection)
+        self.inventory=QLabel("Landsat Collection 2 L2 · Sentinel-2 L2A");self.inventory.setObjectName("muted")
+        self.inventory.setWordWrap(True);data.addRow(self.inventory)
+        select.clicked.connect(self.select_files);clear.clicked.connect(self.clear_files)
+        self.aoi=PathField(filter=VECTOR_FILTER);data.addRow("Zone d’étude",self.aoi)
+        self.layers=QTableWidget(0,3);self.layers.setHorizontalHeaderLabels(["Couche vectorielle","Rôle cartographique","Champ d’étiquette"])
+        self.layers.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
+        self.layers.setColumnWidth(1,180);self.layers.setColumnWidth(2,165);self.layers.setMaximumHeight(130);self.layers.setMinimumHeight(110)
+        self.layers.setToolTip("Rôle automatique selon le nom et la géométrie. Vérifier les rôles avant la production.")
+        data.addRow("Couches à superposer",self.layers)
+        controls=QWidget();row=QHBoxLayout(controls);row.setContentsMargins(0,0,0,0)
+        add=QPushButton("Importer des couches…");remove=QPushButton("Supprimer la sélection")
+        row.addWidget(add);row.addWidget(remove);row.addStretch();data.addRow(controls)
+        add.clicked.connect(self.browse_layers)
+        remove.clicked.connect(lambda:[self.layers.removeRow(i) for i in sorted({x.row() for x in self.layers.selectedIndexes()},reverse=True)])
+        prep=QWidget();form=QFormLayout(prep);tabs.addTab(prep,"Prétraitement")
+        self.crs=QLineEdit();self.crs.setPlaceholderText("Automatique selon les scènes · exemple : EPSG:32733")
+        self.bands=QLineEdit("blue, green, red, nir")
+        self.resolution=spin(0,0,100000);self.resolution.setSpecialValueText("Résolution native la plus grossière")
+        self.clouds=QCheckBox("Appliquer les masques QA/SCL");self.clouds.setChecked(True)
+        self.dates=QCheckBox("Autoriser une mosaïque multitemporelle")
+        for label,widget in [("Système de coordonnées cible",self.crs),("Bandes spectrales",self.bands),
+            ("Résolution (m)",self.resolution),("Masque de qualité",self.clouds),("Dates d’acquisition",self.dates)]:form.addRow(label,widget)
+        note=QLabel("Calibration radiométrique et masque de qualité avant rééchantillonnage. Les scènes sont alignées sur une grille commune. Les bandes nécessaires à la composition colorée sont ajoutées à la sélection.")
+        note.setWordWrap(True);note.setObjectName("muted");form.addRow(note)
+        output=QWidget();form=QFormLayout(output);tabs.addTab(output,"Restitution cartographique")
+        self.title=QLineEdit();self.credits=QLineEdit();self.rgb=QComboBox()
+        for label,value in [("Couleurs naturelles","natural"),("Infrarouge proche — végétation","vegetation"),
+            ("Infrarouge à ondes courtes","swir"),("Agriculture","agriculture")]:self.rgb.addItem(label,value)
+        self.format=QComboBox()
+        for label,value in [("PDF et PNG",("pdf","png")),("PDF",("pdf",)),("PNG",("png",)),("SVG",("svg",))]:self.format.addItem(label,value)
+        self.dpi=spin(300,72,1200)
+        for label,widget in [("Composition colorée",self.rgb),("Titre de la carte",self.title),
+            ("Sources et auteur",self.credits),("Format d’export",self.format),("Résolution d’export (ppp)",self.dpi)]:form.addRow(label,widget)
+        note=QLabel("Ordre des couches selon leur rôle cartographique ; reprojection, découpage vectoriel, légende, échelle et orientation intégrés à la mise en page.")
+        note.setWordWrap(True);note.setObjectName("muted");form.addRow(note)
+        self.directory=PathField("directory");self.project=QLineEdit("production_cartographique")
+        self.form.addRow("Répertoire de sortie",self.directory);self.form.addRow("Nom de la production",self.project)
+        products=QLabel("Produits : GeoTIFF multibande · composition colorée · carte PDF/PNG · rapport de traitement")
+        products.setWordWrap(True);products.setObjectName("muted");self.form.addRow(products)
+        self.layout.addStretch()
+    def select_files(self):
+        paths=QFileDialog.getOpenFileNames(self,"Bandes spectrales et masques de qualité",filter=RASTER_FILTER)[0]
+        if paths:
+            self.files=paths;self.source.setEnabled(False)
+            self.inventory.setText(f"{len(paths)} fichiers sélectionnés — inclure les bandes et les masques QA/SCL.")
+    def clear_files(self):
+        self.files=[];self.source.setEnabled(True);self.inventory.setText("Landsat Collection 2 L2 · Sentinel-2 L2A")
+    def browse_layers(self):
+        for path in QFileDialog.getOpenFileNames(self,"Couches vectorielles",filter=VECTOR_FILTER)[0]:self.add_layer(path)
+    def add_layer(self,path):
+        MappingPage.add_layer(self,path)
+    def job(self,options):
+        source=list(self.files) if self.files else self.source.text()
+        if not source:raise ValueError("Sélectionner un répertoire de scènes ou des bandes spectrales.")
+        name=self.project.text().strip()
+        if not name or name in {".",".."} or any(c in name for c in '/\\:*?"<>|'):
+            raise ValueError("Renseigner un nom de production sans séparateur de chemin.")
+        if not self.directory.text():raise ValueError("Sélectionner le répertoire de sortie.")
+        destination=Path(self.directory.text())/name
+        if destination.exists():raise ValueError("Ce nom de production existe déjà. Choisir un nouveau nom.")
+        layers=[dict(data=self.layers.item(i,0).text(),role=self.layers.cellWidget(i,1).currentData(),
+                     labels=self.layers.item(i,2).text().strip() or None) for i in range(self.layers.rowCount())]
+        kwargs=dict(layers=layers,aoi=self.aoi.text() or None,band_order=[b.strip() for b in self.bands.text().split(",") if b.strip()],
+            target_crs=self.crs.text().strip() or None,resolution=self.resolution.value() or None,
+            mask_clouds=self.clouds.isChecked(),allow_mixed_dates=self.dates.isChecked(),composition=self.rgb.currentData(),
+            title=self.title.text(),credits=self.credits.text(),formats=self.format.currentData(),dpi=self.dpi.value())
+        return lambda progress,cancel,stage:cm.cartographic_workflow(source,destination,progress=progress,cancel=cancel,stage=stage,**kwargs).manifest
+
+
+class CompositePage(Page):
+    engine=False
+    def __init__(self):
+        super().__init__("Composition colorée","Affectation des bandes aux canaux rouge, vert et bleu et étirement radiométrique pour la visualisation.")
+        self.source=PathField();self.rgb=QComboBox()
+        for label,value in [("Couleurs naturelles","natural"),("Végétation","vegetation"),("Infrarouge à ondes courtes","swir"),("Agriculture","agriculture")]:self.rgb.addItem(label,value)
+        self.form.addRow("Composite multibande",self.source);self.form.addRow("Composition colorée",self.rgb)
+        note=QLabel("Le GeoTIFF de visualisation est enregistré séparément. Le composite multibande conserve ses valeurs de réflectance.")
+        note.setWordWrap(True);self.form.addRow(note);self.finish()
+    def job(self,options):
+        source=self.source.text();destination=self.destination();bands=self.rgb.currentData()
+        return lambda progress,cancel:cm.color_composite(source,destination,bands=bands,progress=progress,cancel=cancel,overwrite=options["overwrite"])
+
+
 class Worker(QThread):
-    progress=Signal(int,int);succeeded=Signal(str);failed=Signal(str);cancelled=Signal()
-    def __init__(self,job,event,parent=None):super().__init__(parent);self.job=job;self.cancel_event=event
+    progress=Signal(int,int);succeeded=Signal(str);failed=Signal(str);cancelled=Signal();stage=Signal(str)
+    def __init__(self,job,event,parent=None,staged=False):super().__init__(parent);self.job=job;self.cancel_event=event;self.staged=staged
     @Slot()
     def run(self):
-        try:self.succeeded.emit(str(self.job(self.progress.emit,self.cancel_event)))
+        try:
+            args=(self.progress.emit,self.cancel_event,self.stage.emit) if self.staged else (self.progress.emit,self.cancel_event)
+            self.succeeded.emit(str(self.job(*args)))
         except cm.ProcessingCancelled:self.cancelled.emit()
         except Exception as exc:self.failed.emit(str(exc))
 
 
 class CartomizeWindow(QMainWindow):
     def __init__(self):
-        super().__init__();self.setWindowTitle("Cartomize");self.resize(1160,900);self.setMinimumSize(880,650)
+        super().__init__();self.setWindowTitle("Cartomize");self.resize(1220,940);self.setMinimumSize(980,700)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.thread=None;self.worker=None;self.cancel_event=None;self.output_path=None
         root=QWidget();self.setCentralWidget(root);outer=QVBoxLayout(root)
-        header=QLabel("Cartomize");header.setObjectName("brand");outer.addWidget(header)
+        outer.setContentsMargins(20,14,20,14);outer.setSpacing(12)
+        header=QHBoxLayout();icon_path=Path(__file__).parent/"assets"/"cartomize.png"
+        self.setWindowIcon(QIcon(str(icon_path)));self.brand_icon=QLabel()
+        ratio=self.devicePixelRatioF();pixmap=QPixmap(str(icon_path)).scaled(round(52*ratio),round(52*ratio),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
+        pixmap.setDevicePixelRatio(ratio);self.brand_icon.setPixmap(pixmap);self.brand_icon.setFixedSize(58,58)
+        header.addWidget(self.brand_icon);identity=QVBoxLayout();identity.setSpacing(1)
+        brand=QLabel("Cartomize");brand.setObjectName("brand");identity.addWidget(brand)
+        subtitle=QLabel("Automatisation des traitements et de la production cartographique");subtitle.setObjectName("muted");identity.addWidget(subtitle)
+        header.addLayout(identity);header.addStretch();version=QLabel(cm.__version__);version.setObjectName("muted");header.addWidget(version);outer.addLayout(header)
         body=QHBoxLayout();outer.addLayout(body,1)
-        self.navigation=QListWidget();self.navigation.setFixedWidth(225);body.addWidget(self.navigation)
+        self.navigation=QListWidget();self.navigation.setFixedWidth(245);self.navigation.setObjectName("navigation");body.addWidget(self.navigation)
         self.stack=QStackedWidget();body.addWidget(self.stack,1)
-        self.pages=[IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage(),PreparationPage(),MappingPage()]
-        for title,page in zip(["Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters","Prétraitement multispectral","Composition cartographique"],self.pages):
+        self.pages=[WorkflowPage(),PreparationPage(),CompositePage(),MappingPage(),IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage()]
+        titles=["Production automatisée","Prétraitement multispectral","Composition colorée","Composition cartographique",
+                "Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters"]
+        for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)
         self.navigation.currentRowChanged.connect(self.stack.setCurrentIndex);self.navigation.currentRowChanged.connect(self.page_changed)
         settings=QGroupBox("Paramètres de traitement");self.settings=settings;row=QHBoxLayout(settings)
         self.workers=spin(min(4,os.cpu_count() or 1),1,32);self.block_size=QComboBox();self.block_size.addItems(["256","512","1024","2048"]);self.block_size.setCurrentText("512")
         self.memory=spin(512,16,32768);self.memory.setSuffix(" Mio")
         self.overwrite=QCheckBox("Remplacer les fichiers existants")
-        for label,widget in [("Threads de calcul",self.workers),("Bloc (pixels)",self.block_size),("Budget des tableaux",self.memory)]:row.addWidget(QLabel(label));row.addWidget(widget)
+        self.engine_labels=[]
+        for label,widget in [("Threads de calcul",self.workers),("Bloc (pixels)",self.block_size),("Budget des tableaux",self.memory)]:
+            caption=QLabel(label);self.engine_labels.append(caption);row.addWidget(caption);row.addWidget(widget)
         row.addWidget(self.overwrite);outer.addWidget(settings)
         bottom=QHBoxLayout();self.run_button=QPushButton("Exécuter");self.run_button.setObjectName("primary")
         self.cancel_button=QPushButton("Annuler");self.cancel_button.setEnabled(False)
@@ -320,32 +433,45 @@ class CartomizeWindow(QMainWindow):
         self.folder_button.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.output_path).resolve().parent))))
         self.navigation.setCurrentRow(0)
         self.setStyleSheet("""
-            QMainWindow, QWidget { background: #f5f7f7; color: #223b3d; font-size: 12px; }
-            QLabel#brand { font-size: 25px; font-weight: 700; padding: 6px 4px 12px; }
-            QLabel#pageTitle { font-size: 21px; font-weight: 600; padding-bottom: 5px; }
-            QLabel#description { color: #536669; padding-bottom: 14px; }
-            QLineEdit,QPlainTextEdit,QTableWidget,QListWidget,QComboBox,QSpinBox,QDoubleSpinBox { background: white; border: 1px solid #c4d0d0; border-radius: 3px; padding: 5px; }
-            QListWidget::item { padding: 9px 4px; }
-            QListWidget::item:selected { background: #d5e8e4; color: #163f39; }
-            QPushButton { background: #e5edeb; border: 1px solid #b6c9c4; border-radius: 4px; padding: 8px 12px; }
-            QPushButton#primary { background: #246858; color: white; border: none; min-width: 110px; }
-            QPushButton:disabled { color: #8b9997; background: #edf0ef; }
-            QGroupBox { border: 1px solid #c4d0d0; border-radius: 4px; margin-top: 15px; padding-top: 12px; }
+            QMainWindow, QWidget { background: #f6f7f9; color: #273142; font-size: 12px; }
+            QLabel#brand { color: #142d68; font-size: 26px; font-weight: 700; }
+            QLabel#pageTitle { color: #142d68; font-size: 21px; font-weight: 600; padding-bottom: 4px; }
+            QLabel#description { color: #606975; padding-bottom: 8px; }
+            QLabel#muted { color: #606975; }
+            QLabel#sequence { background: #edf1f7; color: #142d68; border: 1px solid #dce2eb; border-radius: 4px; padding: 12px; margin-bottom: 8px; line-height: 1.6; }
+            QLineEdit,QPlainTextEdit,QTableWidget,QListWidget,QComboBox,QSpinBox,QDoubleSpinBox { background: white; border: 1px solid #ccd2dc; border-radius: 3px; padding: 5px; selection-background-color: #2f5597; }
+            QLineEdit:focus,QPlainTextEdit:focus { border-color: #2f5597; }
+            QListWidget#navigation { border: 0; background: #edf0f5; padding: 8px; }
+            QListWidget::item { padding: 12px 6px; }
+            QListWidget::item:selected { background: #dce5f3; color: #142d68; border-radius: 3px; }
+            QPushButton { background: white; border: 1px solid #ccd2dc; border-radius: 4px; padding: 8px 12px; }
+            QPushButton:hover { border-color: #2f5597; }
+            QPushButton#primary { background: #2f5597; color: white; border: none; min-width: 150px; font-weight: 600; }
+            QPushButton:disabled { color: #939ba7; background: #eef0f3; }
+            QGroupBox { border: 1px solid #ccd2dc; border-radius: 4px; margin-top: 15px; padding-top: 12px; }
             QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; }
-            QProgressBar { border: 1px solid #c4d0d0; background: white; text-align: center; min-height: 16px; }
-            QProgressBar::chunk { background: #70a797; }
+            QProgressBar { border: 1px solid #ccd2dc; background: white; text-align: center; min-height: 16px; }
+            QProgressBar::chunk { background: #2f5597; }
+            QScrollArea { border: none; }
+            QTabWidget::pane { border: 1px solid #dce2eb; padding: 10px; }
+            QTabBar::tab { background: #edf0f5; padding: 10px 14px; border-bottom: 2px solid transparent; }
+            QTabBar::tab:selected { color: #142d68; background: #f6f7f9; border-bottom: 2px solid #2f5597; }
+            QHeaderView::section { background: #edf0f5; border: none; border-bottom: 1px solid #ccd2dc; padding: 6px; }
         """)
     def page_changed(self,index):
         if index<0:return
-        for widget in (self.workers,self.block_size,self.memory):widget.setEnabled(self.pages[index].engine)
+        page=self.pages[index]
+        for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
+        self.settings.setVisible(not isinstance(page,WorkflowPage))
+        self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Exécuter")
     def start(self):
         if self.thread is not None:return
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),
                      memory_limit_mb=self.memory.value(),overwrite=self.overwrite.isChecked())
         try:job=self.pages[self.stack.currentIndex()].job(options)
         except Exception as exc:self.status.setText(str(exc));return
-        self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self);self.thread=self.worker
-        self.worker.progress.connect(self.show_progress);self.worker.succeeded.connect(self.completed)
+        self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self,staged=self.pages[self.stack.currentIndex()].staged);self.thread=self.worker
+        self.worker.progress.connect(self.show_progress);self.worker.stage.connect(self.status.setText);self.worker.succeeded.connect(self.completed)
         self.worker.failed.connect(self.failed);self.worker.cancelled.connect(self.cancelled)
         self.thread.finished.connect(self.cleaned);self.thread.finished.connect(self.thread.deleteLater)
         self.run_button.setEnabled(False);self.navigation.setEnabled(False);self.stack.setEnabled(False);self.settings.setEnabled(False)
@@ -367,7 +493,7 @@ class CartomizeWindow(QMainWindow):
         self.thread=None;self.worker=None;self.run_button.setEnabled(True);self.navigation.setEnabled(True)
         self.stack.setEnabled(True);self.settings.setEnabled(True);self.page_changed(self.stack.currentIndex());self.cancel_button.setEnabled(False)
     def cancel(self):
-        if self.cancel_event:self.cancel_event.set();self.cancel_button.setEnabled(False);self.status.setText("Interruption à la fin du bloc en cours.")
+        if self.cancel_event:self.cancel_event.set();self.cancel_button.setEnabled(False);self.status.setText("Interruption à la fin du bloc ou de l’export en cours.")
     def closeEvent(self,event):
         if self.thread is not None:
             self.cancel();self.status.setText("Attendre la fin du traitement avant de fermer la fenêtre.");event.ignore()

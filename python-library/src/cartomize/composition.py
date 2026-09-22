@@ -57,6 +57,8 @@ def compose_map(layers,*,aoi=None,clip_vectors=True,**options):
         raster=kind=="raster" or (kind is None and isinstance(data,(str,Path)) and Path(data).suffix.lower() in {".tif",".tiff",".vrt",".img",".jp2"})
         if zones is not None and clip_vectors and not raster:
             import geopandas as gpd
+            if isinstance(data,(str,Path)):
+                kwargs.setdefault("name",Path(data).stem)
             data=frame(data)
             data=gpd.clip(data,zones.to_crs(data.crs),keep_geom_type=True)
         result.add_layer(data,**kwargs)

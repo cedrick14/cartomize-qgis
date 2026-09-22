@@ -12,8 +12,9 @@ from .composition import compose_map
 from .algebra import calculate, reduce_rasters, ProcessingCancelled
 from .indices import spectral_indices, list_indices, get_index, register_index
 from .focal import focal
+from .workflow import CartographicProduct, cartographic_workflow
 
-__version__ = "0.3.0a1"
+__version__ = "0.3.0a2"
 
 
 def launch(*,block=None):
@@ -33,4 +34,4 @@ __all__ = ["Map", "Layer", "GeoDataFrame", "GeoSeries", "points_from_xy", "read_
            "layout_plan", "atlas", "raster", "vector", "Scene", "Band", "discover_scenes",
            "PreparedImage", "prepare_imagery", "color_composite", "read_rgb", "compose_map",
            "calculate", "reduce_rasters", "ProcessingCancelled", "spectral_indices", "list_indices",
-           "get_index", "register_index", "focal", "launch"]
+           "get_index", "register_index", "focal", "launch", "CartographicProduct", "cartographic_workflow"]
