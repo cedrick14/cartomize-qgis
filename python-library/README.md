@@ -6,7 +6,7 @@ Bibliothèque Python d’automatisation cartographique et d’analyse spatiale,
 par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.3.0a3 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
+**Version 0.4.0a1 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.3.0a3-py3-none-any.whl
+python -m pip install cartomize-0.4.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -47,7 +47,7 @@ L'ouverture donne accès à **Production automatisée** : sélection des scènes
 des couches, mosaïque, composite multibande, extraction par masque,
 composition colorée et export cartographique en une opération. Les indices,
 la calculatrice et les statistiques restent accessibles comme outils
-complémentaires. L’interface, le titre et l’icône sont affichés en noir, blanc et gris.
+complémentaires. L’icône conserve ses couleurs originales ; le titre et les contrôles restent en noir, blanc et gris.
 Les traitements s'exécutent en arrière-plan avec progression et annulation.
 
 La rubrique **Mise en page** donne accès aux 24 maquettes, aux formats A4/A3,
@@ -59,7 +59,34 @@ couches**, **Traitements vectoriels** et **Traitements raster** donnent accès
 aux diagnostics et aux opérations de la bibliothèque.
 
 Voir le [guide de l’interface graphique](docs/DESKTOP.md) et le
-[tableau des fonctionnalités](FUNCTIONAL_COVERAGE.md).
+[tableau des fonctionnalités](docs/FUNCTIONAL_COVERAGE.md).
+
+## Analyse du projet et NoData
+
+La rubrique **Analyse du projet** importe plusieurs couches, détecte les fonds
+périphériques, prépare des copies masquées et propose des classes. Le bouton
+**Appliquer à la mise en page** transmet les couches et la nomenclature éditée
+au rendu cartographique. **Rétablir les sources** recharge les fichiers initiaux.
+
+```python
+projet = cm.prepare_project([
+    {"data": "occupation.tif", "classes": {
+        2: ("Forêt primaire", "#26743b"),
+        3: ("Forêt secondaire", "#88ad56"),
+    }},
+    "routes.gpkg", "localites.gpkg",
+], "resultats/analyse_01")
+projet.compose(title="Occupation du sol").export("carte.pdf")
+# Recharger le plan ou retrouver les sources sans masquage supplémentaire :
+projet = cm.load_project("resultats/analyse_01/project.json")
+original = cm.load_project(projet.manifest, original_sources=True)
+```
+
+Les fonds non déclarés sont une inférence spatiale, jamais une certitude.
+Les rasters binaires 0/1 et les classes documentées sont protégés par défaut.
+Les libellés ne sont pas devinés à partir des codes. Voir le
+[fonctionnement des masques](docs/PROJECT_ANALYSIS.md) et le
+[bilan des demandes](docs/REQUEST_AUDIT.md).
 
 ## Automatiser la production depuis Python
 
@@ -208,8 +235,9 @@ capteur. Les facteurs d'échelle et décalages GDAL sont appliqués; utiliser
 une seule bande; elles ne modifient pas les fichiers sources.
 
 Les masques, NoData, NaN et Inf sont exclus des calculs. Un zéro valide est
-conservé. Le diagnostic propose des valeurs NoData potentielles sans
-les appliquer. Les matrices de changement exigent des grilles identiques.
+conservé. Le diagnostic individuel `raster.inspect` propose des valeurs NoData potentielles
+sans les appliquer. `prepare_project` applique les règles documentées de
+préparation dans des copies ; `keep_values` protège les valeurs valides. Les matrices de changement exigent des grilles identiques.
 La surface raster utilise le déterminant de la transformation et les unités
 du CRS projeté. Les indices et reclassifications sont traités par fenêtres;
 le découpage charge l'emprise découpée en mémoire.

@@ -1,0 +1,4 @@
+# Preserve the exact bytes checked by the provenance manifest on all platforms.
+src/cartomize/_core/** -text
+src/cartomize/templates_library/** -text
+src/cartomize/assets/** -text

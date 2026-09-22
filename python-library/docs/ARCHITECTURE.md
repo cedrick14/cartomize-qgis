@@ -1,4 +1,4 @@
-# Architecture et périmètre 0.3.0a3
+# Architecture et périmètre 0.4.0a1
 
 ## Provenance technique
 
@@ -13,7 +13,7 @@ natifs Esri et une boîte à outils Python ArcPy. La bibliothèque reprend les
 modules Python indépendants d'ArcPy et les maquettes de cette édition.
 Les dix modules repris sont conservés dans `_core`, à usage interne.
 Leur version interne 10.5.1 exprime leur provenance; la version du nouveau
-paquet est 0.3.0a3. Les fichiers originaux ne sont pas modifiés.
+paquet est 0.4.0a1. Les fichiers originaux ne sont pas modifiés.
 
 ## Fonctionnalités
 
@@ -31,7 +31,7 @@ paquet est 0.3.0a3. Les fichiers originaux ne sont pas modifiés.
 | Algèbre raster | Interpréteur AST sans exécution Python, traitement par blocs, lecture commune et calculs concurrents |
 | Indices spectraux | 18 formules documentées, paramètres et registre extensible |
 | Statistiques | Voisinages avec marges de blocs et synthèse multirasters |
-| Interface graphique | Qt facultatif, production automatisée et onze rubriques complémentaires, tâches en arrière-plan, progression et annulation |
+| Interface graphique | Qt facultatif, production automatisée et douze rubriques complémentaires, tâches en arrière-plan, progression et annulation |
 | Production | Atlas, CLI, wheel, distribution source et procédure PyPI |
 
 ## Choix techniques
@@ -39,7 +39,7 @@ paquet est 0.3.0a3. Les fichiers originaux ne sont pas modifiés.
 - Aucun import `arcpy`, `qgis` ou composant natif Esri à l'exécution.
 - Objets GeoPandas standards, sans nouvelle classe concurrente de GeoDataFrame.
 - CRS explicite, entrées copiées pour les opérations vectorielles.
-- Masques déclarés prioritaires; les suggestions heuristiques restent un diagnostic.
+- Masques déclarés prioritaires; le diagnostic individuel reste en lecture seule. Le nouveau parcours de projet applique les fonds périphériques retenus dans des copies réversibles.
 - Écritures raster temporaires puis remplacement atomique de chaque fichier, sources protégées. Les trois fichiers d’un produit multiscène sont remplacés successivement; une panne système pendant cette phase peut interrompre la livraison du groupe.
 - Les grands calculs NDVI/reclassification et comptages sont lus par fenêtres.
 - Les exports utilisent des images raster rééchantillonnées à 2048 pixels par
@@ -102,3 +102,19 @@ La page Mise en page et la page Atlas partagent la même configuration.
 Leur aperçu utilise le rendu réel, dans le fil de traitement existant.
 Le [tableau fonctionnel](FUNCTIONAL_COVERAGE.md) distingue la disponibilité
 dans Python des fonctions nécessitant encore un portage natif.
+
+## Préparation d’un projet de couches
+
+`project.analyze_project` rassemble les diagnostics. `project.prepare_project`
+appelle `nodata.mask_background`, dénombre les classes présentes et prépare un
+plan JSON. `nodata` associe un échantillonnage spatial conservateur à un
+étiquetage des composantes connexes par tuiles. Seules les composantes de fond
+reliées au bord sont supprimées du masque de validité ; les bandes restent
+identiques. Les valeurs NoData explicitement saisies ont une portée globale.
+Le masque interne GeoTIFF accompagne le fichier lors des déplacements.
+`desktop_project` expose l’analyse, la nomenclature et le rétablissement des
+sources. Le plan charge les classes dans `MappingPage`, puis dans `Map`.
+
+Les tableaux raster sont limités aux tuiles ; les métadonnées de composantes
+croissent avec leur nombre et celui des tuiles. La limite de composantes ne
+constitue pas une limite stricte de mémoire du processus.

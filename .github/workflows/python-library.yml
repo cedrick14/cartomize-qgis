@@ -20,6 +20,11 @@ jobs:
         working-directory: python-library
     steps:
       - uses: actions/checkout@v4
+      - name: Install Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libopengl0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}

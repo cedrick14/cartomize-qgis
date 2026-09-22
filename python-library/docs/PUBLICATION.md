@@ -15,8 +15,8 @@ python -m build
 python -m twine check dist/*
 ```
 
-Les fichiers attendus sont `cartomize-0.3.0a3-py3-none-any.whl` et
-`cartomize-0.3.0a3.tar.gz`. Tester l'installation du wheel dans un environnement
+Les fichiers attendus sont `cartomize-0.4.0a1-py3-none-any.whl` et
+`cartomize-0.4.0a1.tar.gz`. Tester l'installation du wheel dans un environnement
 neuf avant diffusion. Tester aussi sur Windows, qui est la plateforme de
 nombreux utilisateurs SIG.
 
@@ -37,7 +37,7 @@ résolution de dépendances :
 
 ```bash
 python -m pip install geopandas matplotlib numpy pyproj rasterio
-python -m pip install --index-url https://test.pypi.org/simple/ --no-deps cartomize==0.3.0a3
+python -m pip install --index-url https://test.pypi.org/simple/ --no-deps cartomize==0.4.0a1
 ```
 
 ## Publication publique
@@ -50,7 +50,7 @@ python -m twine upload dist/*
 ```
 
 Le suffixe `a3` signale une alpha. Pour cette version, communiquer la commande
-explicite `python -m pip install cartomize==0.3.0a3`. Les versions alpha ne sont
+explicite `python -m pip install cartomize==0.4.0a1`. Les versions alpha ne sont
 généralement pas sélectionnées par défaut quand des versions stables existent.
 Chaque nouvelle livraison doit avoir un nouveau numéro de version.
 

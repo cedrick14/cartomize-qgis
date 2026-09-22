@@ -28,16 +28,43 @@ def finish(window,timeout=15):
     assert window.thread is None,"Desktop worker did not finish"
 
 
+def test_project_analysis_applies_classes_and_restores_sources(application,write_raster,tmp_path):
+    from cartomize.desktop import CartomizeWindow
+    data=np.zeros((100,100),dtype='int16');data[12:88,12:88]=2;data[40:65,40:65]=3
+    path=write_raster('occupation.tif',data,nodata=None)
+    window=CartomizeWindow();window.show();window.navigation.setCurrentRow(1);page=window.pages[1]
+    icon=window.brand_icon.pixmap().toImage()
+    assert any(max(c.red(),c.green(),c.blue())-min(c.red(),c.green(),c.blue())>40
+               for x in range(icon.width()) for y in range(icon.height()) if (c:=icon.pixelColor(x,y)).alpha()>100)
+    assert window.run_button.text()=='Analyser le projet'
+    page.add_layer(path);page.directory.edit.setText(str(tmp_path));page.name.setText('analyse')
+    QTest.mouseClick(window.run_button,Qt.MouseButton.LeftButton);finish(window,30)
+    assert page.project is not None,window.status.text()
+    assert page.classes.rowCount()==2
+    page.classes.item(0,2).setText('Forêt primaire');page.classes.item(0,3).setText('#26743b')
+    QTest.mouseClick(page.apply_button,Qt.MouseButton.LeftButton)
+    assert window.stack.currentIndex()==2
+    mapping=window.pages[2];config=mapping.capture_map()
+    assert config['layers'][0]['classes'][2]==('Forêt primaire','#26743b')
+    assert cm.load_project(page.project.manifest).layers[0]['classes'][2][0]=='Forêt primaire'
+    mapping.output.edit.setText(str(tmp_path/'carte.png'));mapping.dpi.setValue(72)
+    window.start();finish(window,30)
+    assert (tmp_path/'carte.png').stat().st_size>1000,window.status.text()
+    window.navigation.setCurrentRow(1);QTest.mouseClick(page.restore_button,Qt.MouseButton.LeftButton)
+    config=mapping.capture_map();assert Path(config['layers'][0]['data'])==path and 'classes' not in config['layers'][0]
+    window.close();QTest.qWait(10)
+
+
 def test_native_window_indices_and_calculator(application,write_raster,tmp_path):
     from cartomize.desktop import CartomizeWindow
     path=write_raster("bands.tif",np.array([np.full((80,90),.2),np.full((80,90),.6)],dtype="float32"))
     with rasterio.open(path,"r+") as src:src.descriptions=("red","nir")
-    window=CartomizeWindow();window.show();window.navigation.setCurrentRow(8);page=window.pages[8]
+    window=CartomizeWindow();window.show();window.navigation.setCurrentRow(9);page=window.pages[9]
     page.source.edit.setText(str(path));page.output.edit.setText(str(tmp_path/"ndvi.tif"))
     QTest.mouseClick(window.run_button,Qt.MouseButton.LeftButton);finish(window)
     assert window.status.text().startswith("Traitement terminé")
     with rasterio.open(tmp_path/"ndvi.tif") as src:np.testing.assert_allclose(src.read(1),.5)
-    window.navigation.setCurrentRow(9);calculator=window.pages[9]
+    window.navigation.setCurrentRow(10);calculator=window.pages[10]
     calculator.add_raster(path);calculator.expression.setPlainText("where(nir > red, 1, 0)")
     calculator.output.edit.setText(str(tmp_path/"mask.tif"))
     QTest.mouseClick(window.run_button,Qt.MouseButton.LeftButton);finish(window)
@@ -66,7 +93,7 @@ def test_preparation_page_progress_and_cancellation(application,write_raster,tmp
     for index in [2,3,4,5]:write_raster(f"{prefix}_SR_B{index}.TIF",np.full((2,2),10000,dtype="uint16"),nodata=0)
     write_raster(f"{prefix}_QA_PIXEL.TIF",np.full((2,2),64,dtype="uint16"),nodata=0)
     from cartomize.desktop import CartomizeWindow
-    window=CartomizeWindow();window.navigation.setCurrentRow(6);page=window.pages[6]
+    window=CartomizeWindow();window.navigation.setCurrentRow(7);page=window.pages[7]
     page.source.edit.setText(str(tmp_path));page.output.edit.setText(str(tmp_path/"prepared.tif"))
     window.start();finish(window)
     assert Path(window.output_path).is_file()
@@ -77,7 +104,7 @@ def test_preparation_page_progress_and_cancellation(application,write_raster,tmp
 def test_mapping_page_exports_real_file(application,write_raster,tmp_path):
     from cartomize.desktop import CartomizeWindow
     path=write_raster("classes.tif",np.arange(100,dtype="float32").reshape(10,10))
-    window=CartomizeWindow();window.navigation.setCurrentRow(1);page=window.pages[1]
+    window=CartomizeWindow();window.navigation.setCurrentRow(2);page=window.pages[2]
     page.add_layer(path);page.title.setText("Distribution spatiale")
     page.output.edit.setText(str(tmp_path/"carte.png"));page.dpi.setValue(72)
     window.start();finish(window)
@@ -138,7 +165,7 @@ def test_layout_template_controls_preview_and_frames(application,tmp_path):
     from shapely.geometry import box
     source=tmp_path/'limites.geojson'
     cm.GeoDataFrame({'nom':['Zone A']},geometry=[box(300000,9500000,302000,9502000)],crs=32733).to_file(source)
-    window=CartomizeWindow();window.navigation.setCurrentRow(1);page=window.pages[1]
+    window=CartomizeWindow();window.navigation.setCurrentRow(2);page=window.pages[2]
     page.add_layer(source);page.title.setText('Mise en page');page.dpi.setValue(72)
     settings=page.layout_settings
     assert settings.template.count()==25
@@ -164,7 +191,7 @@ def test_atlas_page_exports_one_map_per_zone(application,tmp_path):
     from shapely.geometry import box
     source=tmp_path/'zones.geojson'
     cm.GeoDataFrame({'nom':['Zone A','Zone B']},geometry=[box(300000,9500000,301000,9501000),box(301000,9500000,302000,9501000)],crs=32733).to_file(source)
-    window=CartomizeWindow();window.navigation.setCurrentRow(2);page=window.pages[2]
+    window=CartomizeWindow();window.navigation.setCurrentRow(3);page=window.pages[3]
     page.add_layer(source);page.zones.edit.setText(str(source));page.name_column.setText('nom')
     page.output.edit.setText(str(tmp_path/'atlas'));page.atlas_format.setCurrentText('png');page.dpi.setValue(72)
     window.start();finish(window,30)
@@ -177,18 +204,18 @@ def test_vector_raster_and_diagnostic_pages(application,write_raster,tmp_path):
     from cartomize.desktop import CartomizeWindow
     from shapely.geometry import Point
     source=tmp_path/'localites.geojson';cm.GeoDataFrame({'nom':['A']},geometry=[Point(300000,9500000)],crs=32733).to_file(source)
-    window=CartomizeWindow();window.navigation.setCurrentRow(4);page=window.pages[4]
+    window=CartomizeWindow();window.navigation.setCurrentRow(5);page=window.pages[5]
     page.source.edit.setText(str(source));page.operation.setCurrentIndex(page.operation.findData('buffer'))
     page.distance.setValue(100);page.output.edit.setText(str(tmp_path/'tampon.gpkg'))
     window.start();finish(window)
     result=cm.read_file(tmp_path/'tampon.gpkg')
     assert result.geometry.iloc[0].area==pytest.approx(np.pi*100**2,rel=.01)
-    window.navigation.setCurrentRow(3);page=window.pages[3]
+    window.navigation.setCurrentRow(4);page=window.pages[4]
     page.source.edit.setText(str(source));page.output.edit.setText(str(tmp_path/'rapport.json'))
     window.start();finish(window)
     assert 'label_field' in page.report.toPlainText() and 'nom' in page.report.toPlainText()
     path=write_raster('classes.tif',np.array([[1,1],[2,2]],dtype='int16'))
-    window.navigation.setCurrentRow(5);page=window.pages[5]
+    window.navigation.setCurrentRow(6);page=window.pages[6]
     page.source.edit.setText(str(path));page.operation.setCurrentIndex(page.operation.findData('reclassify'))
     page.mapping.setPlainText('1 = 10\n2 = 20');page.output.edit.setText(str(tmp_path/'reclasse.tif'))
     window.start();finish(window)

@@ -1,10 +1,10 @@
-# Validation de Cartomize Python 0.3.0a3
+# Validation de Cartomize Python 0.4.0a1
 
 Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 
 ## Résultats
 
-- **92 tests automatisés réussis**, dont huit tests de l'interface Qt réelle
+- **105 tests automatisés réussis**, dont neuf tests de l'interface Qt réelle
   en mode hors écran. Les 52 tests de la version 0.2 restent inclus.
 - Vérification de l'algèbre, des indices, des masques, des statistiques et de
   l'égalité entre calcul séquentiel et calcul concurrent.
@@ -54,7 +54,7 @@ compositions RGBA, l'ordre des couches et les maquettes héritées.
 
 ## Portée et limites
 
-La suite produit 178 avertissements de dépréciation de l'opérateur Affine
+La suite produit 191 avertissements de dépréciation de l'opérateur Affine
 employé par Rasterio; ils ne provoquent pas d'échec de test.
 
 Le benchmark utilise des données synthétiques et un cache non purgé. Il ne
@@ -81,7 +81,29 @@ reclassification et un tableau de superficies par classe. Un test API
 vérifie l’arrêt d’un atlas entre deux pages. Le scénario de production
 automatisée vérifie aussi la transmission de la maquette et de l’habillage.
 
-Les contrôles visuels portent sur la fenêtre monochrome et l’accès aux
+Les contrôles visuels antérieurs portaient sur la fenêtre monochrome et l’accès aux
 fonctions. Les moteurs d’analyse et les maquettes d’origine restent couverts
 par les tests antérieurs. Aucune parité complète avec un projet ArcGIS Pro
 n’est affirmée.
+
+## Compléments de validation de la version 0.4.0a1
+
+Douze tests API supplémentaires couvrent la détection de fond, le masquage
+connexe et la préparation de projet. Trois tailles de raster, y compris des
+tuiles partielles, sont comparées à une propagation indépendante des pixels de
+fond. Les cas contrôlés comprennent les zéros intérieurs conservés, les
+binaires 0/1, les rasters uniformes, les masques GDAL et NaN, les nomenclatures
+explicites, les protections de classes, le RVB avec noir intérieur valide,
+la réversibilité, les sources inchangées, une sortie entièrement invalide,
+l’annulation préservant une destination existante et les couches vectorielles
+dans des systèmes de coordonnées différents.
+
+Le neuvième test Qt vérifie les pixels colorés de l’icône, lance l’analyse,
+édite le nom et la couleur d’une classe, applique la symbologie, exporte une
+vraie carte PNG et rétablit les chemins des sources. Le test API vérifie aussi
+la transparence des pixels dans le rendu Matplotlib, pas seulement l’existence
+d’un fichier de masque.
+
+Le benchmark historique des indices n’a pas été réexécuté et ne mesure pas
+la vitesse du nouveau masquage connexe. Aucune performance de ce traitement
+n’est présentée comme mesurée. Voir le [bilan des demandes](REQUEST_AUDIT.md).

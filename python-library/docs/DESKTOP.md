@@ -5,7 +5,7 @@
 Depuis le wheel fourni, avec Python 3.11 ou plus récent :
 
 ```bash
-python -m pip install "cartomize-0.3.0a3-py3-none-any.whl[gui]"
+python -m pip install "cartomize-0.4.0a1-py3-none-any.whl[gui]"
 cartomize-desktop
 ```
 
@@ -77,6 +77,31 @@ Les produits sont préparés dans un répertoire temporaire puis rendus
 accessibles ensemble après réussite. Une erreur ou une annulation avant
 l'enregistrement final ne laisse pas de production partielle publiée.
 
+## Analyse du projet
+
+1. Importer les couches raster et vectorielles dans **Analyse du projet**.
+2. Laisser la détection périphérique activée, ou la désactiver pour conserver
+   uniquement les masques déclarés. Pour protéger une classe valide, saisir son
+   code dans **Valeurs à conserver**. **NoData supplémentaires** impose des
+   valeurs à masquer dans toute l’image ; ce réglage est explicite.
+3. Choisir un nouveau répertoire de préparation et cliquer sur **Analyser le
+   projet**. Les pixels de fond supplémentaires sont masqués dans des copies.
+   Les valeurs des bandes et les fichiers d’origine ne sont pas modifiés.
+4. Vérifier **Résultats** puis **Nomenclature**. Les codes sans métadonnées
+   portent le libellé neutre « Classe … ». Les libellés et couleurs sont
+   éditables, par exemple « Forêt primaire » et `#26743b` si cette nomenclature
+   correspond effectivement aux données.
+5. Cliquer sur **Appliquer à la mise en page**. Les classes éditées sont
+   enregistrées dans le plan et reprises dans la légende de la carte.
+6. **Rétablir les sources** recharge les fichiers d’origine dans la mise en
+   page. **Ouvrir une analyse** recharge un fichier `project.json` Cartomize.
+
+Les classes documentées, les rasters uniformes et les classes binaires 0/1
+ne reçoivent pas de masquage automatique supplémentaire. Une classe réelle
+peut néanmoins ressembler à un fond : contrôler le résultat et utiliser
+**Valeurs à conserver** si nécessaire. Voir [Analyse du projet](PROJECT_ANALYSIS.md).
+Ce parcours travaille sur des fichiers de couches, pas sur un projet APRX/QGZ.
+
 ## Outils complémentaires
 
 | Outil | Usage |
@@ -85,6 +110,7 @@ l'enregistrement final ne laisse pas de production partielle publiée.
 | Composition colorée | Produire une visualisation RVB à partir d'un composite multibande nommé |
 | Mise en page | Maquettes, cadres, symbologie, étiquettes, contenus, aperçu et export |
 | Atlas cartographique | Une carte par entité d’une couche d’index |
+| Analyse du projet | Masques NoData, classes, plan réutilisable et application à la mise en page |
 | Analyse des couches | Profils raster/vectoriels et rapport JSON |
 | Traitements vectoriels | Découpage, tampon, superpositions, jointures, dissolution, reprojection, réparation et mesures |
 | Traitements raster | Extraction, reprojection, reclassification, statistiques zonales, superficies et transitions |
@@ -119,7 +145,7 @@ nécessaire pour l'affichage normal.
 
 ## Mise en page et atlas
 
-**Mise en page** est accessible directement sous Production automatisée.
+**Mise en page** est accessible dans le menu, après Analyse du projet.
 
 1. Dans **Couches et symbologie**, importer les rasters et les données
    vectorielles. Renseigner les rôles, les champs d’étiquette et les champs
@@ -174,8 +200,8 @@ la fenêtre et n’exposent pas d’annulation en cours d’opération.
 
 ## Identité visuelle et validation
 
-Tous les contrôles de l’interface, l’icône et les titres utilisent le noir,
-le blanc et les gris. L’icône originale est rendue en noir à l’affichage.
+Les contrôles et les titres utilisent le noir, le blanc et les gris.
+L’icône originale conserve ses couleurs, sans recoloration.
 Les informations de provenance du code et les attributions sont conservées
 dans les documents techniques.
 

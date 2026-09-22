@@ -4,11 +4,10 @@ import os
 import sys
 import threading
 import tempfile
-from functools import lru_cache
 
 try:
     from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot, QUrl
-    from PySide6.QtGui import QDesktopServices, QIcon, QPixmap, QImage, QColor, QPalette
+    from PySide6.QtGui import QDesktopServices, QIcon, QPixmap, QColor, QPalette
     from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,
         QFormLayout,QLabel,QLineEdit,QPushButton,QFileDialog,QListWidget,QListWidgetItem,
         QStackedWidget,QComboBox,QSpinBox,QDoubleSpinBox,QCheckBox,QPlainTextEdit,
@@ -26,18 +25,6 @@ STATISTICS={"Moyenne":"mean","Somme":"sum","Minimum":"min","Maximum":"max","Éca
 ROLE_LABELS={"Fond raster":"background","Occupation du sol":"landcover","Données thématiques":"thematic",
              "Polygones":"polygon","Hydrographie":"water","Lignes":"line","Routes":"roads",
              "Voies ferrées":"railways","Limites administratives":"boundaries","Localités":"localities","Points":"points"}
-
-
-@lru_cache(maxsize=4)
-def monochrome_icon(path):
-    source=QImage(str(path)).scaled(192,192,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation).convertToFormat(QImage.Format.Format_RGBA8888)
-    # Preserve the symbol's silhouette and negative space, using black ink.
-    for y in range(source.height()):
-        for x in range(source.width()):
-            pixel=source.pixelColor(x,y)
-            ink=pixel.alpha() if max(pixel.red(),pixel.green(),pixel.blue())<225 else 0
-            source.setPixelColor(x,y,QColor(0,0,0,ink))
-    return QPixmap.fromImage(source)
 
 
 class PathField(QWidget):
@@ -257,6 +244,7 @@ class MappingPage(Page):
     previewRequested=Signal()
     def __init__(self):
         super().__init__("Mise en page cartographique","Maquettes, cadres multiples, légende, échelle, orientation et exports PDF, PNG ou SVG.")
+        self._analysis_overrides={}
         from .desktop_layout import LayoutSettings
         self.tabs=QTabWidget();self.form.addRow(self.tabs)
         self.layer_tab=QWidget();layer_form=QFormLayout(self.layer_tab);self.tabs.addTab(self.layer_tab,"Couches et symbologie")
@@ -300,13 +288,23 @@ class MappingPage(Page):
     def capture_map(self):
         layers=[]
         for row in range(self.layers.rowCount()):
-            layers.append(dict(data=self.layers.item(row,0).text(),role=self.layers.cellWidget(row,1).currentData(),
+            path=self.layers.item(row,0).text()
+            layers.append(dict(self._analysis_overrides.get(path,{}),data=path,role=self.layers.cellWidget(row,1).currentData(),
                 labels=self.layers.item(row,2).text().strip() or None,column=self.layers.item(row,3).text().strip() or None,
                 band=self.layers.cellWidget(row,4).value(),alpha=self.layers.cellWidget(row,5).value()/100,cmap=self.layers.cellWidget(row,6).currentText()))
         if not layers:raise ValueError("Importer au moins une couche géographique dans Couches et symbologie.")
         return dict(layers=layers,rgb=self.rgb.currentData(),aoi=self.aoi.text() or None,
             options=dict(title=self.title.text(),subtitle=self.subtitle.text(),credits=self.credits.text(),crs=self.crs.text().strip() or None),
             layout=self.layout_settings.capture())
+    def load_layers(self,layers):
+        self.layers.setRowCount(0);self._analysis_overrides={}
+        for layer in layers:
+            path=str(layer['data']);self.add_layer(path);row=self.layers.rowCount()-1
+            self._analysis_overrides[path]={key:layer[key] for key in ('name','kind','classes','rgb') if key in layer}
+            role=self.layers.cellWidget(row,1);role.setCurrentIndex(max(0,role.findData(layer.get('role'))))
+            self.layers.item(row,2).setText(layer.get('labels') or '');self.layers.item(row,3).setText(layer.get('column') or '')
+            self.layers.cellWidget(row,4).setValue(layer.get('band',1));self.layers.cellWidget(row,5).setValue(round(100*layer.get('alpha',1)))
+        self.tabs.setCurrentIndex(0)
     @staticmethod
     def build_map(config):
         from .desktop_layout import apply_layout
@@ -480,7 +478,7 @@ class CartomizeWindow(QMainWindow):
         root=QWidget();self.setCentralWidget(root);outer=QVBoxLayout(root)
         outer.setContentsMargins(20,14,20,14);outer.setSpacing(12)
         header=QHBoxLayout();icon_path=Path(__file__).parent/"assets"/"cartomize.png"
-        icon=monochrome_icon(icon_path);self.setWindowIcon(QIcon(icon));self.brand_icon=QLabel()
+        icon=QPixmap(str(icon_path));self.setWindowIcon(QIcon(icon));self.brand_icon=QLabel()
         ratio=self.devicePixelRatioF();pixmap=icon.scaled(round(52*ratio),round(52*ratio),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
         pixmap.setDevicePixelRatio(ratio);self.brand_icon.setPixmap(pixmap);self.brand_icon.setFixedSize(58,58)
         header.addWidget(self.brand_icon);identity=QVBoxLayout();identity.setSpacing(1)
@@ -491,13 +489,15 @@ class CartomizeWindow(QMainWindow):
         self.navigation=QListWidget();self.navigation.setFixedWidth(245);self.navigation.setObjectName("navigation");body.addWidget(self.navigation)
         self.stack=QStackedWidget();body.addWidget(self.stack,1)
         from .desktop_tools import InspectionPage,VectorPage,RasterToolsPage
-        self.pages=[WorkflowPage(),MappingPage(),AtlasPage(),InspectionPage(),VectorPage(),RasterToolsPage(),
+        from .desktop_project import ProjectPage
+        self.pages=[WorkflowPage(),ProjectPage(),MappingPage(),AtlasPage(),InspectionPage(),VectorPage(),RasterToolsPage(),
             PreparationPage(),CompositePage(),IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage()]
-        titles=["Production automatisée","Mise en page","Atlas cartographique","Analyse des couches","Traitements vectoriels","Traitements raster",
+        titles=["Production automatisée","Analyse du projet","Mise en page","Atlas cartographique","Analyse des couches","Traitements vectoriels","Traitements raster",
             "Prétraitement multispectral","Composition colorée","Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters"]
         for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)
             if isinstance(page,MappingPage):page.previewRequested.connect(lambda:self.start(preview=True))
+            if isinstance(page,ProjectPage):page.applyRequested.connect(self.apply_project)
         self.navigation.currentRowChanged.connect(self.stack.setCurrentIndex);self.navigation.currentRowChanged.connect(self.page_changed)
         settings=QGroupBox("Paramètres de traitement");self.settings=settings;row=QHBoxLayout(settings)
         self.workers=spin(min(4,os.cpu_count() or 1),1,32);self.block_size=QComboBox();self.block_size.addItems(["256","512","1024","2048"]);self.block_size.setCurrentText("512")
@@ -546,10 +546,15 @@ class CartomizeWindow(QMainWindow):
         if index<0:return
         page=self.pages[index]
         for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
-        self.settings.setVisible(not isinstance(page,WorkflowPage))
+        from .desktop_project import ProjectPage
+        self.settings.setVisible(not isinstance(page,(WorkflowPage,ProjectPage)))
         self.settings.setTitle("Paramètres de traitement" if page.engine else "")
         self.settings.setStyleSheet("" if page.engine else "QGroupBox { border: none; margin-top: 0px; padding-top: 0px; }")
-        self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")
+        self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Analyser le projet" if isinstance(page,ProjectPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")
+    def apply_project(self,layers):
+        page=next(page for page in self.pages if type(page) is MappingPage)
+        page.load_layers(layers);self.navigation.setCurrentRow(self.pages.index(page))
+        self.status.setText('Couches et symbologie appliquées à la mise en page.')
     def start(self,checked=False,*,preview=False):
         if self.thread is not None:return
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),

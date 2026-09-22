@@ -1,10 +1,10 @@
 # Fonctions cartographiques disponibles
 
-La version 0.3.0a3 rend visibles dans la fenêtre plusieurs fonctions déjà
-présentes dans la bibliothèque. La comparaison ci-dessous s’appuie sur les
+La version 0.4.0a1 ajoute une préparation de projet réversible, en complément
+des fonctions cartographiques déjà accessibles dans la fenêtre. La comparaison ci-dessous s’appuie sur les
 commandes de l’extension et sa boîte à outils, présentes dans le dépôt source.
 
-| Fonction | Bibliothèque Python et fenêtre 0.3.0a3 |
+| Fonction | Bibliothèque Python et fenêtre 0.4.0a1 |
 |---|---|
 | Maquettes de mise en page | 24 maquettes disponibles, sélection dans Mise en page et Production automatisée |
 | Format et orientation | A4/A3, portrait/paysage pour le modèle standard; dimensions fixées par les autres maquettes |
@@ -17,6 +17,9 @@ commandes de l’extension et sa boîte à outils, présentes dans le dépôt so
 | Exports PDF, PNG, SVG | Disponibles |
 | Atlas | Une carte par entité, champ de nom, marge, format, progression et annulation entre pages |
 | Analyse vectorielle | Audit géométrique, profil des attributs, propositions de champs |
+| Analyse du projet | Analyse de plusieurs fichiers, copies masquées, classes, plan JSON et application à la mise en page |
+| NoData périphérique | Masquage connexe en périphérie, protection des classes binaires/documentées, règles explicites et rétablissement des sources |
+| Nomenclature | Libellés et couleurs éditables ; métadonnées ou saisie utilisateur, sans invention sémantique |
 | Analyse raster | Métadonnées, NoData, profil et inférence à partir d’un échantillon |
 | Traitements vectoriels | 12 opérations exposées dans la fenêtre |
 | Traitements raster | 6 opérations supplémentaires, en plus des calculs et du prétraitement |
@@ -25,7 +28,7 @@ commandes de l’extension et sa boîte à outils, présentes dans le dépôt so
 | Édition native d’un projet APRX, synchronisation d’une mise en page existante | Non transposées dans cette bibliothèque autonome |
 | Export PAGX et commandes de l’interface Esri | Non disponibles |
 | Recettes JSON de l’extension et manifeste batch jusqu’à 5 000 cartes | Non compatibles automatiquement; l’atlas Python couvre un autre mode de production en série |
-| Audit complet du projet, contrôle des changements MapOps, certificat d’approbation | Non transposés; Analyse des couches reste un diagnostic par fichier |
+| Audit complet du projet, contrôle des changements MapOps, certificat d’approbation | Non transposés intégralement; Analyse du projet prépare les fichiers sélectionnés, sans lire l’état complet d’un projet natif |
 | Choix automatique de variantes et optimisation native des éléments | Non transposés intégralement; choix manuel des maquettes et ordre automatique des couches disponibles |
 | Portail et ressources communautaires intégrés | Non intégrés dans la fenêtre Python |
 
@@ -34,3 +37,6 @@ automatiquement en code Python autonome. Le tableau précise cette limite
 pour distinguer les accès ajoutés des fonctions qui nécessitent encore un
 portage. Les informations de provenance ne sont pas utilisées comme intitulés
 ou slogans dans la fenêtre.
+
+Le [bilan des demandes](REQUEST_AUDIT.md) distingue les réalisations, les
+limites partielles et les fonctionnalités absentes.

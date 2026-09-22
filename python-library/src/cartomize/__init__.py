@@ -13,8 +13,10 @@ from .algebra import calculate, reduce_rasters, ProcessingCancelled
 from .indices import spectral_indices, list_indices, get_index, register_index
 from .focal import focal
 from .workflow import CartographicProduct, cartographic_workflow
+from .nodata import detect_background, mask_background
+from .project import analyze_project, prepare_project, load_project, PreparedProject
 
-__version__ = "0.3.0a3"
+__version__ = "0.4.0a1"
 
 
 def launch(*,block=None):
@@ -34,4 +36,5 @@ __all__ = ["Map", "Layer", "GeoDataFrame", "GeoSeries", "points_from_xy", "read_
            "layout_plan", "atlas", "raster", "vector", "Scene", "Band", "discover_scenes",
            "PreparedImage", "prepare_imagery", "color_composite", "read_rgb", "compose_map",
            "calculate", "reduce_rasters", "ProcessingCancelled", "spectral_indices", "list_indices",
-           "get_index", "register_index", "focal", "launch", "CartographicProduct", "cartographic_workflow"]
+           "get_index", "register_index", "focal", "launch", "CartographicProduct", "cartographic_workflow", "detect_background", "mask_background",
+           "analyze_project", "prepare_project", "load_project", "PreparedProject"]
