@@ -5,7 +5,7 @@
 Depuis le wheel fourni, avec Python 3.11 ou plus récent :
 
 ```bash
-python -m pip install "cartomize-0.4.0a1-py3-none-any.whl[gui]"
+python -m pip install "cartomize-0.5.0a1-py3-none-any.whl[gui]"
 cartomize-desktop
 ```
 
@@ -22,10 +22,19 @@ graphiques sont facultatives pour les scripts. L'importation de `cartomize`
 n'ouvre pas de fenêtre. Cette alpha est distribuée par wheel; aucune
 publication PyPI n'a été effectuée.
 
+## Assistant cartographique et ordre du travail
+
+L’écran d’ouverture est **Assistant cartographique**. Définir l’objectif et le type de données, importer les fichiers ou scènes, préciser le titre et la zone d’étude, puis **Examiner les données**. Les recommandations indiquent le motif de chaque étape. **Ouvrir l’étape sélectionnée** transmet les entrées à l’outil. L’examen est en lecture seule ; Analyse du projet applique ensuite les masques dans des copies.
+
+Après traitement, **Résultats du projet** permet de sélectionner une sortie et **Transmettre au traitement**. Le multibande préparé renseigne directement les pages Composition colorée et Indices. Le RGBA Cartomize n’est pas proposé aux indices. **Reprendre la mise en page**, après une production automatisée, recharge les couches, l’emprise et l’habillage de la production terminée dans la session.
+
+Dans Mise en page, **Contrôler la carte** ouvre le bilan technique ; les erreurs bloquantes sont également vérifiées avant export. **Préparer l’atlas** transmet la configuration complète ; renseigner ensuite l’index et le champ des noms. Les fichiers CSV de statistiques alimentent les tableaux/graphiques par sélection dans Cadres et contenus.
+
+L’assistance suit des règles explicables. Elle ne réalise pas de classification supervisée et ne garantit pas automatiquement la validité scientifique ou la lisibilité finale. Voir [l’audit des outils](TOOL_AUDIT.md).
+
 ## Production cartographique automatisée
 
-L'écran d'ouverture est **Production automatisée**. Le bouton **Exécuter la
-chaîne** réalise le parcours suivant dans une seule opération :
+La rubrique **Production automatisée** reste accessible depuis la navigation. Le bouton **Exécuter la chaîne** réalise le parcours suivant dans une seule opération :
 
 1. Identification des scènes et des bandes spectrales.
 2. Calibration radiométrique et masque de qualité avant rééchantillonnage.
@@ -183,7 +192,7 @@ attributs et proposition de champs pour le vecteur; métadonnées, bandes,
 échantillon de valeurs et diagnostic NoData pour le raster. Ce diagnostic
 ne constitue pas l’audit complet d’un projet SIG.
 
-**Traitements vectoriels** propose 12 opérations. Les distances de tampon
+**Traitements vectoriels** propose 13 opérations. Les distances de tampon
 sont en mètres. Les mesures demandent un système projeté adapté; les résultats
 sont enregistrés dans de nouveaux champs. Les sorties sont des GeoPackage ou
 GeoJSON et ne remplacent jamais un fichier source.

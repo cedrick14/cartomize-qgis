@@ -80,7 +80,10 @@ def analyze_project(layers,*,auto_background=True,progress=None,cancel=None):
         names.add(name);kind=options.get('kind') or ('raster' if source.suffix.lower() in RASTER_SUFFIXES else 'vector')
         record=dict(source=str(source),name=name,kind=kind,options={})
         if kind=='raster':
-            with rasterio.open(source) as src:known=_class_metadata(src,options.get('classes'))
+            with rasterio.open(source) as src:
+                from .raster import _band
+                if src.crs is None:raise ValueError(f'Raster sans système de coordonnées : {name}')
+                _band(src,options.get('band',1));known=_class_metadata(src,options.get('classes'))
             explicit=[float(v) for v in options.get('nodata_values',()) if v not in options.get('keep_values',())]
             if not all(np.isfinite(explicit)):raise ValueError('Les valeurs NoData supplémentaires doivent être finies.')
             keep=list(dict.fromkeys([*options.get('keep_values',()),*(v for v in known if v not in explicit)]))
@@ -88,7 +91,8 @@ def analyze_project(layers,*,auto_background=True,progress=None,cancel=None):
             border=diagnostic['automatic_border_values'] if auto_background else []
             record.update(diagnostic=diagnostic,border_values=border,nodata_values=explicit,keep_values=keep,
                           supplied_classes={str(k):v for k,v in known.items()})
-            record['options']=dict(role=options.get('role'),band=options.get('band',1),rgb='native' if diagnostic['native_rgb'] else None)
+            record['options']=dict(role=options.get('role'),band=options.get('band',1),
+                                   rgb=options.get('rgb','native' if diagnostic['native_rgb'] else None))
         elif kind=='vector':
             diagnostic=analyze_vector(source,name=name)
             types=tuple(diagnostic['geometry_types'])
@@ -96,6 +100,8 @@ def analyze_project(layers,*,auto_background=True,progress=None,cancel=None):
             record.update(diagnostic=diagnostic)
             record['options']=dict(role=role,labels=options.get('labels') or diagnostic.get('label_field'),column=options.get('column'))
         else:raise ValueError('Types de couches : raster ou vector.')
+        for key in ('alpha','cmap','color','legend','zorder'):
+            if key in options:record['options'][key]=options[key]
         result.append(record)
         if progress:progress(number,len(layers))
     crss=sorted(set(r['diagnostic']['crs'] for r in result))

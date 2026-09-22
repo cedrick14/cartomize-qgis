@@ -49,6 +49,10 @@ def _writer(path, profile, *, overwrite=False, sources=()):
         with rasterio.open(temporary, "w", **profile) as dst:
             yield dst
         os.replace(temporary, path)
+        # Old GDAL sidecars must not override a replacement raster's new mask
+        # or georeferencing. They are invalidated only after a successful write.
+        for suffix in ('.msk','.aux.xml','.ovr'):
+            Path(str(path)+suffix).unlink(missing_ok=True)
     finally:
         for suffix in ("", ".msk", ".aux.xml"):
             Path(temporary + suffix).unlink(missing_ok=True)
@@ -111,7 +115,8 @@ def normalized_difference(source, destination, *, positive_band, negative_band,
                 b = b * (src.scales[negative_band-1] if scale is None else scale) + (src.offsets[negative_band-1] if offset is None else offset)
                 with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
                     result = np.ma.masked_invalid((a - b) / (a + b))
-                dst.write(result.filled(np.nan).astype("float32"), 1, window=window)
+                    converted=result.filled(np.nan).astype('float32')
+                dst.write(np.where(np.isfinite(converted),converted,np.nan), 1, window=window)
             dst.update_tags(operation="normalized_difference", positive_band=positive_band,
                             negative_band=negative_band)
     return Path(destination)
@@ -119,6 +124,13 @@ def normalized_difference(source, destination, *, positive_band, negative_band,
 
 def ndvi(source, destination, *, red, nir, **kwargs):
     return normalized_difference(source, destination, positive_band=nir, negative_band=red, **kwargs)
+
+
+def _copy_band_metadata(src,band,dst):
+    dst.descriptions=(src.descriptions[band-1],)
+    dst.scales=(src.scales[band-1],);dst.offsets=(src.offsets[band-1],)
+    if src.units[band-1]:dst.set_band_unit(1,src.units[band-1])
+    dst.update_tags(**src.tags());dst.update_tags(1,**src.tags(band))
 
 
 def reclassify(source, destination, mapping, *, band=1, unmatched="nodata", overwrite=False):
@@ -159,8 +171,10 @@ def clip(source, mask, destination, *, band=1, all_touched=False, overwrite=Fals
                                       filled=False, all_touched=all_touched)
         data = np.ma.masked_invalid(data.astype("float64"))
         profile = _profile(src, dtype="float64", transform=transform, height=data.shape[0], width=data.shape[1])
-        with _writer(destination, profile, overwrite=overwrite, sources=(source,)) as dst:
+        sources=(source,mask) if isinstance(mask,(str,Path)) else (source,)
+        with _writer(destination, profile, overwrite=overwrite, sources=sources) as dst:
             dst.write(data.filled(np.nan), 1)
+            _copy_band_metadata(src,band,dst)
     return Path(destination)
 
 
@@ -179,6 +193,7 @@ def reproject(source, destination, crs, *, band=1, resolution=None, resampling="
             with _writer(destination, _profile(vrt, dtype="float64"), overwrite=overwrite, sources=(source,)) as dst:
                 for _, window in dst.block_windows(1):
                     dst.write(_read(vrt, band, window=window).filled(np.nan), 1, window=window)
+                _copy_band_metadata(src,band,dst)
     return Path(destination)
 
 

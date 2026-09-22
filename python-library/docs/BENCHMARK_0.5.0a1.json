@@ -1,0 +1,142 @@
+{
+  "cartomize": "0.5.0a1",
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+  "logical_cpus": 9,
+  "rasterio": "1.5.1",
+  "numpy": "2.5.3",
+  "raster_size": [
+    2048,
+    2048
+  ],
+  "input_bands": 4,
+  "output_indices": [
+    "NDVI",
+    "NDMI",
+    "NBR"
+  ],
+  "source_bytes": 73419864,
+  "identical_outputs": true,
+  "cache_policy": "OS and GDAL caches not purged; repeated source reads, rotating case order.",
+  "repeats": 3,
+  "median_seconds": {
+    "separate": 2.712635200994555,
+    "batch_serial": 2.3425239010030054,
+    "batch_parallel": 1.750212097002077
+  },
+  "speedup_vs_separate": {
+    "separate": 1.0,
+    "batch_serial": 1.1579968084138128,
+    "batch_parallel": 1.5498894137693393
+  },
+  "runs": [
+    {
+      "mode": "separate",
+      "seconds": 2.712635200994555,
+      "peak_rss_mb": 267.765625,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 57315286,
+      "repetition": 1
+    },
+    {
+      "mode": "batch_serial",
+      "seconds": 2.025696158998471,
+      "peak_rss_mb": 409.34765625,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550533,
+      "repetition": 1
+    },
+    {
+      "mode": "batch_parallel",
+      "seconds": 1.4453225930046756,
+      "peak_rss_mb": 415.3359375,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550533,
+      "repetition": 1
+    },
+    {
+      "mode": "batch_serial",
+      "seconds": 2.3425239010030054,
+      "peak_rss_mb": 408.7578125,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550533,
+      "repetition": 2
+    },
+    {
+      "mode": "batch_parallel",
+      "seconds": 2.0595720929995878,
+      "peak_rss_mb": 417.61328125,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550532,
+      "repetition": 2
+    },
+    {
+      "mode": "separate",
+      "seconds": 2.4615952460007975,
+      "peak_rss_mb": 267.96484375,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 57315286,
+      "repetition": 2
+    },
+    {
+      "mode": "batch_parallel",
+      "seconds": 1.750212097002077,
+      "peak_rss_mb": 415.1875,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550533,
+      "repetition": 3
+    },
+    {
+      "mode": "separate",
+      "seconds": 5.142158205002488,
+      "peak_rss_mb": 267.4921875,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 57315286,
+      "repetition": 3
+    },
+    {
+      "mode": "batch_serial",
+      "seconds": 2.379217677997076,
+      "peak_rss_mb": 409.16796875,
+      "signatures": [
+        "cf1d4d2b77686c29bdeb29d9b4ddfe95d29023a717d3bf8340fec581597b501f",
+        "2ac0f409de438fa43c3bc06aeb211e7beb6d574247ec380270a54fc40625b5df",
+        "97acf08514656fb86b64cedb572c63336a2b59458a2418e23db6371cc2ea6cf3"
+      ],
+      "output_bytes": 58550533,
+      "repetition": 3
+    }
+  ]
+}

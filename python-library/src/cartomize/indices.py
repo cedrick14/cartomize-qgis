@@ -73,12 +73,16 @@ def spectral_indices(source,destination,indices=("NDVI",),*,band_map=None,parame
     if set(parameters)-{d.name for d in definitions}:raise ValueError("Parameter keys must match selected index names.")
     required=set().union(*(d.bands for d in definitions));mapping=dict(band_map or {})
     with rasterio.open(source) as src:
+        if src.tags().get('CARTOMIZE_PRODUCT')=='display_rgba':
+            raise ValueError('Use the scientific multiband raster, not the display RGBA product, for spectral indices.')
         labels=[(d or src.tags(i).get("semantic_name","")).casefold() for i,d in enumerate(src.descriptions,1)]
         for name in required:
             if name not in mapping:
                 matches=[i+1 for i,d in enumerate(labels) if d==name]
                 if len(matches)!=1:raise ValueError(f"Declare the band number for {name}.")
                 mapping[name]=matches[0]
+        if len({mapping[name] for name in required})!=len(required):
+            raise ValueError('Assign distinct raster bands to distinct spectral names.')
         inputs={}
         for name in sorted(required):
             index=mapping[name]

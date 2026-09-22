@@ -253,16 +253,22 @@ def calculate(expression,inputs,destination,**options):
     if any(not isinstance(k,str) or not k.isidentifier() or k in FUNCTIONS or k in {"pi","e"} or k.startswith("_") for k in inputs):
         raise ValueError("Input names must be identifiers distinct from functions and constants.")
     selected={k:v for k,v in inputs.items() if k in required}
+    from ._validation import output_path
+    output_path(destination,options.get('overwrite',False),[_asset(v)[0].path for v in inputs.values()])
     if not selected and inputs:selected={next(iter(inputs)):next(iter(inputs.values()))}
     return _run_blocks(selected,destination,list(parsed),lambda values:[e.evaluate(values) for e in parsed.values()],
                        metadata={"operation":"raster_algebra","expressions":expressions},**options)
 
 
 def reduce_rasters(sources,destination,*,statistic="mean",band=1,min_valid=1,**options):
-    """Cell-wise statistics across rasters; dates/order are supplied by caller."""
+    """Cell-wise statistics; count returns all counts including zero.
+
+    min_valid filters summary statistics; count requires its default value 1.
+    """
     sources=list(sources)
     if statistic not in {"mean","sum","min","max","std","median","count"}:raise ValueError("Invalid statistic.")
     if not sources or not isinstance(min_valid,int) or not 1<=min_valid<=len(sources):raise ValueError("Invalid minimum valid observation count.")
+    if statistic=='count' and min_valid!=1:raise ValueError('count reports every observation count; min_valid must be 1.')
     inputs={f"r{i}":value if isinstance(value,(Band,tuple,list)) else (value,band) for i,value in enumerate(sources)}
     args=",".join(inputs)
     expression=f"{statistic}({args})" if statistic=="count" else f"where(count({args}) >= {min_valid}, {statistic}({args}), sqrt(-1))"

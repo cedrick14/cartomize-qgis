@@ -1,6 +1,6 @@
 # Analyse du projet et préparation du NoData
 
-Version 0.4.0a1. Le projet est une liste de fichiers raster/vectoriels.
+Version 0.5.0a1. Le projet est une liste de fichiers raster/vectoriels.
 Les projets natifs APRX et QGZ ne sont pas lus.
 
 ## Chaîne effective

@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import math
 import warnings
+import os
+import tempfile
 
 import geopandas as gpd
 import numpy as np
@@ -69,6 +71,7 @@ class Map:
         self.title, self.subtitle, self.credits = title, subtitle, credits
         self.crs = CRS.from_user_input(crs) if crs is not None else None
         self.layers: list[Layer] = []
+        self._sources=[]
         self.auto_order = bool(auto_order)
         self.plan = layout_plan(template) if template else None
         width, height = (210, 297) if format == "A4" else (297, 420)
@@ -99,6 +102,7 @@ class Map:
             kind = "raster" if isinstance(data, (str, Path)) and Path(data).suffix.lower() in {".tif", ".tiff", ".vrt", ".img", ".jp2"} else "vector"
         if kind not in {"raster", "vector"}:
             raise ValueError("kind must be raster or vector.")
+        source=Path(data).expanduser().resolve() if isinstance(data,(str,Path)) else None
         layer_name = name or (Path(data).stem if isinstance(data, (str, Path)) else f"Layer {len(self.layers)+1}")
         if layer_name in {l.name for l in self.layers}:
             raise ValueError("Each layer needs a unique name.")
@@ -113,6 +117,7 @@ class Map:
                     raise KeyError(field_name)
             if column and not pd.api.types.is_numeric_dtype(data[column]):
                 categorical = True
+            if classes and column:categorical=True
             layer_crs = data.crs
         else:
             with rasterio.open(data) as src:
@@ -149,6 +154,7 @@ class Map:
                                  categorical=categorical,classes=dict(classes or {}),band=band,alpha=alpha,
                                  legend=(rgb is None) if legend is None else legend,style=style,role=role,zorder=zorder,
                                  rgb=rgb,percentiles=tuple(percentiles),gamma=gamma))
+        if source is not None:self._sources.append(source)
         return self
 
     def layer_plan(self):
@@ -179,20 +185,32 @@ class Map:
         return self
 
     def set_text(self, item_id, text):
+        self._check_item(item_id,{'title','subtitle','text'})
         self.texts[item_id] = str(text)
         return self
 
     def set_table(self, item_id, data):
+        self._check_item(item_id,{'table'})
         self.tables[item_id] = pd.DataFrame(data)
         return self
 
     def set_chart(self, item_id, labels, values, *, color="#56866c"):
+        self._check_item(item_id,{'chart'})
         values = list(values)
         labels = list(labels)
         if len(labels) != len(values) or not np.isfinite(values).all():
             raise ValueError("Chart labels and finite values must have equal lengths.")
         self.charts[item_id] = (labels, values, color)
         return self
+
+    def _check_item(self,item_id,kinds):
+        if self.plan is None or not any(i.item_id==item_id and i.kind in kinds for i in self.plan.items):
+            raise KeyError(f'No matching layout element: {item_id}')
+
+    def audit(self):
+        """Technical checks before export; not a certification of map accuracy."""
+        from .quality import audit_map
+        return audit_map(self)
 
     def add_legend(self, enabled=True):
         self.legend_enabled = enabled
@@ -535,12 +553,16 @@ class Map:
 
     def export(self, path, *, dpi=300, overwrite=False, max_raster_size=2048):
         """Save an exact-size page. Existing files require overwrite=True."""
-        path = output_path(path, overwrite)
+        path = output_path(path, overwrite,self._sources)
         if path.suffix.lower() not in {".pdf", ".png", ".svg"}:
             raise ValueError("Supported exports: .pdf, .png, .svg.")
+        errors=[i['message'] for i in self.audit()['issues'] if i['severity']=='error']
+        if errors:raise ValueError('; '.join(errors))
         fig = self.render(dpi=dpi, max_raster_size=max_raster_size)
+        fd,temporary=tempfile.mkstemp(prefix='.cartomize-map-',suffix=path.suffix,dir=path.parent);os.close(fd)
         try:
-            fig.savefig(path, dpi=dpi, facecolor=fig.get_facecolor())
+            fig.savefig(temporary, dpi=dpi, facecolor=fig.get_facecolor())
+            os.replace(temporary,path)
         finally:
-            fig.clear()
+            fig.clear();Path(temporary).unlink(missing_ok=True)
         return path

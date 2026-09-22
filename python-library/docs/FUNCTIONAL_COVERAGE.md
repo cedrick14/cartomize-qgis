@@ -1,11 +1,14 @@
 # Fonctions cartographiques disponibles
 
-La version 0.4.0a1 ajoute une préparation de projet réversible, en complément
+La version 0.5.0a1 ajoute un examen initial, des transferts de résultats et un contrôle cartographique, en complément
 des fonctions cartographiques déjà accessibles dans la fenêtre. La comparaison ci-dessous s’appuie sur les
 commandes de l’extension et sa boîte à outils, présentes dans le dépôt source.
 
-| Fonction | Bibliothèque Python et fenêtre 0.4.0a1 |
+| Fonction | Bibliothèque Python et fenêtre 0.5.0a1 |
 |---|---|
+| Assistant cartographique | Examen des données, motifs et étapes proposées ; règles explicables |
+| Connexions | Résultats transférables ; reprise de production ; configuration carte vers atlas |
+| Contrôle de la carte | Géométries, champs, classes échantillonnées et éléments à renseigner |
 | Maquettes de mise en page | 24 maquettes disponibles, sélection dans Mise en page et Production automatisée |
 | Format et orientation | A4/A3, portrait/paysage pour le modèle standard; dimensions fixées par les autres maquettes |
 | Titre, sous-titre, sources | Réglables dans la fenêtre |
@@ -21,7 +24,7 @@ commandes de l’extension et sa boîte à outils, présentes dans le dépôt so
 | NoData périphérique | Masquage connexe en périphérie, protection des classes binaires/documentées, règles explicites et rétablissement des sources |
 | Nomenclature | Libellés et couleurs éditables ; métadonnées ou saisie utilisateur, sans invention sémantique |
 | Analyse raster | Métadonnées, NoData, profil et inférence à partir d’un échantillon |
-| Traitements vectoriels | 12 opérations exposées dans la fenêtre |
+| Traitements vectoriels | 13 opérations exposées dans la fenêtre |
 | Traitements raster | 6 opérations supplémentaires, en plus des calculs et du prétraitement |
 | Production depuis les scènes | Mosaïque, composite multibande, masque, composition colorée, couches et mise en page |
 | Algèbre, indices et statistiques | Conservés dans des rubriques complémentaires |

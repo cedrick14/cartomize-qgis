@@ -9,7 +9,7 @@ sans garantir le même gain sur tous les rasters et matériels.
   float32 de réflectance et 1,5 % de pixels NoData, source GeoTIFF LZW tuilée.
 - Calcul de NDVI, NDMI et NBR. La référence utilise trois appels séparés à
   `normalized_difference`, fonction conservée du moteur 0.2.
-- Le moteur 0.3 calcule les trois indices en un passage, sur un ou quatre threads.
+- Le moteur 0.5.0a1 calcule les trois indices en un passage, sur un ou quatre threads.
 - Trois répétitions par mode, ordre tournant, processus Python distincts.
 - Chronométrage du calcul jusqu'à la fermeture/publication des fichiers;
   chargement de Python et vérification des résultats hors chronométrage.
@@ -25,11 +25,11 @@ sans garantir le même gain sur tous les rasters et matériels.
 
 | Configuration | Médiane (s) | Facteur de vitesse relatif | Pic RSS maximal (Mio) |
 |---|---:|---:|---:|
-| Trois appels séparés au moteur de différence normalisée 0.2 | 2.555 | 1.00 | 269.4 |
-| Trois indices groupés, un thread | 1.832 | 1.39 | 361.8 |
-| Trois indices groupés, quatre threads | 1.369 | 1.87 | 407.3 |
+| Trois appels séparés | 2.713 | 1.00 | 268.0 |
+| Trois indices groupés, un thread | 2.343 | 1.16 | 409.3 |
+| Trois indices groupés, quatre threads | 1.750 | 1.55 | 417.6 |
 
-Le traitement groupé avec quatre threads réduit ici la durée d'environ 46 %.
+Le traitement groupé avec quatre threads réduit ici la durée d'environ 35 %.
 Il consomme davantage de mémoire que les appels séparés. Le budget de blocs
 ne constitue pas un plafond de la mémoire du processus; caches GDAL, imports
 Python et bibliothèques s'ajoutent aux tableaux de calcul. Les GeoTIFF de
@@ -48,7 +48,7 @@ python examples/benchmark_raster.py --size 2048 --repeats 3
 
 Le script génère les données fictives, vérifie les sorties et produit un rapport
 JSON. Les résultats de cette livraison sont conservés dans
-[BENCHMARK_0.3.0a1.json](BENCHMARK_0.3.0a1.json).
+[BENCHMARK_0.5.0a1.json](BENCHMARK_0.5.0a1.json).
 
 Les méthodes d'optimisation employées sont la vectorisation des calculs,
 la lecture commune des bandes entre expressions, une file de travaux bornée

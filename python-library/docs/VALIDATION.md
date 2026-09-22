@@ -1,109 +1,37 @@
-# Validation de Cartomize Python 0.4.0a1
+# Validation de Cartomize Python 0.5.0a1
 
-Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
+22 septembre 2026 · Linux x86_64 · Python 3.12.14.
 
-## Résultats
+## Résultat local
 
-- **105 tests automatisés réussis**, dont neuf tests de l'interface Qt réelle
-  en mode hors écran. Les 52 tests de la version 0.2 restent inclus.
-- Vérification de l'algèbre, des indices, des masques, des statistiques et de
-  l'égalité entre calcul séquentiel et calcul concurrent.
-- Lancement par les widgets des indices, du calculateur, du prétraitement
-  multiscène et de la composition cartographique; sortie raster/image vérifiée.
-- Réactivité de la boucle d'événements Qt et annulation vérifiées.
-- Benchmark reproductible : trois indices, quatre bandes, 2 048 × 2 048 pixels,
-  trois répétitions; 2,55 s contre 1,37 s en médiane, sorties identiques.
-- Wheel et archive source construits; métadonnées vérifiées avec Twine.
-- Installation du wheel avec dépendances graphiques dans un environnement
-  distinct du code source, calcul réel et ouverture de la fenêtre vérifiés.
+**181 tests automatisés réussis**, dont 29 cas utilisant les classes et widgets Qt réels, en mode hors écran. Les 105 tests antérieurs sont conservés, avec adaptation des sélections à des identifiants d’outils stables.
 
-## Parcours ajouté en 0.3.0a3
+- Les 18 indices intégrés sont confrontés à des valeurs numériques indépendantes du registre de formules.
+- Les 7 statistiques multirasters et les 7 statistiques focales sont comparées à des attentes NumPy ou à des voisinages explicites.
+- Chacune des 13 opérations vectorielles et des 6 opérations raster est exécutée depuis son sélecteur graphique, avec contrôle du résultat.
+- Les 24 maquettes sont chacune exportées, en renseignant leurs textes, tableaux et graphiques.
+- Les tests de parcours utilisent le véritable travailleur Qt : scènes → multibande/RGBA/cartes ; analyse du projet → nomenclature → export/rétablissement ; assistant → projet → mise en page → contrôle → atlas ; raster → indices → calculatrice.
+- Calibration après découpage/reprojection, sources protégées, masques auxiliaires, sorties préservées en cas d’échec, géométries invalides, réglages de cadres, produits scientifiques et produits d’affichage sont vérifiés.
+- Empreintes des modules et ressources d’origine vérifiées ; aucun import ArcPy ou QGIS requis.
 
-Le test graphique principal démarre sur Production automatisée, vérifie
-l'icône embarquée, puis traite deux scènes Landsat synthétiques avec une zone
-d'étude et des localités. Il contrôle le nombre et les valeurs des bandes,
-le découpage, le GeoTIFF RGBA, les exports PDF/PNG, les chemins du rapport et
-la conservation du rôle et des étiquettes des localités.
+Commande : `python -m pytest tests -q` depuis `python-library`.
 
-Trois tests supplémentaires couvrent la sélection de fichiers de bandes,
-l'annulation après mosaïque, l'échec d'un export, la préservation d'un
-répertoire existant et l'annulation de la composition colorée entre blocs.
+Les 263 avertissements locaux proviennent de la dépréciation de l’opérateur de multiplication affine employé par Rasterio. Aucun échec n’en résulte. Le nombre peut varier avec les versions des dépendances.
 
-Le benchmark de la version 0.3.0a1 n'a pas été réexécuté pour cette correction
-d'interface et d'orchestration. Ses mesures sont conservées comme résultats
-de cette version, sans nouvelle promesse de performance.
+## Distribution
 
-## Calculs contrôlés
+Le wheel et la distribution source sont construits avec `python -m build`, puis contrôlés avec `python -m twine check`. Un environnement distinct du code source sert à vérifier l’import du paquet installé, l’ouverture de la fenêtre, l’examen du projet, le masquage, la composition, le contrôle et l’export de données synthétiques. Les captures de livraison proviennent de cette fenêtre réelle.
 
-Formules et paramètres NDVI/EVI/SAVI/NDMI; indice personnalisé; contrôle des
-bandes; calibration GDAL et remplacement explicite; domaines mathématiques
-invalides; divisions par zéro; débordement float32; zéro valide; sélection de
-branche conditionnelle; complément de valeurs absentes; masque de qualité
-par bits; logique et comparaisons chaînées; rejet de syntaxe Python exécutable.
+Le workflow `python-library.yml` exécute les tests et la construction sur Linux et Windows, Python 3.11 et 3.12. Le résultat d’un commit est consultable dans GitHub Actions ; un résultat ancien ne prouve pas la réussite d’un nouveau commit.
 
-Statistiques multirasters avec observations manquantes et effectif minimal;
-sept statistiques focales comparées à des voisinages explicites, y compris
-aux bords de l'image et aux limites des blocs; grilles incompatibles et
-alignement explicite; paramètres de mémoire; expressions multibandes;
-progression; annulation préservant un fichier existant; nettoyage temporaire.
+## Performances mesurées
 
-Les tests antérieurs couvrent notamment les opérations GeoPandas, les mesures
-projetées, les NDVI/reclassifications, statistiques zonales, surfaces et
-changements, les mosaïques cohérentes, masques QA/SCL, calibration Sentinel,
-compositions RGBA, l'ordre des couches et les maquettes héritées.
+Benchmark réexécuté pour 0.5.0a1 : 2 048 × 2 048 pixels, quatre bandes, trois indices, trois répétitions dans des processus distincts, ordre tournant et cache non purgé. Médianes : 2,713 s pour trois calculs séparés ; 2,343 s pour le calcul groupé à un thread ; 1,750 s à quatre threads. Les sorties sont identiques selon les empreintes de toutes les bandes, après normalisation des NaN et des zéros signés.
 
-## Portée et limites
+Le gain mesuré de 1,55 fois concerne ce scénario, pas tous les traitements. Les tâches concurrentes, le stockage et les caches influencent les mesures. Le budget des tableaux n’est pas un plafond de mémoire du processus. Voir [PERFORMANCE](PERFORMANCE.md) et [les mesures brutes](BENCHMARK_0.5.0a1.json).
 
-La suite produit 191 avertissements de dépréciation de l'opérateur Affine
-employé par Rasterio; ils ne provoquent pas d'échec de test.
+## Limites de la validation
 
-Le benchmark utilise des données synthétiques et un cache non purgé. Il ne
-mesure pas la vitesse de tous les traitements. La consommation totale de
-mémoire dépasse le budget des seuls tableaux de blocs. Voir le
-[rapport de performances](PERFORMANCE.md) et ses données brutes.
+Les données sont synthétiques. Les contrôles Qt hors écran ne remplacent pas un essai manuel sous Windows avec de grandes scènes réelles. Les diagnostics raster utilisent des échantillons ; le contrôle cartographique ne certifie ni la vérité thématique, ni l’absence de toutes les collisions d’étiquettes, ni la lisibilité parfaite.
 
-Les contrôles Qt hors écran ne remplacent pas un essai manuel de bureau
-Windows avec des scènes réelles. Le workflow prévoit Windows/Linux et
-Python 3.11/3.12, y compris les dépendances graphiques; consulter ses résultats
-avant de présenter ces autres environnements comme validés.
-
-Cette livraison reste une alpha. La classification automatique d'occupation
-du sol, les projets APRX/QGZ et les traitements spécialisés non implémentés
-ne sont pas couverts. Aucune publication TestPyPI/PyPI n'a été effectuée.
-
-## Compléments de validation de la version 0.3.0a3
-
-Trois scénarios Qt supplémentaires vérifient la sélection des 24 maquettes,
-les emprises indépendantes de plusieurs cadres, la désactivation de la légende
-et de l’orientation, l’export PDF, l’ouverture d’un aperçu réel, un atlas de
-deux pages, une zone tampon, l’affichage d’un diagnostic vectoriel, une
-reclassification et un tableau de superficies par classe. Un test API
-vérifie l’arrêt d’un atlas entre deux pages. Le scénario de production
-automatisée vérifie aussi la transmission de la maquette et de l’habillage.
-
-Les contrôles visuels antérieurs portaient sur la fenêtre monochrome et l’accès aux
-fonctions. Les moteurs d’analyse et les maquettes d’origine restent couverts
-par les tests antérieurs. Aucune parité complète avec un projet ArcGIS Pro
-n’est affirmée.
-
-## Compléments de validation de la version 0.4.0a1
-
-Douze tests API supplémentaires couvrent la détection de fond, le masquage
-connexe et la préparation de projet. Trois tailles de raster, y compris des
-tuiles partielles, sont comparées à une propagation indépendante des pixels de
-fond. Les cas contrôlés comprennent les zéros intérieurs conservés, les
-binaires 0/1, les rasters uniformes, les masques GDAL et NaN, les nomenclatures
-explicites, les protections de classes, le RVB avec noir intérieur valide,
-la réversibilité, les sources inchangées, une sortie entièrement invalide,
-l’annulation préservant une destination existante et les couches vectorielles
-dans des systèmes de coordonnées différents.
-
-Le neuvième test Qt vérifie les pixels colorés de l’icône, lance l’analyse,
-édite le nom et la couleur d’une classe, applique la symbologie, exporte une
-vraie carte PNG et rétablit les chemins des sources. Le test API vérifie aussi
-la transparence des pixels dans le rendu Matplotlib, pas seulement l’existence
-d’un fichier de masque.
-
-Le benchmark historique des indices n’a pas été réexécuté et ne mesure pas
-la vitesse du nouveau masquage connexe. Aucune performance de ce traitement
-n’est présentée comme mesurée. Voir le [bilan des demandes](REQUEST_AUDIT.md).
+Le détail des fonctions implémentées, partielles et absentes figure dans [TOOL_AUDIT](TOOL_AUDIT.md). La bibliothèque reste alpha. Elle n’inclut pas la classification supervisée, la lecture intégrale APRX/QGZ ou tous les algorithmes raster. Aucun paquet n’a été publié sur PyPI/TestPyPI dans cette livraison.

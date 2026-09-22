@@ -7,7 +7,7 @@ L'icône intégrée dans le titre de fenêtre et son en-tête est le fichier
 - Site de référence consulté : https://cartomizeplugin.com/
 - SHA-256 : `21b8d4f87575337215a0b7c5c4b82c42c612996f7f45188e5c8ec993184f3bf2`
 
-La version 0.4.0a1 affiche l’icône originale en couleur dans l’en-tête et
+La version 0.5.0a1 affiche l’icône originale en couleur dans l’en-tête et
 le titre de fenêtre, sans recoloration. Le titre Cartomize, les contrôles et
 les sélections utilisent le noir, le blanc et les gris. Cette correction
 remplace le rendu noir introduit par erreur dans la version précédente.

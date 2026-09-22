@@ -62,6 +62,8 @@ def detect_background(source,*,max_size=1024,keep_values=()):
                 candidates.append(dict(value=value,border_fraction=b,center_fraction=c,corner_fraction=k,
                     automatic=automatic,reason='Spatial padding pattern' if strong else 'Insufficient spatial evidence'))
         return dict(path=str(Path(source).resolve()),width=src.width,height=src.height,bands=src.count,
+            bounds=list(src.bounds),descriptions=list(src.descriptions),product=src.tags().get('CARTOMIZE_PRODUCT'),
+            valid_sample_pixels=int(valid.sum()),sample_values=[float(v) for v in unique] if len(unique)<=65 else None,
             sample_shape=[h,w],sampled_pixels=h*w,crs=str(src.crs),dtype=src.dtypes[0],
             declared_nodata=[float(v) if v is not None and np.isfinite(v) else 'NaN' if v is not None else None for v in src.nodatavals],
             mask_flags=[[v.name for v in flags] for flags in src.mask_flag_enums],

@@ -44,6 +44,19 @@ def sjoin(left, right, how="inner", predicate="intersects", **kwargs):
     return gpd.sjoin(left, right, how=how, predicate=predicate, **kwargs)
 
 
+def nearest(left,right,*,metric_crs=None,max_distance=None,how='left'):
+    """Nearest features with distances in metres; equal-distance ties are kept."""
+    original=frame(left);work,factor=measurement_frame(original,metric_crs)
+    target=frame(right).to_crs(work.crs)
+    if 'distance_m' in work or 'distance_m' in target:raise ValueError('Rename the existing distance_m field first.')
+    if how not in {'left','inner'}:raise ValueError('how must be left or inner.')
+    if max_distance is not None and (not np.isfinite(max_distance) or max_distance<=0):raise ValueError('max_distance must be positive metres.')
+    result=gpd.sjoin_nearest(work,target,how=how,distance_col='distance_m',
+                            max_distance=max_distance/factor if max_distance is not None else None)
+    result['distance_m']*=factor
+    return result.to_crs(original.crs)
+
+
 def dissolve(data, by=None, aggfunc="first", **kwargs):
     return frame(data).dissolve(by=by, aggfunc=aggfunc, **kwargs)
 

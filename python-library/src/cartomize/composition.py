@@ -59,6 +59,7 @@ def compose_map(layers,*,aoi=None,clip_vectors=True,**options):
             import geopandas as gpd
             if isinstance(data,(str,Path)):
                 kwargs.setdefault("name",Path(data).stem)
+                result._sources.append(Path(data).expanduser().resolve())
             data=frame(data)
             data=gpd.clip(data,zones.to_crs(data.crs),keep_geom_type=True)
         result.add_layer(data,**kwargs)

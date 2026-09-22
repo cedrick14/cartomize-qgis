@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import tempfile
+from .desktop_connections import ProjectConnections
 
 try:
     from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot, QUrl
@@ -211,6 +212,10 @@ class TemporalPage(Page):
         for label,value in {**STATISTICS,"Médiane":"median"}.items():self.stat.addItem(label,value)
         self.minimum=spin();self.form.addRow("Bande",self.band);self.form.addRow("Statistique",self.stat)
         self.form.addRow("Nombre minimal d’observations",self.minimum);self.finish()
+        self.stat.currentIndexChanged.connect(self.stat_changed)
+    def stat_changed(self):
+        count=self.stat.currentData()=='count';self.minimum.setEnabled(not count)
+        if count:self.minimum.setValue(1)
     def job(self,options):
         sources=[self.sources.item(i).text() for i in range(self.sources.count())]
         kwargs=dict(statistic=self.stat.currentData(),band=self.band.value(),min_valid=self.minimum.value())
@@ -230,18 +235,25 @@ class PreparationPage(Page):
         self.dates=QCheckBox("Autoriser une mosaïque multitemporelle")
         for label,widget in [("Répertoire des scènes",self.source),("Zone d’étude",self.aoi),("Système de coordonnées cible",self.crs),
             ("Bandes spectrales",self.bands),("Résolution (m)",self.resolution),("Masque de qualité",self.clouds),("Dates d’acquisition",self.dates)]:self.form.addRow(label,widget)
+        self.files=[];self.inventory=QLabel('Landsat Collection 2 L2 · Sentinel-2 L2A')
+        select=QPushButton('Sélectionner les bandes…');clear=QPushButton('Utiliser le répertoire')
+        select.clicked.connect(lambda:WorkflowPage.select_files(self));clear.clicked.connect(lambda:WorkflowPage.clear_files(self))
+        self.form.addRow(select,clear);self.form.addRow(self.inventory)
         self.finish()
     def job(self,options):
-        kwargs=dict(scenes=self.source.text(),destination=self.destination(),aoi=self.aoi.text() or None,
+        source=list(self.files) if self.files else self.source.text()
+        kwargs=dict(destination=self.destination(),aoi=self.aoi.text() or None,
             target_crs=self.crs.text().strip() or None,band_order=[b.strip() for b in self.bands.text().split(",")],
             resolution=self.resolution.value() or None,mask_clouds=self.clouds.isChecked(),allow_mixed_dates=self.dates.isChecked(),overwrite=options["overwrite"])
-        return lambda progress,cancel:cm.prepare_imagery(**kwargs,progress=progress,cancel=cancel).path
+        return lambda progress,cancel:cm.prepare_imagery(cm.discover_scenes(source),**kwargs,progress=progress,cancel=cancel).path
 
 
 class MappingPage(Page):
     engine=False
     cancellable=False
     previewRequested=Signal()
+    reviewRequested=Signal()
+    atlasRequested=Signal(object)
     def __init__(self):
         super().__init__("Mise en page cartographique","Maquettes, cadres multiples, légende, échelle, orientation et exports PDF, PNG ou SVG.")
         self._analysis_overrides={}
@@ -273,6 +285,8 @@ class MappingPage(Page):
         self.output.filter="Document PDF (*.pdf);;Image PNG (*.png);;Image SVG (*.svg)"
         self.form.addRow("Résolution d’export (ppp)",self.dpi)
         self.preview_button=QPushButton("Aperçu cartographique");self.preview_button.clicked.connect(self.previewRequested.emit);self.form.addRow(self.preview_button)
+        self.review_button=QPushButton('Contrôler la carte');self.review_button.clicked.connect(self.reviewRequested.emit);self.form.addRow(self.review_button)
+        self.atlas_button=QPushButton('Préparer l’atlas');self.atlas_button.clicked.connect(self.request_atlas);self.form.addRow(self.atlas_button)
         self.finish();self.tabs.setCurrentIndex(1)
     def browse(self):
         for path in QFileDialog.getOpenFileNames(self,"Couches géographiques",filter="Données SIG (*.tif *.tiff *.jp2 *.vrt *.gpkg *.shp *.geojson)")[0]:self.add_layer(path)
@@ -298,13 +312,29 @@ class MappingPage(Page):
             layout=self.layout_settings.capture())
     def load_layers(self,layers):
         self.layers.setRowCount(0);self._analysis_overrides={}
-        for layer in layers:
-            path=str(layer['data']);self.add_layer(path);row=self.layers.rowCount()-1
-            self._analysis_overrides[path]={key:layer[key] for key in ('name','kind','classes','rgb') if key in layer}
-            role=self.layers.cellWidget(row,1);role.setCurrentIndex(max(0,role.findData(layer.get('role'))))
-            self.layers.item(row,2).setText(layer.get('labels') or '');self.layers.item(row,3).setText(layer.get('column') or '')
-            self.layers.cellWidget(row,4).setValue(layer.get('band',1));self.layers.cellWidget(row,5).setValue(round(100*layer.get('alpha',1)))
+        for layer in layers:self.append_layer(layer)
         self.tabs.setCurrentIndex(0)
+    def append_layer(self,layer):
+        path=str(layer['data']);self.add_layer(path);row=self.layers.rowCount()-1
+        self._analysis_overrides[path]={key:layer[key] for key in ('name','kind','classes','rgb','color','categorical','legend','zorder') if key in layer}
+        role=self.layers.cellWidget(row,1);role.setCurrentIndex(max(0,role.findData(layer.get('role'))))
+        self.layers.item(row,2).setText(layer.get('labels') or '');self.layers.item(row,3).setText(layer.get('column') or '')
+        self.layers.cellWidget(row,4).setValue(layer.get('band',1));self.layers.cellWidget(row,5).setValue(round(100*layer.get('alpha',1)))
+        palette=self.layers.cellWidget(row,6);cmap=layer.get('cmap','Greys')
+        if palette.findText(cmap)<0:palette.addItem(cmap)
+        palette.setCurrentText(cmap)
+    def load_config(self,config):
+        self.load_layers(config['layers']);self.rgb.setCurrentIndex(max(0,self.rgb.findData(config['rgb'])))
+        self.aoi.edit.setText(config['aoi'] or '')
+        for key in ('title','subtitle','credits','crs'):getattr(self,key).setText(config['options'].get(key) or '')
+        self.layout_settings.restore(config['layout'])
+    def request_atlas(self):
+        try:self.atlasRequested.emit(self.capture_map())
+        except ValueError as exc:QMessageBox.warning(self,'Atlas cartographique',str(exc))
+    def review_job(self,path):
+        from .desktop_tools import write_result
+        config=self.capture_map()
+        return lambda progress,cancel:write_result(self.build_map(config).audit(),path,overwrite=True)
     @staticmethod
     def build_map(config):
         from .desktop_layout import apply_layout
@@ -327,6 +357,7 @@ class AtlasPage(MappingPage):
     cancellable=True
     def __init__(self):
         super().__init__();self.findChild(QLabel,"pageTitle").setText("Atlas cartographique")
+        self.atlas_button.hide()
         self.findChild(QLabel,"description").setText("Production d’une carte par entité de la couche d’index, avec maquette et habillage communs.")
         tab=QWidget();form=QFormLayout(tab);self.tabs.insertTab(0,tab,"Index de l’atlas")
         self.zones=PathField(filter=VECTOR_FILTER);self.name_column=QLineEdit();self.name_column.setPlaceholderText("Exemple : nom")
@@ -434,6 +465,8 @@ class WorkflowPage(Page):
             title=self.title.text(),credits=self.credits.text(),formats=self.format.currentData(),dpi=self.dpi.value(),
             template=layout["template"],page_format=layout["format"],orientation=layout["orientation"],subtitle=self.subtitle.text(),
             legend=layout["legend"],scale_bar=layout["scale"],north_arrow=layout["north"])
+        self.result_map_config=dict(layers=layers,rgb=None,aoi=kwargs['aoi'],layout=layout,
+            options=dict(title=kwargs['title'],subtitle=kwargs['subtitle'],credits=kwargs['credits'],crs=kwargs['target_crs']))
         return lambda progress,cancel,stage:cm.cartographic_workflow(source,destination,progress=progress,cancel=cancel,stage=stage,**kwargs).manifest
 
 
@@ -463,7 +496,7 @@ class Worker(QThread):
         except Exception as exc:self.failed.emit(str(exc))
 
 
-class CartomizeWindow(QMainWindow):
+class CartomizeWindow(ProjectConnections,QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle("Cartomize");self.resize(1220,940);self.setMinimumSize(980,700)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -483,21 +516,26 @@ class CartomizeWindow(QMainWindow):
         pixmap.setDevicePixelRatio(ratio);self.brand_icon.setPixmap(pixmap);self.brand_icon.setFixedSize(58,58)
         header.addWidget(self.brand_icon);identity=QVBoxLayout();identity.setSpacing(1)
         brand=QLabel("Cartomize");brand.setObjectName("brand");identity.addWidget(brand)
-        subtitle=QLabel("Automatisation des traitements et de la production cartographique");subtitle.setObjectName("muted");identity.addWidget(subtitle)
+        subtitle=QLabel("Assistant cartographique intelligent");subtitle.setObjectName("muted");identity.addWidget(subtitle)
         header.addLayout(identity);header.addStretch();version=QLabel(cm.__version__);version.setObjectName("muted");header.addWidget(version);outer.addLayout(header)
         body=QHBoxLayout();outer.addLayout(body,1)
         self.navigation=QListWidget();self.navigation.setFixedWidth(245);self.navigation.setObjectName("navigation");body.addWidget(self.navigation)
         self.stack=QStackedWidget();body.addWidget(self.stack,1)
         from .desktop_tools import InspectionPage,VectorPage,RasterToolsPage
         from .desktop_project import ProjectPage
-        self.pages=[WorkflowPage(),ProjectPage(),MappingPage(),AtlasPage(),InspectionPage(),VectorPage(),RasterToolsPage(),
-            PreparationPage(),CompositePage(),IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage()]
-        titles=["Production automatisée","Analyse du projet","Mise en page","Atlas cartographique","Analyse des couches","Traitements vectoriels","Traitements raster",
-            "Prétraitement multispectral","Composition colorée","Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters"]
+        from .desktop_assistant import AssistantPage
+        from .assistant import TOOL_LABELS
+        self.tool_pages=dict(assistant=AssistantPage(self._preview_directory.name),project=ProjectPage(),inspect=InspectionPage(),
+            prepare=PreparationPage(),composite=CompositePage(),vector=VectorPage(),raster=RasterToolsPage(),indices=IndicesPage(),
+            calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage())
+        self.pages=list(self.tool_pages.values());titles=['Assistant cartographique' if key=='assistant' else TOOL_LABELS[key] for key in self.tool_pages]
         for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)
-            if isinstance(page,MappingPage):page.previewRequested.connect(lambda:self.start(preview=True))
+            if isinstance(page,MappingPage):
+                page.previewRequested.connect(lambda:self.start(preview=True));page.reviewRequested.connect(lambda:self.start(review=True))
+                page.atlasRequested.connect(self.prepare_atlas)
             if isinstance(page,ProjectPage):page.applyRequested.connect(self.apply_project)
+        self.tool('assistant').openRequested.connect(self.open_assistant_step)
         self.navigation.currentRowChanged.connect(self.stack.setCurrentIndex);self.navigation.currentRowChanged.connect(self.page_changed)
         settings=QGroupBox("Paramètres de traitement");self.settings=settings;row=QHBoxLayout(settings)
         self.workers=spin(min(4,os.cpu_count() or 1),1,32);self.block_size=QComboBox();self.block_size.addItems(["256","512","1024","2048"]);self.block_size.setCurrentText("512")
@@ -507,6 +545,7 @@ class CartomizeWindow(QMainWindow):
         for label,widget in [("Threads de calcul",self.workers),("Bloc (pixels)",self.block_size),("Budget des tableaux",self.memory)]:
             caption=QLabel(label);self.engine_labels.append(caption);row.addWidget(caption);row.addWidget(widget)
         row.addWidget(self.overwrite);outer.addWidget(settings)
+        self.init_results(outer)
         bottom=QHBoxLayout();self.run_button=QPushButton("Exécuter");self.run_button.setObjectName("primary")
         self.cancel_button=QPushButton("Annuler");self.cancel_button.setEnabled(False)
         self.folder_button=QPushButton("Ouvrir le répertoire de sortie");self.folder_button.setEnabled(False)
@@ -547,24 +586,30 @@ class CartomizeWindow(QMainWindow):
         page=self.pages[index]
         for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
         from .desktop_project import ProjectPage
-        self.settings.setVisible(not isinstance(page,(WorkflowPage,ProjectPage)))
+        from .desktop_assistant import AssistantPage
+        self.settings.setVisible(not isinstance(page,(WorkflowPage,ProjectPage,AssistantPage)))
         self.settings.setTitle("Paramètres de traitement" if page.engine else "")
         self.settings.setStyleSheet("" if page.engine else "QGroupBox { border: none; margin-top: 0px; padding-top: 0px; }")
         self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Analyser le projet" if isinstance(page,ProjectPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")
+        if isinstance(page,AssistantPage):self.run_button.setText('Examiner les données')
     def apply_project(self,layers):
+        for layer in layers:self.register_result(layer)
         page=next(page for page in self.pages if type(page) is MappingPage)
         page.load_layers(layers);self.navigation.setCurrentRow(self.pages.index(page))
+        assessment=self.tool('assistant').assessment
+        if assessment and not page.title.text():self.open_assistant_step('mapping',assessment)
         self.status.setText('Couches et symbologie appliquées à la mise en page.')
-    def start(self,checked=False,*,preview=False):
+    def start(self,checked=False,*,preview=False,review=False):
         if self.thread is not None:return
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),
                      memory_limit_mb=self.memory.value(),overwrite=self.overwrite.isChecked())
         page=self.pages[self.stack.currentIndex()]
-        self._preview_target=None
+        self._preview_target=None;self._reviewing=review
         try:
             if preview:
                 self._preview_target=Path(self._preview_directory.name)/"apercu.png"
                 job=page.preview_job(self._preview_target)
+            elif review:job=page.review_job(Path(self._preview_directory.name)/'controle.json')
             else:job=page.job(options)
         except Exception as exc:self.status.setText(str(exc));return
         self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self,staged=self.pages[self.stack.currentIndex()].staged);self.thread=self.worker
@@ -572,7 +617,8 @@ class CartomizeWindow(QMainWindow):
         self.worker.failed.connect(self.failed);self.worker.cancelled.connect(self.cancelled)
         self.thread.finished.connect(self.cleaned);self.thread.finished.connect(self.thread.deleteLater)
         self.run_button.setEnabled(False);self.navigation.setEnabled(False);self.stack.setEnabled(False);self.settings.setEnabled(False)
-        self.cancel_button.setEnabled(self.pages[self.stack.currentIndex()].cancellable and not preview)
+        self.results_box.setEnabled(False)
+        self.cancel_button.setEnabled(page.cancellable and not preview and not review)
         self.folder_button.setEnabled(False);self.progress.setRange(0,0);self.status.setText("Traitement en cours.")
         self.thread.start()
     @Slot(int,int)
@@ -585,10 +631,12 @@ class CartomizeWindow(QMainWindow):
             pixmap=QPixmap(path);label.setPixmap(pixmap.scaled(1050,760,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
             layout.addWidget(label);dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose);dialog.show();self.preview_dialog=dialog
             self.status.setText("Aperçu cartographique actualisé.")
+        elif self._reviewing:self.show_review(path)
         else:
             self.status.setText("Traitement terminé : "+path);self.folder_button.setEnabled(True)
             page=self.pages[self.stack.currentIndex()]
             if hasattr(page,"show_result"):page.show_result(path)
+            self.collect_result(path)
     @Slot(str)
     def failed(self,error):self.progress.setRange(0,100);self.progress.setValue(0);self.status.setText("Échec du traitement : "+error)
     @Slot()
@@ -596,6 +644,7 @@ class CartomizeWindow(QMainWindow):
     @Slot()
     def cleaned(self):
         self.thread=None;self.worker=None;self.run_button.setEnabled(True);self.navigation.setEnabled(True)
+        self.results_box.setEnabled(True)
         self.stack.setEnabled(True);self.settings.setEnabled(True);self.page_changed(self.stack.currentIndex());self.cancel_button.setEnabled(False)
     def cancel(self):
         if self.cancel_event:self.cancel_event.set();self.cancel_button.setEnabled(False);self.status.setText("Interruption à la fin du bloc ou de l’export en cours.")

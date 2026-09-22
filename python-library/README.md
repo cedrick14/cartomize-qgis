@@ -2,11 +2,11 @@
 
 **Smart Maps, Better Decisions.**
 
-Bibliothèque Python d’automatisation cartographique et d’analyse spatiale,
+Assistant cartographique intelligent, disponible comme bibliothèque Python et fenêtre de traitement,
 par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.4.0a1 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
+**Version 0.5.0a1 : version alpha avec examen du projet, traitements connectés et production cartographique automatisée.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.4.0a1-py3-none-any.whl
+python -m pip install cartomize-0.5.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -43,12 +43,10 @@ import cartomize as cm
 cm.launch()
 ```
 
-L'ouverture donne accès à **Production automatisée** : sélection des scènes et
-des couches, mosaïque, composite multibande, extraction par masque,
-composition colorée et export cartographique en une opération. Les indices,
+L’ouverture donne accès à **Assistant cartographique** : objectif, données, zone d’étude et examen initial. Les étapes proposées sont justifiées et ouvrent les outils avec leurs entrées. **Production automatisée** conserve le parcours complet scènes → mosaïque → multibande → masque → composition colorée → export. Les indices,
 la calculatrice et les statistiques restent accessibles comme outils
 complémentaires. L’icône conserve ses couleurs originales ; le titre et les contrôles restent en noir, blanc et gris.
-Les traitements s'exécutent en arrière-plan avec progression et annulation.
+Les traitements s’exécutent en arrière-plan. L’annulation est disponible sur les moteurs par blocs et entre les pages d’un atlas ; les opérations vectorielles et un rendu cartographique individuel doivent se terminer.
 
 La rubrique **Mise en page** donne accès aux 24 maquettes, aux formats A4/A3,
 aux cadres multiples, aux légendes, aux échelles et à l’orientation. Elle
@@ -60,6 +58,16 @@ aux diagnostics et aux opérations de la bibliothèque.
 
 Voir le [guide de l’interface graphique](docs/DESKTOP.md) et le
 [tableau des fonctionnalités](docs/FUNCTIONAL_COVERAGE.md).
+
+## Examen initial et connexions
+
+```python
+rapport = cm.assess_project(["occupation.tif", "routes.gpkg"], goal="landcover")
+print(rapport["issues"], rapport["steps"])
+# Pour des scènes : cm.assess_project("scenes", data_kind="scenes")
+```
+
+**Résultats du projet** transmet les sorties aux outils suivants. **Contrôler la carte** examine les géométries, champs, classes échantillonnées et contenus. **Préparer l’atlas** reprend couches et habillage. Lire l’[audit détaillé de tous les outils](docs/TOOL_AUDIT.md) pour les fonctions complètes dans leur périmètre, partielles ou absentes.
 
 ## Analyse du projet et NoData
 

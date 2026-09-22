@@ -71,34 +71,36 @@ class VectorPage(Page):
     OPERATIONS=[('Découpage','clip'),('Zone tampon','buffer'),('Intersection','intersection'),('Union','union'),
                 ('Différence','difference'),('Différence symétrique','symmetric_difference'),('Jointure spatiale','sjoin'),
                 ('Dissolution','dissolve'),('Reprojection','reproject'),('Réparation des géométries','make_valid'),
-                ('Calcul des superficies','area'),('Calcul des longueurs','length')]
+                ('Calcul des superficies','area'),('Calcul des longueurs','length'),('Proximité','nearest')]
     def __init__(self):
         super().__init__('Traitements vectoriels','Opérations géométriques, superpositions, jointures spatiales et mesures.')
         self.operation=QComboBox()
         for label,value in self.OPERATIONS:self.operation.addItem(label,value)
         self.source=PathField(filter=VECTOR_FILTER);self.secondary=PathField(filter=VECTOR_FILTER)
         self.crs=QLineEdit();self.crs.setPlaceholderText('Exemple : EPSG:32733');self.distance=real(100)
+        self.maximum=real(0);self.maximum.setMinimum(0);self.maximum.setSpecialValueText('Sans limite')
         self.field=QLineEdit();self.field.setPlaceholderText('Vide : dissolution de toutes les entités')
         self.predicate=QComboBox();self.predicate.addItems(['intersects','within','contains','touches','overlaps'])
         self.join=QComboBox();self.join.addItem('Conserver les correspondances','inner');self.join.addItem('Conserver toutes les entités de gauche','left')
         self.unit=QComboBox();self.unit.addItems(['ha','m2','km2'])
         for label,widget in [('Opération',self.operation),('Couche source',self.source),('Couche de superposition',self.secondary),
             ('Système de coordonnées projeté',self.crs),('Distance (m)',self.distance),('Champ de dissolution',self.field),
-            ('Relation spatiale',self.predicate),('Type de jointure',self.join),('Unité',self.unit)]:self.form.addRow(label,widget)
+            ('Distance maximale (m)',self.maximum),('Relation spatiale',self.predicate),('Type de jointure',self.join),('Unité',self.unit)]:self.form.addRow(label,widget)
         self.output.filter='GeoPackage (*.gpkg);;GeoJSON (*.geojson)';self.finish()
         self.operation.currentIndexChanged.connect(self.changed);self.changed()
     def changed(self):
         op=self.operation.currentData()
-        show={self.secondary:op in {'clip','intersection','union','difference','symmetric_difference','sjoin'},
-            self.crs:op in {'buffer','reproject','area','length'},self.distance:op=='buffer',self.field:op=='dissolve',
-            self.predicate:op=='sjoin',self.join:op=='sjoin',self.unit:op in {'area','length'}}
+        show={self.secondary:op in {'clip','intersection','union','difference','symmetric_difference','sjoin','nearest'},
+            self.crs:op in {'buffer','reproject','area','length','nearest'},self.distance:op=='buffer',self.field:op=='dissolve',self.maximum:op=='nearest',
+            self.predicate:op=='sjoin',self.join:op in {'sjoin','nearest'},self.unit:op in {'area','length'}}
         for widget,visible in show.items():widget.setVisible(visible);self.form.labelForField(widget).setVisible(visible)
         self.unit.clear();self.unit.addItems(['m','km'] if op=='length' else ['ha','m2','km2'])
     def job(self,options):
         op=self.operation.currentData();source=self.source.text();other=self.secondary.text();crs=self.crs.text().strip() or None
         distance=self.distance.value();field=self.field.text().strip() or None;unit=self.unit.currentText()
         predicate=self.predicate.currentText();how=self.join.currentData();destination=self.destination()
-        needs_other=op in {'clip','intersection','union','difference','symmetric_difference','sjoin'}
+        needs_other=op in {'clip','intersection','union','difference','symmetric_difference','sjoin','nearest'}
+        maximum=self.maximum.value() or None
         if not source or (needs_other and not other):raise ValueError('Renseigner les couches nécessaires au traitement.')
         if op=='reproject' and not crs:raise ValueError('Renseigner le système de coordonnées cible.')
         def run(progress,cancel):
@@ -106,6 +108,7 @@ class VectorPage(Page):
             elif op=='buffer':result=cm.buffer(source,distance,metric_crs=crs)
             elif op in {'intersection','union','difference','symmetric_difference'}:result=cm.overlay(source,other,how=op)
             elif op=='sjoin':result=cm.sjoin(source,other,how=how,predicate=predicate)
+            elif op=='nearest':result=cm.nearest(source,other,metric_crs=crs,max_distance=maximum,how=how)
             elif op=='dissolve':result=cm.dissolve(source,by=field)
             elif op=='reproject':result=cm.reproject(source,crs)
             elif op=='make_valid':result=cm.make_valid(source)

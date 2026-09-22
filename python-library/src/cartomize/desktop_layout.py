@@ -59,6 +59,8 @@ class LayoutSettings(QWidget):
         self.format.currentIndexChanged.connect(self.refresh);self.orientation.currentIndexChanged.connect(self.refresh)
         self.refresh()
     def refresh(self):
+        old_frames={self.frames.item(r,0).text():[self.frames.item(r,c).text() for c in range(1,4)] for r in range(self.frames.rowCount())}
+        old_elements={(self.elements.item(r,0).text(),self.elements.item(r,1).text()):[self.elements.item(r,c).text() for c in range(2,5)] for r in range(self.elements.rowCount())}
         template=self.template.currentData();plan=cm.layout_plan(template) if template else None
         self.format.setEnabled(plan is None);self.orientation.setEnabled(plan is None)
         if plan:
@@ -75,17 +77,30 @@ class LayoutSettings(QWidget):
         self.diagram.plan=plan;self.diagram.page_size=size;self.diagram.update()
         self.frames.setRowCount(len(ids))
         for row,ident in enumerate(ids):
-            for col,value in enumerate([ident,'','','']):
+            for col,value in enumerate([ident,*old_frames.get(ident,['','',''])]):
                 item=QTableWidgetItem(value)
                 if col==0:item.setFlags(item.flags()&~Qt.ItemFlag.ItemIsEditable)
                 self.frames.setItem(row,col,item)
         items=[(i.item_id,i.kind) for i in plan.items if i.kind in {'text','table','chart'}] if plan else []
         self.elements.setRowCount(len(items))
         for row,(ident,kind) in enumerate(items):
-            for col,value in enumerate([ident,kind,'','','']):
+            for col,value in enumerate([ident,kind,*old_elements.get((ident,kind),['','',''])]):
                 item=QTableWidgetItem(value)
                 if col<2:item.setFlags(item.flags()&~Qt.ItemFlag.ItemIsEditable)
                 self.elements.setItem(row,col,item)
+    def restore(self,settings):
+        self.template.setCurrentIndex(max(0,self.template.findData(settings['template'])))
+        self.format.setCurrentText(settings['format']);self.orientation.setCurrentIndex(self.orientation.findData(settings['orientation']))
+        for key in ('legend','scale','north'):getattr(self,key).setChecked(settings[key])
+        frames={f['frame_id']:f for f in settings.get('frames',[])}
+        for row in range(self.frames.rowCount()):
+            data=frames.get(self.frames.item(row,0).text(),{})
+            values=[', '.join(map(str,data['extent'])) if data.get('extent') else '',data.get('crs') or '', '; '.join(data.get('layers') or [])]
+            for col,value in enumerate(values,1):self.frames.item(row,col).setText(value)
+        elements={e['id']:e for e in settings.get('elements',[])}
+        for row in range(self.elements.rowCount()):
+            data=elements.get(self.elements.item(row,0).text(),{})
+            for col,key in enumerate(('content','labels','values'),2):self.elements.item(row,col).setText(data.get(key,''))
     def capture(self):
         frames=[]
         for row in range(self.frames.rowCount()):

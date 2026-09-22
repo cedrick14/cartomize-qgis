@@ -24,9 +24,13 @@ def atlas(map_object, zones, directory, *, name_column, format="pdf", dpi=300,
         raise KeyError(name_column)
     if zones.geometry.isna().any() or zones.geometry.is_empty.any():
         raise ValueError("Atlas zones must have nonempty geometries.")
+    if not zones.geometry.is_valid.all():raise ValueError('Repair invalid atlas geometries before export.')
     names = [re.sub(r"[^\w.-]+", "_", str(value), flags=re.UNICODE).strip("._") for value in zones[name_column]]
     if any(not n for n in names) or len(set(n.casefold() for n in names)) != len(names):
         raise ValueError("Atlas page names must be nonempty and unique after filename sanitizing.")
+    reserved={'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(1,10)),*(f'LPT{i}' for i in range(1,10))}
+    if any(n.split('.')[0].upper() in reserved or len(n)>180 for n in names):
+        raise ValueError('Atlas page names must be portable filenames, without reserved device names.')
     paths = [Path(directory)/f"{name}.{format}" for name in names]
     if not overwrite and any(p.exists() for p in paths):
         raise FileExistsError("An atlas output already exists.")

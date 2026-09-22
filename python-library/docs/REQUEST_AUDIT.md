@@ -1,4 +1,4 @@
-# Vérification des demandes — Cartomize Python 0.4.0a1
+# Vérification des demandes — Cartomize Python 0.5.0a1
 
 Audit du 22 septembre 2026, fondé sur les demandes disponibles dans la
 conversation, le code Python, les tests et la version ArcGIS Pro du dépôt.
@@ -6,15 +6,17 @@ conversation, le code Python, les tests et la version ArcGIS Pro du dépôt.
 La version précédente possédait un diagnostic par couche ; elle ne réalisait
 pas l’application complète du NoData et de la nomenclature au projet.
 
+Le [nouvel audit outil par outil](TOOL_AUDIT.md) décrit les corrections 0.5, le parcours d’assistance et les transferts effectifs.
+
 ## État vérifié
 
 | Demande | État et portée effective |
 |---|---|
 | Bibliothèque Python indépendante et utilisable avec GeoPandas | Réalisé : API installable, GeoDataFrame/GeoSeries standards, sans dépendance ArcPy/QGIS |
-| Fenêtre native ouverte depuis Python | Réalisé : `cm.launch()`, 13 rubriques, fichiers importables et traitements en arrière-plan |
+| Fenêtre native ouverte depuis Python | Réalisé : `cm.launch()`, 14 rubriques, fichiers importables et traitements en arrière-plan |
 | Icône Cartomize dans ses couleurs normales | Corrigé : ressource originale inchangée et affichage en couleur ; titre et contrôles sobres |
 | Intitulés techniques, absence du slogan « ADN ArcGIS Pro » | Réalisé dans la fenêtre ; la provenance reste dans la documentation |
-| Production depuis les scènes avant les indices | Réalisé : Production automatisée reste l’écran d’ouverture ; indices facultatifs |
+| Production depuis les scènes avant les indices | Réalisé : Assistant cartographique est l’écran d’ouverture ; Production automatisée reste disponible ; indices facultatifs |
 | Sélection de plusieurs scènes/bandes | Réalisé pour Landsat C2 L2 SR et Sentinel-2 L2A reconnus ; correspondance explicite Python requise pour les autres produits |
 | Mosaïque, composite multibande, découpage par emprise | Réalisé : calibration et qualité, grille commune, choix cohérent des pixels entre bandes, extraction par masque |
 | GeoTIFF scientifique et composition colorée | Réalisé : multibande calibré séparé du RGBA de visualisation |

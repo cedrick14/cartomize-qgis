@@ -1,4 +1,4 @@
-# Architecture et périmètre 0.4.0a1
+# Architecture et périmètre 0.5.0a1
 
 ## Provenance technique
 
@@ -13,7 +13,7 @@ natifs Esri et une boîte à outils Python ArcPy. La bibliothèque reprend les
 modules Python indépendants d'ArcPy et les maquettes de cette édition.
 Les dix modules repris sont conservés dans `_core`, à usage interne.
 Leur version interne 10.5.1 exprime leur provenance; la version du nouveau
-paquet est 0.4.0a1. Les fichiers originaux ne sont pas modifiés.
+paquet est 0.5.0a1. Les fichiers originaux ne sont pas modifiés.
 
 ## Fonctionnalités
 
@@ -31,7 +31,7 @@ paquet est 0.4.0a1. Les fichiers originaux ne sont pas modifiés.
 | Algèbre raster | Interpréteur AST sans exécution Python, traitement par blocs, lecture commune et calculs concurrents |
 | Indices spectraux | 18 formules documentées, paramètres et registre extensible |
 | Statistiques | Voisinages avec marges de blocs et synthèse multirasters |
-| Interface graphique | Qt facultatif, production automatisée et douze rubriques complémentaires, tâches en arrière-plan, progression et annulation |
+| Interface graphique | Qt facultatif, assistant cartographique et treize rubriques complémentaires, tâches en arrière-plan, progression et annulation |
 | Production | Atlas, CLI, wheel, distribution source et procédure PyPI |
 
 ## Choix techniques
@@ -51,8 +51,7 @@ paquet est 0.4.0a1. Les fichiers originaux ne sont pas modifiés.
 
 Il s'agit d'une première bibliothèque alpha, et non du port complet de
 l'interface ArcGIS Pro. Elle n'ouvre pas les projets APRX, ne produit pas de
-PAGX, et ne reprend pas les moteurs natifs C# ni toute l'automatisation
-de choix de maquette de l'extension. Les 24 maquettes sont accessibles et
+PAGX, et ne reprend pas les moteurs natifs C# ni toute l’automatisation de choix de maquette de l’extension ; la proposition Python utilise l’objectif et le nombre de cadres. Les 24 maquettes sont accessibles et
 rendus par un nouveau moteur; la parité pixel à pixel avec Esri n'est pas visée.
 
 La suppression de collisions d'étiquettes est une heuristique simple et peut

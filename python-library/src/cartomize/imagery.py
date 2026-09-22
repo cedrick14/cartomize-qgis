@@ -161,6 +161,7 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
     cell=resolution/factor
     geometries=None
     if aoi is not None:
+        if isinstance(aoi,(str,Path)):sources.append(aoi)
         zones=frame(aoi).to_crs(crs)
         if zones.empty or zones.geometry.isna().any() or zones.geometry.is_empty.any() or not zones.geometry.is_valid.all():
             raise ValueError("AOI must contain valid nonempty polygons.")
@@ -257,4 +258,6 @@ def prepare_imagery(scenes, destination, *, aoi=None, band_order=None,
         # All processing must succeed before replacing the final deliverables.
         _check_cancel(cancel)
         os.replace(staged_index,index_path);os.replace(staged_manifest,manifest_path);os.replace(staged,destination)
+        for path in (index_path,destination):
+            for suffix in ('.msk','.aux.xml','.ovr'):Path(str(path)+suffix).unlink(missing_ok=True)
     return PreparedImage(destination,index_path,manifest_path,names,report)

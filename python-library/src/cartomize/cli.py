@@ -6,7 +6,8 @@ import sys
 import math
 
 from . import (__version__, list_templates, raster, vector, Map, discover_scenes, prepare_imagery,
-               color_composite, calculate, spectral_indices, list_indices, focal, reduce_rasters)
+               color_composite, calculate, spectral_indices, list_indices, focal, reduce_rasters,
+               assess_project, prepare_project)
 from .color import COMPOSITIONS
 
 
@@ -26,6 +27,11 @@ def main(argv=None):
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("gui", help="Open the Cartomize desktop interface")
     subs.add_parser("indices", help="List spectral indices and formulas")
+    assess=subs.add_parser('assess',help='Inspect project inputs and propose ordered cartographic steps')
+    assess.add_argument('sources',nargs='+');assess.add_argument('--goal',choices=['general','administrative','landcover','atlas'],default='general')
+    assess.add_argument('--kind',choices=['layers','scenes'],default='layers');assess.add_argument('--aoi')
+    project=subs.add_parser('project',help='Prepare masks and symbology in a new Cartomize project directory')
+    project.add_argument('destination');project.add_argument('sources',nargs='+');project.add_argument('--without-background-detection',action='store_true')
     calc=subs.add_parser("calculate", help="Evaluate a raster algebra expression")
     calc.add_argument("expression");calc.add_argument("destination")
     calc.add_argument("--input",nargs=3,action="append",required=True,metavar=("NAME","PATH","BAND"))
@@ -81,6 +87,8 @@ def main(argv=None):
             from .desktop import main as desktop_main
             return desktop_main()
         elif args.command == "indices":result=list_indices()
+        elif args.command == 'assess':result=assess_project(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi)
+        elif args.command == 'project':result=prepare_project(args.sources,args.destination,auto_background=not args.without_background_detection).report
         elif args.command in {"calculate","index","focal","reduce"}:
             options=dict(workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,overwrite=args.overwrite)
             if args.command=="calculate":
@@ -101,7 +109,7 @@ def main(argv=None):
         elif args.command == "templates":
             result = list_templates(args.category)
         elif args.command == "inspect":
-            kind = args.kind or ("raster" if Path(args.source).suffix.lower() in {".tif", ".tiff", ".vrt", ".img"} else "vector")
+            kind = args.kind or ("raster" if Path(args.source).suffix.lower() in {".tif", ".tiff", ".vrt", ".img", ".jp2"} else "vector")
             result = raster.inspect(args.source) if kind == "raster" else vector.analyze(args.source, name=Path(args.source).stem)
         elif args.command == "scenes":
             result = [{"id":s.scene_id,"sensor":s.sensor,"date":s.acquired,"level":s.level,
