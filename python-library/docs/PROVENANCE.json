@@ -1,0 +1,152 @@
+{
+  "source_repository": "https://github.com/cedrick14/cartomize-qgis",
+  "source_branch": "arcgispro-build-10.5.1.3",
+  "source_commit": "4790f0e152834725d989e336199f799782bc3680",
+  "source_version": "10.5.1",
+  "files": {
+    "src/cartomize/_core/constants.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/constants.py",
+      "sha256": "3da966ffbeda1b3fa611cdf3dbd7aac3f5e53ebf1ff70ef637149f73103740cf"
+    },
+    "src/cartomize/_core/errors.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/errors.py",
+      "sha256": "3dbe1ba0a88783c14068b7cbbcfb0940b260ea54aafd472a7c9964ceca3c20d5"
+    },
+    "src/cartomize/_core/models.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/models.py",
+      "sha256": "00c9e40fe32fa106873a892882e168ebcaad1271bf4f6bffeeffa75f50c0db77"
+    },
+    "src/cartomize/_core/vector.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/vector.py",
+      "sha256": "9dca3693b19aba8dad959f53fcfe01f7d5b8d1fa4b8165f9bf5f49886307be20"
+    },
+    "src/cartomize/_core/band_semantics.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/band_semantics.py",
+      "sha256": "7b96a22980a377867b3357aebef2b1436def0dd43a8151c51ec72299d4b892d4"
+    },
+    "src/cartomize/_core/raster_sampling.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/raster_sampling.py",
+      "sha256": "fed46fd7996d56e0e50b6e2a4a23545c95429f529d24ff24600d991590442e95"
+    },
+    "src/cartomize/_core/raster_intelligence_core.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/raster_intelligence_core.py",
+      "sha256": "ea267f2134e8abda04af7a53ae9a752fd0242ad7926b90eb778d15f09d99a869"
+    },
+    "src/cartomize/_core/raster_themes.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/raster_themes.py",
+      "sha256": "5b3891185b0bbda51c00a04d4516df4f30df9a6d7bdfe6590b561d551608e3da"
+    },
+    "src/cartomize/_core/template_catalog.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/template_catalog.py",
+      "sha256": "15f1ac89d2048e90ec7de8a6a471aae8289103592de3e4dcea6b6b8730aa1512"
+    },
+    "src/cartomize/_core/layout_plan.py": {
+      "source": "arcgis-build/source/toolbox/cartomize_core/layout_plan.py",
+      "sha256": "efbba1d8fa45344132109445ff81095226e9d6faf163e07367b6cc1b25a1ad82"
+    },
+    "src/cartomize/templates_library/LICENSE.txt": {
+      "source": "arcgis-build/source/templates_library/LICENSE.txt",
+      "sha256": "7c6b17cb67140f2eb7874df1765acfac5940f1eab20ff1d7efd4eeb2d46b061a"
+    },
+    "src/cartomize/templates_library/administrative/institutionnel.json": {
+      "source": "arcgis-build/source/templates_library/administrative/institutionnel.json",
+      "sha256": "ca6f457863ed60def8b1e46e841373579bee04e24580d2c58ef9e64b1a1d27ef"
+    },
+    "src/cartomize/templates_library/agriculture/aptitude-agricole-a3.json": {
+      "source": "arcgis-build/source/templates_library/agriculture/aptitude-agricole-a3.json",
+      "sha256": "6dc253be4efd182ccbf04bcb7061971f229f37878b19eebf3454ff6fadbc1ee9"
+    },
+    "src/cartomize/templates_library/biodiversite/connectivite-ecologique-a4.json": {
+      "source": "arcgis-build/source/templates_library/biodiversite/connectivite-ecologique-a4.json",
+      "sha256": "af156890538e445ce8fc38cc3cf56fc92edd66aa76428554be860c11e0924d39"
+    },
+    "src/cartomize/templates_library/demographie/population-densite-a4.json": {
+      "source": "arcgis-build/source/templates_library/demographie/population-densite-a4.json",
+      "sha256": "ef4a15aa8f4754e0854e19ed8bcc6084cf9a0cecc77d035495424fa633c95c56"
+    },
+    "src/cartomize/templates_library/energie/electrification-a4.json": {
+      "source": "arcgis-build/source/templates_library/energie/electrification-a4.json",
+      "sha256": "ba659317fa70c0e1266e243105b35f973cec7e88de83dbf9a0f8eadfa364275c"
+    },
+    "src/cartomize/templates_library/environnement/fragmentation-forestiere-a3.json": {
+      "source": "arcgis-build/source/templates_library/environnement/fragmentation-forestiere-a3.json",
+      "sha256": "0a66e50e3fabf67340eebfd32b7ef6cb42ebc76a7ce91e90876df4630037b631"
+    },
+    "src/cartomize/templates_library/humanitaire/situation-urgence-a3.json": {
+      "source": "arcgis-build/source/templates_library/humanitaire/situation-urgence-a3.json",
+      "sha256": "54ad1ed43a1aa100b23ae4f2d700669d424622231b021b07cf541e3b97100978"
+    },
+    "src/cartomize/templates_library/hydrologique/institutionnel.json": {
+      "source": "arcgis-build/source/templates_library/hydrologique/institutionnel.json",
+      "sha256": "946b3bdd740fcbc49ec17d634e2a4ba76c1f978deceecf761b2c7f93d905ed67"
+    },
+    "src/cartomize/templates_library/occupation_sol/institutionnel.json": {
+      "source": "arcgis-build/source/templates_library/occupation_sol/institutionnel.json",
+      "sha256": "8232460a884e200d6a237dcefd091321be22b64b84215fdacfaddb21557d91b1"
+    },
+    "src/cartomize/templates_library/offline_catalog.json": {
+      "source": "arcgis-build/source/templates_library/offline_catalog.json",
+      "sha256": "f43023536f1bb236d3ce337956b11c10c7bcbf7b8dbdb59bc07a4739ed3eebe3"
+    },
+    "src/cartomize/templates_library/professionnelles/03-localisation-hierarchique.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/03-localisation-hierarchique.json",
+      "sha256": "17976fc3fc9b6c0cb03c4446ee053c3362e8bc4202a24cd5751fe9780feee0d9"
+    },
+    "src/cartomize/templates_library/professionnelles/08-carte-urbaine-volet-descriptif.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/08-carte-urbaine-volet-descriptif.json",
+      "sha256": "596a1f985f196eb478e5aade15814cb93e2d6faeab6495121cc83b92cb714441"
+    },
+    "src/cartomize/templates_library/professionnelles/09-localisation-deux-encarts.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/09-localisation-deux-encarts.json",
+      "sha256": "4a67b296a4a9735a2768550c1c7cd3af27f64fdac626bb90da1077c336c5fb81"
+    },
+    "src/cartomize/templates_library/professionnelles/10-carte-deux-agrandissements.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/10-carte-deux-agrandissements.json",
+      "sha256": "50c09c60eba05ad23798638c6e04a446641e5ccb18671e72a36e8e6cae897a5f"
+    },
+    "src/cartomize/templates_library/professionnelles/13-planche-analyse-multi-blocs.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/13-planche-analyse-multi-blocs.json",
+      "sha256": "16a7a22949b956ce5c7129a6a5f56dfcf8c50638bfea38c315102861797089c2"
+    },
+    "src/cartomize/templates_library/professionnelles/15-carte-deux-fenetres-detail.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/15-carte-deux-fenetres-detail.json",
+      "sha256": "6f9fcd80980ea46f3d65d178be05808bbafd32b68b7ac571d0a2ca941182fbd0"
+    },
+    "src/cartomize/templates_library/professionnelles/16-carte-verticale-trois-encarts.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/16-carte-verticale-trois-encarts.json",
+      "sha256": "7b6fe9e118e6adc0e6021c33b17a2c6227fcc9e3b3b6c6bab1b4bede1f9cb5ed"
+    },
+    "src/cartomize/templates_library/professionnelles/19-carte-verticale-encart-situation.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/19-carte-verticale-encart-situation.json",
+      "sha256": "fae26644bba3f54497d1be0d9aa11167ada32030efc22dea4d41a0fd958c6a88"
+    },
+    "src/cartomize/templates_library/professionnelles/23-planche-comparative-trois-cadres.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/23-planche-comparative-trois-cadres.json",
+      "sha256": "15abd63e244d9e578e3a0a3f50179d42a4c05246288aab21c7cd829e59a8b706"
+    },
+    "src/cartomize/templates_library/professionnelles/25-localisation-territoriale-trois-niveaux.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/25-localisation-territoriale-trois-niveaux.json",
+      "sha256": "6342e7d081f55f3d2a5853ba38915d92d7ae7a61555850fd296936514d522d24"
+    },
+    "src/cartomize/templates_library/professionnelles/27-carte-centrale-quatre-encarts.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/27-carte-centrale-quatre-encarts.json",
+      "sha256": "9c8542444fdf4c0b1a2b615c1d040bb28c50ddd261b4de78099b46bdfcbe7943"
+    },
+    "src/cartomize/templates_library/professionnelles/28-carte-panoramique-deux-volets.json": {
+      "source": "arcgis-build/source/templates_library/professionnelles/28-carte-panoramique-deux-volets.json",
+      "sha256": "b1a4b200e004a0d2e7fb4874526f0fca454a15add93421926c2e127f324c4d23"
+    },
+    "src/cartomize/templates_library/sante/couverture-services-a4.json": {
+      "source": "arcgis-build/source/templates_library/sante/couverture-services-a4.json",
+      "sha256": "04f43ff9f22a774e41dc6854659d0fa0a9e5a52757dce39a73d380aa4dbfc9c3"
+    },
+    "src/cartomize/templates_library/topographique/institutionnel.json": {
+      "source": "arcgis-build/source/templates_library/topographique/institutionnel.json",
+      "sha256": "fcee5184f4c41bcdfbaea0214a8593efbe47d6547590455ae7b5c1b67ad893c2"
+    },
+    "src/cartomize/templates_library/transport/accessibilite-reseau-a4.json": {
+      "source": "arcgis-build/source/templates_library/transport/accessibilite-reseau-a4.json",
+      "sha256": "32a40678e92fc6e4fd246b700ccfe283b3ba28d47a1c1d9233b8881705386521"
+    }
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "name": "Carte urbaine avec volet descriptif",
+  "category": "urbanisme",
+  "variant": "reference-pro-08",
+  "description": "Volet descriptif compact associé à une grande carte urbaine.",
+  "page_format": "A4 paysage",
+  "schema_version": "1.1",
+  "app_version": "10.5.0",
+  "accent_color": "#75536A",
+  "accent_tint": "#F1E8EE",
+  "palette_mode": "modern-theme",
+  "tags": [
+    "professionnel",
+    "palette sobre",
+    "traits noirs",
+    "sans données"
+  ],
+  "layout_json": {
+    "schema_version": "1.1",
+    "app_version": "10.5.0",
+    "page_format": "A4 paysage",
+    "background_color": "#ffffff",
+    "elements": [
+      {
+        "id": "title",
+        "type": "title",
+        "x": 24,
+        "y": 18,
+        "width": 843,
+        "height": 30,
+        "z_index": 3,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 20,
+          "fontFamily": "Arial, sans-serif",
+          "fontWeight": "bold",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "TITRE DE LA CARTE"
+        }
+      },
+      {
+        "id": "subtitle",
+        "type": "subtitle",
+        "x": 24,
+        "y": 50,
+        "width": 843,
+        "height": 20,
+        "z_index": 3,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 10,
+          "fontFamily": "Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Territoire · thème · période"
+        }
+      },
+      {
+        "id": "title-rule",
+        "type": "shape",
+        "x": 24,
+        "y": 74,
+        "width": 90,
+        "height": 4,
+        "z_index": 1,
+        "style": {
+          "fill": "#75536A",
+          "stroke": "#000000",
+          "strokeWidth": 0.6
+        },
+        "content": {}
+      },
+      {
+        "id": "introduction",
+        "type": "table",
+        "x": 24,
+        "y": 82,
+        "width": 205,
+        "height": 150,
+        "z_index": 2,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 1.1
+        },
+        "content": {}
+      },
+      {
+        "id": "locator",
+        "type": "map_frame",
+        "x": 42,
+        "y": 255,
+        "width": 169,
+        "height": 130,
+        "z_index": 1,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 1.4
+        },
+        "content": {
+          "role": "locator"
+        }
+      },
+      {
+        "id": "legend",
+        "type": "legend",
+        "x": 24,
+        "y": 405,
+        "width": 205,
+        "height": 150,
+        "z_index": 2,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000"
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "main-map",
+        "type": "map_frame",
+        "x": 250,
+        "y": 82,
+        "width": 617,
+        "height": 470,
+        "z_index": 1,
+        "style": {
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 1.4
+        },
+        "content": {
+          "role": "main"
+        }
+      },
+      {
+        "id": "north",
+        "type": "north_arrow",
+        "x": 800,
+        "y": 95,
+        "width": 42,
+        "height": 52,
+        "z_index": 3,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000"
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "scale",
+        "type": "scale_bar",
+        "x": 650,
+        "y": 500,
+        "width": 180,
+        "height": 32,
+        "z_index": 3,
+        "style": {
+          "fill": "#000000",
+          "stroke": "#000000"
+        },
+        "content": {
+          "map_id": "main-map"
+        }
+      },
+      {
+        "id": "credits",
+        "type": "text",
+        "x": 24,
+        "y": 598,
+        "width": 843,
+        "height": 18,
+        "z_index": 3,
+        "style": {
+          "fill": "#000000",
+          "fontSize": 8,
+          "fontFamily": "Arial, sans-serif",
+          "fontWeight": "normal",
+          "textAlign": "left"
+        },
+        "content": {
+          "text": "Sources : …  |  Projection : …  |  Auteur : …  |  Date : …"
+        }
+      }
+    ]
+  },
+  "design_principles": [
+    "fond blanc",
+    "traits et cadres noirs",
+    "textes noirs",
+    "accent coloré unique et sobre",
+    "hiérarchie visuelle claire",
+    "aucune donnée géographique incluse",
+    "éléments éditables dans le composeur QGIS"
+  ]
+}
