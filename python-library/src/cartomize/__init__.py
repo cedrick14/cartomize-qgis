@@ -1,4 +1,4 @@
-"""Cartomize: Python cartography and spatial analysis from ArcGIS Pro roots."""
+"""Cartomize: cartography, spatial analysis and automated map production."""
 from geopandas import GeoDataFrame, GeoSeries, points_from_xy
 from .mapping import Map, Layer
 from .vector import read_file, from_xy, reproject, clip, overlay, sjoin, dissolve, buffer, area, length, validate, make_valid
@@ -14,7 +14,7 @@ from .indices import spectral_indices, list_indices, get_index, register_index
 from .focal import focal
 from .workflow import CartographicProduct, cartographic_workflow
 
-__version__ = "0.3.0a2"
+__version__ = "0.3.0a3"
 
 
 def launch(*,block=None):

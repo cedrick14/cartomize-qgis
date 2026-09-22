@@ -24,6 +24,8 @@ def cartographic_workflow(scenes, destination, *, layers=(), aoi=None,
                           mask_clouds=True, allow_mixed_dates=False,
                           composition="natural", title="", credits="",
                           template=None, formats=("pdf", "png"), dpi=300,
+                          page_format="A4", orientation="landscape", subtitle="",
+                          legend=True, scale_bar=True, north_arrow=True,
                           progress=None, stage=None, cancel=None):
     """Prepare, mosaic, stack, mask, render RGB and export ordered map layers.
 
@@ -75,7 +77,9 @@ def cartographic_workflow(scenes, destination, *, layers=(), aoi=None,
         map_layers = [{"data": composite, "role": "background", "rgb": "native", "name": "Image satellite"}]
         map_layers.extend(layers)
         cartography = compose_map(map_layers, aoi=aoi, title=title, credits=credits,
-                                  template=template, crs=target_crs)
+                                  template=template, crs=target_crs, format=page_format,
+                                  orientation=orientation, subtitle=subtitle)
+        cartography.add_legend(legend).add_scale_bar(scale_bar).add_north_arrow(north_arrow)
         outputs = []
         for index, fmt in enumerate(formats):
             notify(f"Export cartographique ({fmt.upper()})", 85 + int(13 * index / len(formats)))
@@ -90,6 +94,8 @@ def cartographic_workflow(scenes, destination, *, layers=(), aoi=None,
                       composite="composition_coloree.tif", preparation="multibande.json",
                       maps=[p.name for p in outputs], composition=composition,
                       title=title, credits=credits, template=template, dpi=dpi,
+                      page_format=page_format, orientation=orientation, subtitle=subtitle,
+                      legend=legend, scale_bar=scale_bar, north_arrow=north_arrow,
                       aoi=str(aoi) if aoi is not None else None,
                       layer_plan=cartography.layer_plan())
         manifest = work / "production.json"

@@ -2,11 +2,11 @@
 
 **Smart Maps, Better Decisions.**
 
-Bibliothèque Python de cartographie et d'analyse spatiale, dérivée des sources
-de **Cartomize for ArcGIS Pro 10.5.1**, par **ONDON NKOUA Cédrick Belmich**.
+Bibliothèque Python d’automatisation cartographique et d’analyse spatiale,
+par **ONDON NKOUA Cédrick Belmich**.
 Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.3.0a2 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
+**Version 0.3.0a3 : version alpha avec production cartographique automatisée.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.3.0a2-py3-none-any.whl
+python -m pip install cartomize-0.3.0a3-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -47,10 +47,19 @@ L'ouverture donne accès à **Production automatisée** : sélection des scènes
 des couches, mosaïque, composite multibande, extraction par masque,
 composition colorée et export cartographique en une opération. Les indices,
 la calculatrice et les statistiques restent accessibles comme outils
-complémentaires. L'icône originale et les bleus de Cartomize sont intégrés.
+complémentaires. L’interface, le titre et l’icône sont affichés en noir, blanc et gris.
 Les traitements s'exécutent en arrière-plan avec progression et annulation.
 
-Voir le [guide de l'interface graphique](docs/DESKTOP.md).
+La rubrique **Mise en page** donne accès aux 24 maquettes, aux formats A4/A3,
+aux cadres multiples, aux légendes, aux échelles et à l’orientation. Elle
+permet de contrôler la symbologie, les étiquettes et les contenus des
+maquettes, puis de prévisualiser et d’exporter la carte. **Atlas cartographique**
+produit une carte par entité d’une couche d’index. Les rubriques **Analyse des
+couches**, **Traitements vectoriels** et **Traitements raster** donnent accès
+aux diagnostics et aux opérations de la bibliothèque.
+
+Voir le [guide de l’interface graphique](docs/DESKTOP.md) et le
+[tableau des fonctionnalités](FUNCTIONAL_COVERAGE.md).
 
 ## Automatiser la production depuis Python
 
@@ -199,7 +208,7 @@ capteur. Les facteurs d'échelle et décalages GDAL sont appliqués; utiliser
 une seule bande; elles ne modifient pas les fichiers sources.
 
 Les masques, NoData, NaN et Inf sont exclus des calculs. Un zéro valide est
-conservé. Le diagnostic hérité propose des valeurs NoData potentielles sans
+conservé. Le diagnostic propose des valeurs NoData potentielles sans
 les appliquer. Les matrices de changement exigent des grilles identiques.
 La surface raster utilise le déterminant de la transformation et les unités
 du CRS projeté. Les indices et reclassifications sont traités par fenêtres;

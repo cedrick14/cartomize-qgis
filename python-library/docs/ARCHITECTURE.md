@@ -1,6 +1,6 @@
-# Architecture et périmètre 0.3.0a2
+# Architecture et périmètre 0.3.0a3
 
-## Base retrouvée
+## Provenance technique
 
 Dépôt : https://github.com/cedrick14/cartomize-qgis
 
@@ -13,7 +13,7 @@ natifs Esri et une boîte à outils Python ArcPy. La bibliothèque reprend les
 modules Python indépendants d'ArcPy et les maquettes de cette édition.
 Les dix modules repris sont conservés dans `_core`, à usage interne.
 Leur version interne 10.5.1 exprime leur provenance; la version du nouveau
-paquet est 0.3.0a2. Les fichiers originaux ne sont pas modifiés.
+paquet est 0.3.0a3. Les fichiers originaux ne sont pas modifiés.
 
 ## Fonctionnalités
 
@@ -31,7 +31,7 @@ paquet est 0.3.0a2. Les fichiers originaux ne sont pas modifiés.
 | Algèbre raster | Interpréteur AST sans exécution Python, traitement par blocs, lecture commune et calculs concurrents |
 | Indices spectraux | 18 formules documentées, paramètres et registre extensible |
 | Statistiques | Voisinages avec marges de blocs et synthèse multirasters |
-| Interface graphique | Qt facultatif, production automatisée et sept outils complémentaires, tâches en arrière-plan, progression et annulation |
+| Interface graphique | Qt facultatif, production automatisée et onze rubriques complémentaires, tâches en arrière-plan, progression et annulation |
 | Production | Atlas, CLI, wheel, distribution source et procédure PyPI |
 
 ## Choix techniques
@@ -93,3 +93,12 @@ répertoire de production neuf est publié après la réussite de toutes les
 opérations. L'annulation et les erreurs nettoient les produits temporaires.
 La page Production automatisée appelle la même API que les scripts Python.
 L'icône originale est distribuée dans `cartomize/assets`.
+
+## Accès aux fonctions cartographiques
+
+`desktop_layout` expose les maquettes, les cadres et les contenus au moteur
+`Map`. `desktop_tools` expose les diagnostics et les traitements existants.
+La page Mise en page et la page Atlas partagent la même configuration.
+Leur aperçu utilise le rendu réel, dans le fil de traitement existant.
+Le [tableau fonctionnel](FUNCTIONAL_COVERAGE.md) distingue la disponibilité
+dans Python des fonctions nécessitant encore un portage natif.

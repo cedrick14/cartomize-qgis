@@ -3,14 +3,16 @@ from pathlib import Path
 import os
 import sys
 import threading
+import tempfile
+from functools import lru_cache
 
 try:
     from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot, QUrl
-    from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
+    from PySide6.QtGui import QDesktopServices, QIcon, QPixmap, QImage, QColor, QPalette
     from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QHBoxLayout,QVBoxLayout,
         QFormLayout,QLabel,QLineEdit,QPushButton,QFileDialog,QListWidget,QListWidgetItem,
         QStackedWidget,QComboBox,QSpinBox,QDoubleSpinBox,QCheckBox,QPlainTextEdit,
-        QTableWidget,QTableWidgetItem,QHeaderView,QProgressBar,QMessageBox,QGroupBox,QScrollArea,QTabWidget)
+        QTableWidget,QTableWidgetItem,QHeaderView,QProgressBar,QMessageBox,QGroupBox,QScrollArea,QTabWidget,QDialog)
 except ImportError as exc:
     raise ImportError('Interface graphique indisponible. Installer : python -m pip install "PySide6-Essentials>=6.7,<7"') from exc
 
@@ -26,6 +28,18 @@ ROLE_LABELS={"Fond raster":"background","Occupation du sol":"landcover","Donnée
              "Voies ferrées":"railways","Limites administratives":"boundaries","Localités":"localities","Points":"points"}
 
 
+@lru_cache(maxsize=4)
+def monochrome_icon(path):
+    source=QImage(str(path)).scaled(192,192,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation).convertToFormat(QImage.Format.Format_RGBA8888)
+    # Preserve the symbol's silhouette and negative space, using black ink.
+    for y in range(source.height()):
+        for x in range(source.width()):
+            pixel=source.pixelColor(x,y)
+            ink=pixel.alpha() if max(pixel.red(),pixel.green(),pixel.blue())<225 else 0
+            source.setPixelColor(x,y,QColor(0,0,0,ink))
+    return QPixmap.fromImage(source)
+
+
 class PathField(QWidget):
     def __init__(self,mode="open",filter=RASTER_FILTER):
         super().__init__();self.mode=mode;self.filter=filter
@@ -33,7 +47,7 @@ class PathField(QWidget):
         self.edit=QLineEdit();button=QPushButton("Parcourir…")
         layout.addWidget(self.edit,1);layout.addWidget(button);button.clicked.connect(self.browse)
     def browse(self):
-        if self.mode=="directory":path=QFileDialog.getExistingDirectory(self,"Répertoire des scènes",self.edit.text())
+        if self.mode=="directory":path=QFileDialog.getExistingDirectory(self,"Sélectionner un répertoire",self.edit.text())
         elif self.mode=="save":path=QFileDialog.getSaveFileName(self,"Fichier de sortie",self.edit.text(),self.filter)[0]
         else:path=QFileDialog.getOpenFileName(self,"Données d’entrée",self.edit.text(),self.filter)[0]
         if path:self.edit.setText(path)
@@ -240,44 +254,99 @@ class PreparationPage(Page):
 class MappingPage(Page):
     engine=False
     cancellable=False
+    previewRequested=Signal()
     def __init__(self):
-        super().__init__("Composition cartographique","Superposition des couches, symbologie, étiquetage et export de la mise en page.")
-        self.layers=QTableWidget(0,3);self.layers.setHorizontalHeaderLabels(["Couche","Rôle cartographique","Champ d’étiquette"])
+        super().__init__("Mise en page cartographique","Maquettes, cadres multiples, légende, échelle, orientation et exports PDF, PNG ou SVG.")
+        from .desktop_layout import LayoutSettings
+        self.tabs=QTabWidget();self.form.addRow(self.tabs)
+        self.layer_tab=QWidget();layer_form=QFormLayout(self.layer_tab);self.tabs.addTab(self.layer_tab,"Couches et symbologie")
+        self.layers=QTableWidget(0,7);self.layers.setHorizontalHeaderLabels(["Couche","Rôle","Étiquettes","Champ thématique","Bande","Opacité","Palette"])
         self.layers.horizontalHeader().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch)
-        self.layers.setColumnWidth(1,180);self.layers.setMinimumHeight(190);self.form.addRow(self.layers)
-        button=QPushButton("Importer des couches");self.form.addRow(button);button.clicked.connect(self.browse)
-        remove=QPushButton("Supprimer la sélection");self.form.addRow(remove)
-        remove.clicked.connect(lambda:[self.layers.removeRow(i) for i in sorted({x.row() for x in self.layers.selectedIndexes()},reverse=True)])
-        self.title=QLineEdit();self.credits=QLineEdit();self.crs=QLineEdit();self.crs.setPlaceholderText("Exemple : EPSG:32733")
-        self.aoi=PathField(filter=VECTOR_FILTER);self.rgb=QComboBox()
+        for col,width in [(1,135),(2,100),(3,125),(4,60),(5,70),(6,100)]:self.layers.setColumnWidth(col,width)
+        self.layers.setMinimumHeight(190);layer_form.addRow(self.layers)
+        buttons=QWidget();row=QHBoxLayout(buttons);row.setContentsMargins(0,0,0,0)
+        button=QPushButton("Importer des couches…");remove=QPushButton("Supprimer la sélection")
+        row.addWidget(button);row.addWidget(remove);row.addStretch();layer_form.addRow(buttons)
+        button.clicked.connect(self.browse);remove.clicked.connect(lambda:[self.layers.removeRow(i) for i in sorted({x.row() for x in self.layers.selectedIndexes()},reverse=True)])
+        self.crs=QLineEdit();self.crs.setPlaceholderText("Exemple : EPSG:32733")
+        self.aoi=PathField(filter=VECTOR_FILTER);self.rgb=QComboBox();self.rgb.addItem("Bande unique (raster scientifique)",None)
         for label,value in [("Couleurs naturelles","natural"),("Végétation","vegetation"),("Infrarouge à ondes courtes","swir"),("Agriculture","agriculture")]:self.rgb.addItem(label,value)
-        self.dpi=spin(300,72,1200)
-        for label,widget in [("Titre",self.title),("Sources et auteur",self.credits),("Système de coordonnées",self.crs),
-             ("Zone d’étude",self.aoi),("Composition colorée",self.rgb),("Résolution d’export (ppp)",self.dpi)]:self.form.addRow(label,widget)
-        self.output.filter="Document PDF (*.pdf);;Image PNG (*.png);;Image SVG (*.svg)";self.finish()
+        for label,widget in [("Système de coordonnées",self.crs),("Zone d’étude",self.aoi),("Composition colorée",self.rgb)]:layer_form.addRow(label,widget)
+        self.title=QLineEdit();self.subtitle=QLineEdit();self.credits=QLineEdit();self.dpi=spin(300,72,1200)
+        page=QWidget();form=QFormLayout(page);self.tabs.addTab(page,"Maquette et habillage")
+        self.layout_settings=LayoutSettings()
+        for label,widget in [("Titre",self.title),("Sous-titre",self.subtitle),("Sources et auteur",self.credits)]:form.addRow(label,widget)
+        form.addRow(self.layout_settings)
+        frames_tab=QWidget();form=QFormLayout(frames_tab);self.tabs.addTab(frames_tab,"Cadres et contenus")
+        detail=QLabel("Les emprises utilisent le système de coordonnées de chaque cadre. Sans réglage, l’emprise et les couches de la carte sont utilisées.")
+        detail.setWordWrap(True);form.addRow(detail);form.addRow(self.layout_settings.frames)
+        form.addRow(QLabel("Contenus facultatifs des emplacements de la maquette : textes, tableaux CSV et graphiques."))
+        form.addRow(self.layout_settings.elements)
+        self.output.filter="Document PDF (*.pdf);;Image PNG (*.png);;Image SVG (*.svg)"
+        self.form.addRow("Résolution d’export (ppp)",self.dpi)
+        self.preview_button=QPushButton("Aperçu cartographique");self.preview_button.clicked.connect(self.previewRequested.emit);self.form.addRow(self.preview_button)
+        self.finish();self.tabs.setCurrentIndex(1)
     def browse(self):
-        paths=QFileDialog.getOpenFileNames(self,"Couches géographiques",filter="Données SIG (*.tif *.tiff *.jp2 *.vrt *.gpkg *.shp *.geojson)")[0]
-        for path in paths:self.add_layer(path)
+        for path in QFileDialog.getOpenFileNames(self,"Couches géographiques",filter="Données SIG (*.tif *.tiff *.jp2 *.vrt *.gpkg *.shp *.geojson)")[0]:self.add_layer(path)
     def add_layer(self,path):
         row=self.layers.rowCount();self.layers.insertRow(row);self.layers.setItem(row,0,QTableWidgetItem(str(path)))
         roles=QComboBox();roles.addItem("Automatique",None)
         for label,value in ROLE_LABELS.items():roles.addItem(label,value)
         self.layers.setCellWidget(row,1,roles);self.layers.setItem(row,2,QTableWidgetItem(""))
-    def job(self,options):
-        layers=[];rgb=self.rgb.currentData()
+        if self.layers.columnCount()>3:
+            self.layers.setItem(row,3,QTableWidgetItem(""));self.layers.setCellWidget(row,4,spin())
+            opacity=spin(100,0,100);opacity.setSuffix(" %");self.layers.setCellWidget(row,5,opacity)
+            palette=QComboBox();palette.addItems(["Greys","viridis","Greens","Blues","terrain","Set2","tab20"]);self.layers.setCellWidget(row,6,palette)
+    def capture_map(self):
+        layers=[]
         for row in range(self.layers.rowCount()):
             layers.append(dict(data=self.layers.item(row,0).text(),role=self.layers.cellWidget(row,1).currentData(),
-                               labels=self.layers.item(row,2).text().strip() or None))
-        if not layers:raise ValueError("Importer au moins une couche géographique.")
-        destination=self.destination();aoi=self.aoi.text() or None
-        kwargs=dict(title=self.title.text(),credits=self.credits.text(),crs=self.crs.text().strip() or None)
-        dpi=self.dpi.value()
+                labels=self.layers.item(row,2).text().strip() or None,column=self.layers.item(row,3).text().strip() or None,
+                band=self.layers.cellWidget(row,4).value(),alpha=self.layers.cellWidget(row,5).value()/100,cmap=self.layers.cellWidget(row,6).currentText()))
+        if not layers:raise ValueError("Importer au moins une couche géographique dans Couches et symbologie.")
+        return dict(layers=layers,rgb=self.rgb.currentData(),aoi=self.aoi.text() or None,
+            options=dict(title=self.title.text(),subtitle=self.subtitle.text(),credits=self.credits.text(),crs=self.crs.text().strip() or None),
+            layout=self.layout_settings.capture())
+    @staticmethod
+    def build_map(config):
+        from .desktop_layout import apply_layout
+        layers=[dict(layer) for layer in config["layers"]]
+        for layer in layers:
+            if Path(layer["data"]).suffix.lower() in {".tif",".tiff",".jp2",".vrt",".img"}:
+                with rasterio.open(layer["data"]) as src:
+                    if src.count>=3 and config["rgb"] is not None:layer["rgb"]="native" if src.dtypes[:3]==("uint8",)*3 and tuple(c.name for c in src.colorinterp[:3])==("red","green","blue") else config["rgb"]
+        settings=config["layout"];options={**config["options"],**{k:settings[k] for k in ("template","format","orientation")}}
+        return apply_layout(cm.compose_map(layers,aoi=config["aoi"],**options),settings)
+    def job(self,options):
+        config=self.capture_map();destination=self.destination();dpi=self.dpi.value()
+        return lambda progress,cancel:self.build_map(config).export(destination,dpi=dpi,overwrite=options["overwrite"])
+    def preview_job(self,path):
+        config=self.capture_map()
+        return lambda progress,cancel:self.build_map(config).export(path,dpi=100,overwrite=True)
+
+
+class AtlasPage(MappingPage):
+    cancellable=True
+    def __init__(self):
+        super().__init__();self.findChild(QLabel,"pageTitle").setText("Atlas cartographique")
+        self.findChild(QLabel,"description").setText("Production d’une carte par entité de la couche d’index, avec maquette et habillage communs.")
+        tab=QWidget();form=QFormLayout(tab);self.tabs.insertTab(0,tab,"Index de l’atlas")
+        self.zones=PathField(filter=VECTOR_FILTER);self.name_column=QLineEdit();self.name_column.setPlaceholderText("Exemple : nom")
+        self.atlas_format=QComboBox();self.atlas_format.addItems(["pdf","png","svg"])
+        self.padding=spin(8,0,100);self.padding.setSuffix(" %")
+        for label,widget in [("Couche d’index",self.zones),("Champ du nom des pages",self.name_column),("Format d’export",self.atlas_format),("Marge autour des entités",self.padding)]:form.addRow(label,widget)
+        detail=QLabel("Chaque entité définit l’emprise principale d’une page. Les cadres ayant une emprise explicite conservent leur cadrage.")
+        detail.setWordWrap(True);form.addRow(detail)
+        self.output.mode="directory";self.form.labelForField(self.output).setText("Répertoire de sortie")
+        self.tabs.setCurrentIndex(0)
+    def job(self,options):
+        config=self.capture_map();directory=Path(self.destination());zones=self.zones.text();field=self.name_column.text().strip()
+        if not zones or not field:raise ValueError("Renseigner la couche d’index et le champ du nom des pages.")
+        kwargs=dict(name_column=field,format=self.atlas_format.currentText(),dpi=self.dpi.value(),padding=self.padding.value()/100,overwrite=options["overwrite"])
         def run(progress,cancel):
-            for layer in layers:
-                if Path(layer["data"]).suffix.lower() in {".tif",".tiff",".jp2",".vrt"}:
-                    with rasterio.open(layer["data"]) as src:
-                        if src.count>=3:layer["rgb"]="native" if src.dtypes[:3]==("uint8",)*3 and tuple(c.name for c in src.colorinterp[:3])==("red","green","blue") else rgb
-            return cm.compose_map(layers,aoi=aoi,**kwargs).export(destination,dpi=dpi,overwrite=options["overwrite"])
+            paths=cm.atlas(self.build_map(config),zones,directory,progress=progress,cancel=cancel,**kwargs)
+            if not paths:raise ValueError("La couche d’index ne contient aucune entité.")
+            return paths[0]
         return run
 
 
@@ -321,14 +390,16 @@ class WorkflowPage(Page):
         note=QLabel("Calibration radiométrique et masque de qualité avant rééchantillonnage. Les scènes sont alignées sur une grille commune. Les bandes nécessaires à la composition colorée sont ajoutées à la sélection.")
         note.setWordWrap(True);note.setObjectName("muted");form.addRow(note)
         output=QWidget();form=QFormLayout(output);tabs.addTab(output,"Restitution cartographique")
-        self.title=QLineEdit();self.credits=QLineEdit();self.rgb=QComboBox()
+        self.title=QLineEdit();self.subtitle=QLineEdit();self.credits=QLineEdit();self.rgb=QComboBox()
         for label,value in [("Couleurs naturelles","natural"),("Infrarouge proche — végétation","vegetation"),
             ("Infrarouge à ondes courtes","swir"),("Agriculture","agriculture")]:self.rgb.addItem(label,value)
         self.format=QComboBox()
         for label,value in [("PDF et PNG",("pdf","png")),("PDF",("pdf",)),("PNG",("png",)),("SVG",("svg",))]:self.format.addItem(label,value)
         self.dpi=spin(300,72,1200)
         for label,widget in [("Composition colorée",self.rgb),("Titre de la carte",self.title),
-            ("Sources et auteur",self.credits),("Format d’export",self.format),("Résolution d’export (ppp)",self.dpi)]:form.addRow(label,widget)
+            ("Sous-titre",self.subtitle),("Sources et auteur",self.credits),("Format d’export",self.format),("Résolution d’export (ppp)",self.dpi)]:form.addRow(label,widget)
+        from .desktop_layout import LayoutSettings
+        self.layout_settings=LayoutSettings(compact=True);form.addRow(self.layout_settings)
         note=QLabel("Ordre des couches selon leur rôle cartographique ; reprojection, découpage vectoriel, légende, échelle et orientation intégrés à la mise en page.")
         note.setWordWrap(True);note.setObjectName("muted");form.addRow(note)
         self.directory=PathField("directory");self.project=QLineEdit("production_cartographique")
@@ -358,10 +429,13 @@ class WorkflowPage(Page):
         if destination.exists():raise ValueError("Ce nom de production existe déjà. Choisir un nouveau nom.")
         layers=[dict(data=self.layers.item(i,0).text(),role=self.layers.cellWidget(i,1).currentData(),
                      labels=self.layers.item(i,2).text().strip() or None) for i in range(self.layers.rowCount())]
+        layout=self.layout_settings.capture()
         kwargs=dict(layers=layers,aoi=self.aoi.text() or None,band_order=[b.strip() for b in self.bands.text().split(",") if b.strip()],
             target_crs=self.crs.text().strip() or None,resolution=self.resolution.value() or None,
             mask_clouds=self.clouds.isChecked(),allow_mixed_dates=self.dates.isChecked(),composition=self.rgb.currentData(),
-            title=self.title.text(),credits=self.credits.text(),formats=self.format.currentData(),dpi=self.dpi.value())
+            title=self.title.text(),credits=self.credits.text(),formats=self.format.currentData(),dpi=self.dpi.value(),
+            template=layout["template"],page_format=layout["format"],orientation=layout["orientation"],subtitle=self.subtitle.text(),
+            legend=layout["legend"],scale_bar=layout["scale"],north_arrow=layout["north"])
         return lambda progress,cancel,stage:cm.cartographic_workflow(source,destination,progress=progress,cancel=cancel,stage=stage,**kwargs).manifest
 
 
@@ -396,11 +470,18 @@ class CartomizeWindow(QMainWindow):
         super().__init__();self.setWindowTitle("Cartomize");self.resize(1220,940);self.setMinimumSize(980,700)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.thread=None;self.worker=None;self.cancel_event=None;self.output_path=None
+        self._preview_target=None;self._preview_directory=tempfile.TemporaryDirectory(prefix="cartomize-preview-")
+        palette=self.palette()
+        for role,color in [(QPalette.ColorRole.Window,"#f7f7f7"),(QPalette.ColorRole.WindowText,"#111111"),
+            (QPalette.ColorRole.Base,"#ffffff"),(QPalette.ColorRole.Text,"#111111"),(QPalette.ColorRole.ButtonText,"#111111"),
+            (QPalette.ColorRole.Highlight,"#333333"),(QPalette.ColorRole.HighlightedText,"#ffffff"),
+            (QPalette.ColorRole.Link,"#111111"),(QPalette.ColorRole.LinkVisited,"#444444"),(QPalette.ColorRole.Accent,"#333333")]:palette.setColor(role,QColor(color))
+        self.setPalette(palette)
         root=QWidget();self.setCentralWidget(root);outer=QVBoxLayout(root)
         outer.setContentsMargins(20,14,20,14);outer.setSpacing(12)
         header=QHBoxLayout();icon_path=Path(__file__).parent/"assets"/"cartomize.png"
-        self.setWindowIcon(QIcon(str(icon_path)));self.brand_icon=QLabel()
-        ratio=self.devicePixelRatioF();pixmap=QPixmap(str(icon_path)).scaled(round(52*ratio),round(52*ratio),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
+        icon=monochrome_icon(icon_path);self.setWindowIcon(QIcon(icon));self.brand_icon=QLabel()
+        ratio=self.devicePixelRatioF();pixmap=icon.scaled(round(52*ratio),round(52*ratio),Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)
         pixmap.setDevicePixelRatio(ratio);self.brand_icon.setPixmap(pixmap);self.brand_icon.setFixedSize(58,58)
         header.addWidget(self.brand_icon);identity=QVBoxLayout();identity.setSpacing(1)
         brand=QLabel("Cartomize");brand.setObjectName("brand");identity.addWidget(brand)
@@ -409,11 +490,14 @@ class CartomizeWindow(QMainWindow):
         body=QHBoxLayout();outer.addLayout(body,1)
         self.navigation=QListWidget();self.navigation.setFixedWidth(245);self.navigation.setObjectName("navigation");body.addWidget(self.navigation)
         self.stack=QStackedWidget();body.addWidget(self.stack,1)
-        self.pages=[WorkflowPage(),PreparationPage(),CompositePage(),MappingPage(),IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage()]
-        titles=["Production automatisée","Prétraitement multispectral","Composition colorée","Composition cartographique",
-                "Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters"]
+        from .desktop_tools import InspectionPage,VectorPage,RasterToolsPage
+        self.pages=[WorkflowPage(),MappingPage(),AtlasPage(),InspectionPage(),VectorPage(),RasterToolsPage(),
+            PreparationPage(),CompositePage(),IndicesPage(),CalculatorPage(),FocalPage(),TemporalPage()]
+        titles=["Production automatisée","Mise en page","Atlas cartographique","Analyse des couches","Traitements vectoriels","Traitements raster",
+            "Prétraitement multispectral","Composition colorée","Indices spectraux","Calculatrice raster","Statistiques focales","Statistiques multirasters"]
         for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)
+            if isinstance(page,MappingPage):page.previewRequested.connect(lambda:self.start(preview=True))
         self.navigation.currentRowChanged.connect(self.stack.setCurrentIndex);self.navigation.currentRowChanged.connect(self.page_changed)
         settings=QGroupBox("Paramètres de traitement");self.settings=settings;row=QHBoxLayout(settings)
         self.workers=spin(min(4,os.cpu_count() or 1),1,32);self.block_size=QComboBox();self.block_size.addItems(["256","512","1024","2048"]);self.block_size.setCurrentText("512")
@@ -433,49 +517,57 @@ class CartomizeWindow(QMainWindow):
         self.folder_button.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.output_path).resolve().parent))))
         self.navigation.setCurrentRow(0)
         self.setStyleSheet("""
-            QMainWindow, QWidget { background: #f6f7f9; color: #273142; font-size: 12px; }
-            QLabel#brand { color: #142d68; font-size: 26px; font-weight: 700; }
-            QLabel#pageTitle { color: #142d68; font-size: 21px; font-weight: 600; padding-bottom: 4px; }
-            QLabel#description { color: #606975; padding-bottom: 8px; }
-            QLabel#muted { color: #606975; }
-            QLabel#sequence { background: #edf1f7; color: #142d68; border: 1px solid #dce2eb; border-radius: 4px; padding: 12px; margin-bottom: 8px; line-height: 1.6; }
-            QLineEdit,QPlainTextEdit,QTableWidget,QListWidget,QComboBox,QSpinBox,QDoubleSpinBox { background: white; border: 1px solid #ccd2dc; border-radius: 3px; padding: 5px; selection-background-color: #2f5597; }
-            QLineEdit:focus,QPlainTextEdit:focus { border-color: #2f5597; }
-            QListWidget#navigation { border: 0; background: #edf0f5; padding: 8px; }
-            QListWidget::item { padding: 12px 6px; }
-            QListWidget::item:selected { background: #dce5f3; color: #142d68; border-radius: 3px; }
-            QPushButton { background: white; border: 1px solid #ccd2dc; border-radius: 4px; padding: 8px 12px; }
-            QPushButton:hover { border-color: #2f5597; }
-            QPushButton#primary { background: #2f5597; color: white; border: none; min-width: 150px; font-weight: 600; }
-            QPushButton:disabled { color: #939ba7; background: #eef0f3; }
-            QGroupBox { border: 1px solid #ccd2dc; border-radius: 4px; margin-top: 15px; padding-top: 12px; }
+            QMainWindow, QWidget { background: #f7f7f7; color: #111111; font-size: 12px; }
+            QLabel#brand { color: #000000; font-size: 26px; font-weight: 700; }
+            QLabel#pageTitle { color: #000000; font-size: 21px; font-weight: 600; padding-bottom: 4px; }
+            QLabel#description { color: #555555; padding-bottom: 8px; }
+            QLabel#muted { color: #555555; }
+            QLabel#sequence { background: #eeeeee; color: #000000; border: 1px solid #dddddd; border-radius: 4px; padding: 12px; margin-bottom: 8px; line-height: 1.6; }
+            QLineEdit,QPlainTextEdit,QTableWidget,QListWidget,QComboBox,QSpinBox,QDoubleSpinBox { background: white; border: 1px solid #cccccc; border-radius: 3px; padding: 5px; selection-background-color: #222222; }
+            QLineEdit:focus,QPlainTextEdit:focus { border-color: #222222; }
+            QListWidget#navigation { border: 0; background: #eeeeee; padding: 8px; }
+            QListWidget::item { padding: 10px 6px; }
+            QListWidget::item:selected { background: #dddddd; color: #000000; border-radius: 3px; }
+            QPushButton { background: white; border: 1px solid #cccccc; border-radius: 4px; padding: 8px 12px; }
+            QPushButton:hover { border-color: #222222; }
+            QPushButton#primary { background: #222222; color: white; border: none; min-width: 150px; font-weight: 600; }
+            QPushButton:disabled { color: #999999; background: #eeeeee; }
+            QGroupBox { border: 1px solid #cccccc; border-radius: 4px; margin-top: 15px; padding-top: 12px; }
             QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; }
-            QProgressBar { border: 1px solid #ccd2dc; background: white; text-align: center; min-height: 16px; }
-            QProgressBar::chunk { background: #2f5597; }
+            QProgressBar { border: 1px solid #cccccc; background: white; text-align: center; min-height: 16px; }
+            QProgressBar::chunk { background: #bbbbbb; }
             QScrollArea { border: none; }
-            QTabWidget::pane { border: 1px solid #dce2eb; padding: 10px; }
-            QTabBar::tab { background: #edf0f5; padding: 10px 14px; border-bottom: 2px solid transparent; }
-            QTabBar::tab:selected { color: #142d68; background: #f6f7f9; border-bottom: 2px solid #2f5597; }
-            QHeaderView::section { background: #edf0f5; border: none; border-bottom: 1px solid #ccd2dc; padding: 6px; }
+            QTabWidget::pane { border: 1px solid #dddddd; padding: 10px; }
+            QTabBar::tab { background: #eeeeee; padding: 10px 14px; border-bottom: 2px solid transparent; }
+            QTabBar::tab:selected { color: #000000; background: #f7f7f7; border-bottom: 2px solid #222222; }
+            QHeaderView::section { background: #eeeeee; border: none; border-bottom: 1px solid #cccccc; padding: 6px; }
         """)
     def page_changed(self,index):
         if index<0:return
         page=self.pages[index]
         for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
         self.settings.setVisible(not isinstance(page,WorkflowPage))
-        self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Exécuter")
-    def start(self):
+        self.settings.setTitle("Paramètres de traitement" if page.engine else "")
+        self.settings.setStyleSheet("" if page.engine else "QGroupBox { border: none; margin-top: 0px; padding-top: 0px; }")
+        self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")
+    def start(self,checked=False,*,preview=False):
         if self.thread is not None:return
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),
                      memory_limit_mb=self.memory.value(),overwrite=self.overwrite.isChecked())
-        try:job=self.pages[self.stack.currentIndex()].job(options)
+        page=self.pages[self.stack.currentIndex()]
+        self._preview_target=None
+        try:
+            if preview:
+                self._preview_target=Path(self._preview_directory.name)/"apercu.png"
+                job=page.preview_job(self._preview_target)
+            else:job=page.job(options)
         except Exception as exc:self.status.setText(str(exc));return
         self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self,staged=self.pages[self.stack.currentIndex()].staged);self.thread=self.worker
         self.worker.progress.connect(self.show_progress);self.worker.stage.connect(self.status.setText);self.worker.succeeded.connect(self.completed)
         self.worker.failed.connect(self.failed);self.worker.cancelled.connect(self.cancelled)
         self.thread.finished.connect(self.cleaned);self.thread.finished.connect(self.thread.deleteLater)
         self.run_button.setEnabled(False);self.navigation.setEnabled(False);self.stack.setEnabled(False);self.settings.setEnabled(False)
-        self.cancel_button.setEnabled(self.pages[self.stack.currentIndex()].cancellable)
+        self.cancel_button.setEnabled(self.pages[self.stack.currentIndex()].cancellable and not preview)
         self.folder_button.setEnabled(False);self.progress.setRange(0,0);self.status.setText("Traitement en cours.")
         self.thread.start()
     @Slot(int,int)
@@ -483,7 +575,15 @@ class CartomizeWindow(QMainWindow):
     @Slot(str)
     def completed(self,path):
         self.output_path=path;self.progress.setRange(0,100);self.progress.setValue(100)
-        self.status.setText("Traitement terminé : "+path);self.folder_button.setEnabled(True)
+        if self._preview_target is not None:
+            dialog=QDialog(self);dialog.setWindowTitle("Aperçu cartographique");layout=QVBoxLayout(dialog);label=QLabel()
+            pixmap=QPixmap(path);label.setPixmap(pixmap.scaled(1050,760,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
+            layout.addWidget(label);dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose);dialog.show();self.preview_dialog=dialog
+            self.status.setText("Aperçu cartographique actualisé.")
+        else:
+            self.status.setText("Traitement terminé : "+path);self.folder_button.setEnabled(True)
+            page=self.pages[self.stack.currentIndex()]
+            if hasattr(page,"show_result"):page.show_result(path)
     @Slot(str)
     def failed(self,error):self.progress.setRange(0,100);self.progress.setValue(0);self.status.setText("Échec du traitement : "+error)
     @Slot()

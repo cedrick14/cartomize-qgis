@@ -1,10 +1,10 @@
-# Validation de Cartomize Python 0.3.0a2
+# Validation de Cartomize Python 0.3.0a3
 
 Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 
 ## Résultats
 
-- **88 tests automatisés réussis**, dont cinq tests de l'interface Qt réelle
+- **92 tests automatisés réussis**, dont huit tests de l'interface Qt réelle
   en mode hors écran. Les 52 tests de la version 0.2 restent inclus.
 - Vérification de l'algèbre, des indices, des masques, des statistiques et de
   l'égalité entre calcul séquentiel et calcul concurrent.
@@ -17,7 +17,7 @@ Validation locale du 22 septembre 2026, Linux x86_64, Python 3.12.14.
 - Installation du wheel avec dépendances graphiques dans un environnement
   distinct du code source, calcul réel et ouverture de la fenêtre vérifiés.
 
-## Parcours ajouté en 0.3.0a2
+## Parcours ajouté en 0.3.0a3
 
 Le test graphique principal démarre sur Production automatisée, vérifie
 l'icône embarquée, puis traite deux scènes Landsat synthétiques avec une zone
@@ -54,7 +54,7 @@ compositions RGBA, l'ordre des couches et les maquettes héritées.
 
 ## Portée et limites
 
-La suite produit 177 avertissements de dépréciation de l'opérateur Affine
+La suite produit 178 avertissements de dépréciation de l'opérateur Affine
 employé par Rasterio; ils ne provoquent pas d'échec de test.
 
 Le benchmark utilise des données synthétiques et un cache non purgé. Il ne
@@ -70,3 +70,18 @@ avant de présenter ces autres environnements comme validés.
 Cette livraison reste une alpha. La classification automatique d'occupation
 du sol, les projets APRX/QGZ et les traitements spécialisés non implémentés
 ne sont pas couverts. Aucune publication TestPyPI/PyPI n'a été effectuée.
+
+## Compléments de validation de la version 0.3.0a3
+
+Trois scénarios Qt supplémentaires vérifient la sélection des 24 maquettes,
+les emprises indépendantes de plusieurs cadres, la désactivation de la légende
+et de l’orientation, l’export PDF, l’ouverture d’un aperçu réel, un atlas de
+deux pages, une zone tampon, l’affichage d’un diagnostic vectoriel, une
+reclassification et un tableau de superficies par classe. Un test API
+vérifie l’arrêt d’un atlas entre deux pages. Le scénario de production
+automatisée vérifie aussi la transmission de la maquette et de l’habillage.
+
+Les contrôles visuels portent sur la fenêtre monochrome et l’accès aux
+fonctions. Les moteurs d’analyse et les maquettes d’origine restent couverts
+par les tests antérieurs. Aucune parité complète avec un projet ArcGIS Pro
+n’est affirmée.

@@ -44,3 +44,13 @@ def test_color_composite_cancels_between_blocks(write_raster,tmp_path):
         cm.color_composite(source,output,bands=(1,2,3),cancel=event,
                            progress=lambda done,total:event.set())
     assert not output.exists()
+
+
+def test_atlas_cancellation_stops_between_pages(tmp_path):
+    from shapely.geometry import box
+    event=threading.Event()
+    zones=cm.GeoDataFrame({'nom':['A','B']},geometry=[box(300000,9500000,301000,9501000),box(301000,9500000,302000,9501000)],crs=32733)
+    with pytest.raises(cm.ProcessingCancelled):
+        cm.atlas(cm.Map().add_layer(zones),zones,tmp_path/'atlas',name_column='nom',format='png',dpi=60,
+                 cancel=event,progress=lambda done,total:event.set())
+    assert (tmp_path/'atlas/A.png').is_file() and not (tmp_path/'atlas/B.png').exists()

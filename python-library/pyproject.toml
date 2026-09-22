@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cartomize"
-version = "0.3.0a2"
-description = "Cartographic layouts, raster analysis and GeoPandas workflows derived from Cartomize ArcGIS Pro"
+version = "0.3.0a3"
+description = "Cartographic layouts, raster analysis and automated geospatial workflows"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-only"

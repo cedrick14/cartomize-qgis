@@ -5,7 +5,7 @@
 Depuis le wheel fourni, avec Python 3.11 ou plus récent :
 
 ```bash
-python -m pip install "cartomize-0.3.0a2-py3-none-any.whl[gui]"
+python -m pip install "cartomize-0.3.0a3-py3-none-any.whl[gui]"
 cartomize-desktop
 ```
 
@@ -64,7 +64,8 @@ l'autorisation d'une mosaïque multitemporelle est explicite.
 
 ### Restitution cartographique
 
-Choisir la composition colorée, le titre, les sources et l'auteur, le format
+Choisir la composition colorée, le titre, le sous-titre, les sources et l’auteur,
+la maquette et les éléments d’habillage, puis le format
 (PDF, PNG, SVG ou PDF et PNG) et la résolution d'export. La mise en page
 comporte légende, échelle et orientation. L'ordre des couches découle de leur
 rôle cartographique; la zone d'étude contrôle l'emprise et le découpage
@@ -82,7 +83,11 @@ l'enregistrement final ne laisse pas de production partielle publiée.
 |---|---|
 | Prétraitement multispectral | Produire seulement le GeoTIFF multibande et le rapport de mosaïque |
 | Composition colorée | Produire une visualisation RVB à partir d'un composite multibande nommé |
-| Composition cartographique | Assembler des couches raster et vectorielles existantes et exporter une carte |
+| Mise en page | Maquettes, cadres, symbologie, étiquettes, contenus, aperçu et export |
+| Atlas cartographique | Une carte par entité d’une couche d’index |
+| Analyse des couches | Profils raster/vectoriels et rapport JSON |
+| Traitements vectoriels | Découpage, tampon, superpositions, jointures, dissolution, reprojection, réparation et mesures |
+| Traitements raster | Extraction, reprojection, reclassification, statistiques zonales, superficies et transitions |
 | Indices spectraux | Calculer un ou plusieurs indices sur les bandes préparées |
 | Calculatrice raster | Exécuter une expression algébrique ou conditionnelle |
 | Statistiques focales | Analyser le voisinage spatial |
@@ -112,14 +117,71 @@ Dans une application possédant déjà un `QApplication`, utiliser
 Qt, lancer la fenêtre depuis un terminal. Un environnement de bureau est
 nécessaire pour l'affichage normal.
 
+## Mise en page et atlas
+
+**Mise en page** est accessible directement sous Production automatisée.
+
+1. Dans **Couches et symbologie**, importer les rasters et les données
+   vectorielles. Renseigner les rôles, les champs d’étiquette et les champs
+   thématiques; ajuster la bande, l’opacité et la palette. Pour un raster
+   multispectral scientifique, choisir une bande unique ou une composition
+   colorée. Les couleurs des données cartographiques restent réglables.
+2. Dans **Maquette et habillage**, choisir l’une des 24 maquettes ou la mise en
+   page standard. Le format et l’orientation sont libres pour le modèle
+   standard et déterminés par la maquette pour les autres. Renseigner le
+   titre, le sous-titre et les sources. Activer la légende, l’échelle et
+   l’orientation selon le besoin. Le dessin affiché représente la structure
+   de la maquette, pas encore son contenu géographique.
+3. Dans **Cadres et contenus**, affecter si nécessaire une emprise, un système
+   de coordonnées et une liste de couches à chaque cadre. Les noms des couches
+   sont leurs noms de fichiers sans extension. Une liste vide utilise toutes
+   les couches. Renseigner les emplacements de texte, tableau CSV ou graphique
+   présents dans la maquette. Pour un graphique, préciser les colonnes de
+   libellés et de valeurs du CSV.
+4. Utiliser **Aperçu cartographique** pour contrôler le rendu réel dans une
+   fenêtre séparée. L’aperçu s’exécute en arrière-plan, sans demander de nom
+   de fichier définitif.
+5. Choisir le fichier de sortie et cliquer sur **Exporter la carte**.
+
+**Atlas cartographique** reprend les mêmes réglages. L’onglet **Index de
+l’atlas** demande la couche d’index, le champ des noms de pages, le format et
+la marge de cadrage. Les noms doivent être uniques. Chaque page est exportée
+séparément dans le répertoire choisi. Une annulation intervient entre les
+pages; les pages déjà terminées sont conservées. Les emprises explicitement
+affectées aux cadres restent fixes d’une page à l’autre.
+
+## Analyse et traitements
+
+**Analyse des couches** produit et affiche un rapport JSON : géométries,
+attributs et proposition de champs pour le vecteur; métadonnées, bandes,
+échantillon de valeurs et diagnostic NoData pour le raster. Ce diagnostic
+ne constitue pas l’audit complet d’un projet SIG.
+
+**Traitements vectoriels** propose 12 opérations. Les distances de tampon
+sont en mètres. Les mesures demandent un système projeté adapté; les résultats
+sont enregistrés dans de nouveaux champs. Les sorties sont des GeoPackage ou
+GeoJSON et ne remplacent jamais un fichier source.
+
+**Traitements raster** propose l’extraction par masque, la reprojection, la
+reclassification, les statistiques zonales, les superficies par classe et
+la matrice de transition. Les trois premières opérations portent sur la
+bande choisie. La mosaïque multibande reste dans Prétraitement multispectral.
+La reclassification utilise une correspondance par ligne, par exemple
+`1 = 10`. Les statistiques zonales produisent une couche vectorielle;
+les superficies et transitions produisent un CSV. Les rasters de transition
+doivent être alignés. Ces opérations se terminent avant la fermeture de
+la fenêtre et n’exposent pas d’annulation en cours d’opération.
+
 ## Identité visuelle et validation
 
-L'icône est celle du dépôt Cartomize original, conservée sans modification.
-La fenêtre emploie le bleu foncé `#142D68` et le bleu `#2F5597` de cette icône,
-avec des fonds blancs et gris. Voir [la provenance visuelle](BRANDING.md).
+Tous les contrôles de l’interface, l’icône et les titres utilisent le noir,
+le blanc et les gris. L’icône originale est rendue en noir à l’affichage.
+Les informations de provenance du code et les attributions sont conservées
+dans les documents techniques.
 
-Les tests locaux utilisent les vrais widgets Qt en mode hors écran sous
-Linux, avec de véritables sorties raster et cartographiques. Ils couvrent
-la chaîne multiscène, les outils de calcul, la réactivité et l'annulation.
-Un essai manuel de bureau sous Windows sur les données de l'utilisateur
-reste à réaliser. La fenêtre ne lit pas les projets QGZ/APRX.
+Les tests utilisent de vrais widgets Qt en mode hors écran sous Linux et de
+véritables traitements. Ils vérifient la chaîne automatisée avec maquette,
+les cadres indépendants, l’aperçu, l’atlas, les diagnostics, les traitements
+vectoriels/raster et les outils de calcul. Un essai manuel Windows reste à
+réaliser. Le [tableau des fonctionnalités](FUNCTIONAL_COVERAGE.md) indique
+précisément ce qui est disponible et les fonctions natives non transposées.

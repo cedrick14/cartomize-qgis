@@ -7,7 +7,7 @@ from ._validation import frame
 
 
 def atlas(map_object, zones, directory, *, name_column, format="pdf", dpi=300,
-          padding=.08, overwrite=False):
+          padding=.08, overwrite=False, progress=None, cancel=None):
     """Export each feature extent; keep source data and the input Map unchanged.
 
     Zones must have nonempty geometries. Duplicate sanitized names are rejected
@@ -37,9 +37,14 @@ def atlas(map_object, zones, directory, *, name_column, format="pdf", dpi=300,
             raise ValueError("Atlas zones need a nonzero extent; buffer point/line zones first.")
         dx, dy = (x1-x0)*padding, (y1-y0)*padding
         bounds.append((x0-dx, y0-dy, x1+dx, y1+dy))
-    for label, extent, path in zip(zones[name_column], bounds, paths):
+    from .imagery import _check_cancel
+    _check_cancel(cancel)
+    for number,(label, extent, path) in enumerate(zip(zones[name_column], bounds, paths),1):
+        _check_cancel(cancel)
         page = copy.copy(map_object)
         page.frames = copy.deepcopy(map_object.frames)
         page.title = f"{map_object.title} — {label}" if map_object.title else str(label)
         page.set_extent(extent).export(path, dpi=dpi, overwrite=overwrite)
+        if progress:progress(number,len(paths))
+    _check_cancel(cancel)
     return paths
