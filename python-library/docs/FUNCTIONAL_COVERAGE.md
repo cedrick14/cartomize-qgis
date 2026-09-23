@@ -1,4 +1,4 @@
-# Couverture fonctionnelle 0.7.0a1
+# Couverture fonctionnelle 0.8.0a1
 
 La [liste actuelle des 20 rubriques](TOOL_AUDIT.md) présente leurs algorithmes, sorties et connexions. Le [guide des nouvelles fonctions](AUTOMATION.md) fournit les paramètres et formats de documents.
 
@@ -16,7 +16,7 @@ La [liste actuelle des 20 rubriques](TOOL_AUDIT.md) présente leurs algorithmes,
 | Recettes, lots et révision | Variables, associations réelles, journaux, migration, empreintes et décision nominative |
 | Chaînes de traitements | 34 opérateurs, dépendances vérifiées, produits secondaires et paramètres moteur transmis |
 | Hydrologie, routage et STAC | Drainage D8, bassins, plus court chemin, recherche et téléchargement de scènes |
-| Projets natifs | Inventaire QGS/QGZ et import des styles pris en charge opérationnels ; passerelle ArcPy/PyQGIS écrite, validation dans les moteurs restante |
+| Projets natifs | Inventaire QGS/QGZ et import des styles pris en charge opérationnels ; passerelle QGIS testée dans le moteur réel ; validation ArcPy encore requise |
 | Identité visuelle | Icône originale en couleur ; titre et contrôles en noir, blanc et gris |
 | Publication Python | Wheel, distribution source, métadonnées et documentation ; PyPI non publié |
 

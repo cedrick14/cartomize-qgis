@@ -10,12 +10,12 @@ Les nouveaux tests comparent quarante expressions du calcul CUDA au moteur masqu
 
 Les tests Dask démarrent deux processus distincts, vérifient leurs identifiants, puis exécutent algèbre, indices, réductions, statistiques focales, terrain et convolution. Leurs sorties sont comparées pixel par pixel au CPU avec des marges de blocs. Un cluster local créé automatiquement, l’annulation, la CLI et un vrai travailleur Qt sont également exercés.
 
-Les tests de styles vérifient les bornes des classes graduées, la masquage des catégories, les tailles de points en unités physiques, les symboles composites, les trois modes de rampe raster, le contraste en niveaux de gris et la persistance des projets.
+Les tests de styles vérifient les bornes des classes graduées, le masquage des catégories, les tailles de points en unités physiques, les symboles composites, les trois modes de rampe raster, le contraste en niveaux de gris et la persistance des projets.
 
 ## Tests différés et CI
 
 - **CUDA matériel** : le test réel est présent et activé lorsqu’un GPU CUDA utilisable est détecté. Aucun périphérique CUDA n’est accessible dans l’environnement local ; ce test est donc explicitement ignoré. Un choix CUDA sans GPU provoque une erreur contrôlée.
-- **QGIS natif** : le test nécessite `CARTOMIZE_QGIS_PYTHON`. Un travail CI `qgis` installe le vrai moteur QGIS, crée un projet synthétique et vérifie inventaire, styles gradués, import, copie et exports PDF/PNG/SVG. Le résultat du commit concerné fait foi dans GitHub Actions.
+- **QGIS natif** : le test nécessite `CARTOMIZE_QGIS_PYTHON`. Un travail CI `qgis` installe le vrai moteur QGIS, crée un projet synthétique et vérifie inventaire, styles gradués, import, copie et exports PDF/PNG/SVG. Ce test a réussi sur le commit `8ca5e45b3c8efd4012ed127f7ee76efbe6048428` : [exécution CI](https://github.com/cedrick14/cartomize-qgis/actions/runs/35898874111).
 - **ArcGIS Pro** : la procédure de validation native est implémentée, mais elle reste à exécuter avec ArcGIS Pro/ArcPy et sa licence. Aucun succès simulé n’est comptabilisé.
 
 La matrice principale exécute les tests, la construction et Twine sous Linux et Windows, Python 3.11 et 3.12, avec Dask installé. Les résultats du commit final sont joints à la livraison. Les avertissements de dépréciation Rasterio et les avertissements statistiques sur des ensembles entièrement masqués sont recensés dans les journaux.
