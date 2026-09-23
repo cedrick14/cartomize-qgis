@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cartomize"
 version = "0.8.1a1"
 description = "Cartographic layouts, raster analysis and automated geospatial workflows"
-readme = "README.md"
+readme = "README_PYPI.md"
 requires-python = ">=3.11"
 license = "GPL-3.0-only"
 license-files = ["LICENSE", "NOTICE.md"]
@@ -30,6 +30,7 @@ dev = ["pytest>=8,<10", "build>=1,<2", "twine>=6,<8"]
 Homepage = "https://cartomizeplugin.com"
 Repository = "https://github.com/cedrick14/cartomize-qgis"
 Issues = "https://github.com/cedrick14/cartomize-qgis/issues"
+Documentation = "https://github.com/cedrick14/cartomize-qgis/blob/feat/cartomize-python-library/python-library/docs/DESKTOP.md"
 
 [project.scripts]
 cartomize = "cartomize.cli:main"
