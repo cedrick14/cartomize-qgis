@@ -1,45 +1,21 @@
-# Fonctions cartographiques disponibles
+# Couverture fonctionnelle 0.6.0a1
 
-La version 0.5.0a1 ajoute un examen initial, des transferts de résultats et un contrôle cartographique, en complément
-des fonctions cartographiques déjà accessibles dans la fenêtre. La comparaison ci-dessous s’appuie sur les
-commandes de l’extension et sa boîte à outils, présentes dans le dépôt source.
+La [liste actuelle des 19 outils](TOOL_AUDIT.md) présente leurs algorithmes, sorties et connexions. Le [guide des nouvelles fonctions](AUTOMATION.md) fournit les paramètres et formats de documents.
 
-| Fonction | Bibliothèque Python et fenêtre 0.5.0a1 |
+| Attente | Réalisation |
 |---|---|
-| Assistant cartographique | Examen des données, motifs et étapes proposées ; règles explicables |
-| Connexions | Résultats transférables ; reprise de production ; configuration carte vers atlas |
-| Contrôle de la carte | Géométries, champs, classes échantillonnées et éléments à renseigner |
-| Maquettes de mise en page | 24 maquettes disponibles, sélection dans Mise en page et Production automatisée |
-| Format et orientation | A4/A3, portrait/paysage pour le modèle standard; dimensions fixées par les autres maquettes |
-| Titre, sous-titre, sources | Réglables dans la fenêtre |
-| Légende, échelle, orientation | Activation indépendante dans la fenêtre |
-| Cadres multiples et encarts | Emprise, système de coordonnées et couches par cadre |
-| Texte, tableaux et graphiques | Contenus des emplacements existants, avec fichiers CSV pour tableaux et graphiques |
-| Symbologie et étiquettes | Rôles, champs, palettes, opacité, bande et composition colorée |
-| Aperçu de mise en page | Rendu réel dans une fenêtre séparée |
-| Exports PDF, PNG, SVG | Disponibles |
-| Atlas | Une carte par entité, champ de nom, marge, format, progression et annulation entre pages |
-| Analyse vectorielle | Audit géométrique, profil des attributs, propositions de champs |
-| Analyse du projet | Analyse de plusieurs fichiers, copies masquées, classes, plan JSON et application à la mise en page |
-| NoData périphérique | Masquage connexe en périphérie, protection des classes binaires/documentées, règles explicites et rétablissement des sources |
-| Nomenclature | Libellés et couleurs éditables ; métadonnées ou saisie utilisateur, sans invention sémantique |
-| Analyse raster | Métadonnées, NoData, profil et inférence à partir d’un échantillon |
-| Traitements vectoriels | 13 opérations exposées dans la fenêtre |
-| Traitements raster | 6 opérations supplémentaires, en plus des calculs et du prétraitement |
-| Production depuis les scènes | Mosaïque, composite multibande, masque, composition colorée, couches et mise en page |
-| Algèbre, indices et statistiques | Conservés dans des rubriques complémentaires |
-| Édition native d’un projet APRX, synchronisation d’une mise en page existante | Non transposées dans cette bibliothèque autonome |
-| Export PAGX et commandes de l’interface Esri | Non disponibles |
-| Recettes JSON de l’extension et manifeste batch jusqu’à 5 000 cartes | Non compatibles automatiquement; l’atlas Python couvre un autre mode de production en série |
-| Audit complet du projet, contrôle des changements MapOps, certificat d’approbation | Non transposés intégralement; Analyse du projet prépare les fichiers sélectionnés, sans lire l’état complet d’un projet natif |
-| Choix automatique de variantes et optimisation native des éléments | Non transposés intégralement; choix manuel des maquettes et ordre automatique des couches disponibles |
-| Portail et ressources communautaires intégrés | Non intégrés dans la fenêtre Python |
+| Bibliothèque Python et fenêtre pour débutants | API indépendante, 19 rubriques, traitements en arrière-plan |
+| Assistant cartographique intelligent | Règles explicables, plan exécutable, propositions de maquettes et reprise de la carte |
+| Scènes jusqu’à la carte | Calibration, QA/SCL, mosaïque, multibande, extraction, composition, couches et export |
+| NoData et bordures noires | Détection conservatrice, masquage des composantes périphériques, protection des classes et des sources |
+| Traitements vectoriels | GeoPandas, superpositions, jointures, proximités, mesures et réparations |
+| Raster et indices | Algèbre extensible, 18 indices, statistiques, classification, terrain et convolution |
+| Rapidité | Calcul par blocs, lectures partagées, files bornées, échantillonnage borné, arbres parallèles |
+| Mise en page | 24 maquettes d’origine, cadres, habillage, dimensions éditables, textes mesurés, étiquettes, aperçu et export |
+| Persistance | État des outils, couches, résultats et maquettes ; JSON et archive CMZ ; historique des actions principales |
+| Recettes, lots et révision | Variables, associations réelles, journaux, migration, empreintes et décision nominative |
+| Projets natifs | Inventaire QGS/QGZ opérationnel ; passerelle ArcPy/PyQGIS écrite, validation dans les moteurs restante |
+| Identité visuelle | Icône originale en couleur ; titre et contrôles en noir, blanc et gris |
+| Publication Python | Wheel, distribution source, métadonnées et documentation ; PyPI non publié |
 
-Les moteurs C#/ArcPy et les fichiers de projet natifs n’ont pas été transformés
-automatiquement en code Python autonome. Le tableau précise cette limite
-pour distinguer les accès ajoutés des fonctions qui nécessitent encore un
-portage. Les informations de provenance ne sont pas utilisées comme intitulés
-ou slogans dans la fenêtre.
-
-Le [bilan des demandes](REQUEST_AUDIT.md) distingue les réalisations, les
-limites partielles et les fonctionnalités absentes.
+Les limites restantes sont détaillées dans l’inventaire des outils : parité native complète, couverture universelle des capteurs/algorithmes et performances garanties sur tous les volumes ne sont pas revendiquées.

@@ -81,11 +81,42 @@ def main(argv=None):
     composite.add_argument("--rgb", choices=list(COMPOSITIONS)+["native"], default="natural")
     composite.add_argument("--gamma", type=float, default=1.)
     composite.add_argument("--overwrite", action="store_true")
+    classify=subs.add_parser('classify',help='Classify calibrated spectral imagery with reference samples or a saved model')
+    classify.add_argument('source');classify.add_argument('destination');classify.add_argument('--training');classify.add_argument('--model');classify.add_argument('--class-column',default='classe');classify.add_argument('--label-column');classify.add_argument('--validation');classify.add_argument('--algorithm',choices=['random_forest','extra_trees'],default='random_forest');classify.add_argument('--workers',type=int,default=1)
+    cluster=subs.add_parser('cluster',help='Unsupervised spectral clustering')
+    cluster.add_argument('source');cluster.add_argument('destination');cluster.add_argument('--clusters',type=int,default=6)
+    terrain_parser=subs.add_parser('terrain',help='Block-based terrain derivatives')
+    terrain_parser.add_argument('source');terrain_parser.add_argument('destination');terrain_parser.add_argument('--products',default='slope,aspect,hillshade');terrain_parser.add_argument('--z-factor',type=float,default=1.);terrain_parser.add_argument('--workers',type=int,default=1)
+    convolution=subs.add_parser('convolve',help='Convolution by a JSON matrix')
+    convolution.add_argument('source');convolution.add_argument('destination');convolution.add_argument('--kernel',required=True);convolution.add_argument('--normalize',action='store_true')
+    planning=subs.add_parser('plan',help='Save an executable cartographic proposal')
+    planning.add_argument('destination');planning.add_argument('sources',nargs='+');planning.add_argument('--goal',choices=['general','administrative','landcover','atlas'],default='general');planning.add_argument('--kind',choices=['layers','scenes'],default='layers');planning.add_argument('--aoi');planning.add_argument('--title',default='');planning.add_argument('--credits',default='');planning.add_argument('--training');planning.add_argument('--classification',choices=['supervised','unsupervised']);planning.add_argument('--class-column',default='classe');planning.add_argument('--indices',default='');planning.add_argument('--layer',action='append',default=[]);planning.add_argument('--atlas-zones');planning.add_argument('--atlas-field')
+    execute=subs.add_parser('run-plan',help='Execute a previously inspected proposal')
+    execute.add_argument('plan');execute.add_argument('destination');execute.add_argument('--dpi',type=int,default=150);execute.add_argument('--workers',type=int,default=1)
+    recipe=subs.add_parser('recipe',help='Execute a saved map recipe')
+    recipe.add_argument('recipe');recipe.add_argument('destination');recipe.add_argument('--variables',default='{}');recipe.add_argument('--bindings',default='{}')
+    batch=subs.add_parser('batch',help='Execute a batch manifest')
+    batch.add_argument('manifest');batch.add_argument('destination');batch.add_argument('--bindings',default='{}');batch.add_argument('--reviewed',action='store_true');batch.add_argument('--continue-on-error',action='store_true')
+    native=subs.add_parser('native',help='Inventory/export/copy a QGIS or ArcGIS Pro project using its runtime')
+    native.add_argument('project');native.add_argument('--python');native.add_argument('--action',choices=['inspect','export','copy'],default='inspect');native.add_argument('--destination');native.add_argument('--layout');native.add_argument('--template');native.add_argument('--texts',default='{}');native.add_argument('--extents',default='{}')
     args = parser.parse_args(argv)
     try:
         if args.command == "gui":
             from .desktop import main as desktop_main
             return desktop_main()
+        elif args.command in {'classify','cluster','terrain','convolve','plan','run-plan','recipe','batch','native'}:
+            import cartomize as cm
+            from .storage import save_json
+            if args.command=='classify':output=cm.classify_landcover(args.source,args.training,args.destination,model=args.model,class_column=args.class_column,label_column=args.label_column,validation=args.validation,algorithm=args.algorithm,workers=args.workers)
+            elif args.command=='cluster':output=cm.cluster_raster(args.source,args.destination,clusters=args.clusters)
+            elif args.command=='terrain':output=cm.terrain(args.source,args.destination,products=args.products.split(','),z_factor=args.z_factor,workers=args.workers)
+            elif args.command=='convolve':output=cm.convolve(args.source,args.destination,json.loads(args.kernel),normalize=args.normalize)
+            elif args.command=='plan':output=save_json(cm.plan_cartography(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi,title=args.title,credits=args.credits,training=args.training,classification=args.classification,class_column=args.class_column,indices=[i for i in args.indices.split(',') if i],layers=args.layer,atlas_zones=args.atlas_zones,atlas_field=args.atlas_field),args.destination)
+            elif args.command=='run-plan':output=cm.run_plan(args.plan,args.destination,dpi=args.dpi,workers=args.workers)
+            elif args.command=='recipe':output=cm.run_recipe(args.recipe,args.destination,variables=json.loads(args.variables),bindings=json.loads(args.bindings))
+            elif args.command=='batch':output=cm.run_batch(args.manifest,args.destination,bindings=json.loads(args.bindings),reviewed=args.reviewed,continue_on_error=args.continue_on_error)
+            else:output=cm.native_project(args.project,python=args.python,action=args.action,destination=args.destination,layout=args.layout,template=args.template,texts=json.loads(args.texts),extents=json.loads(args.extents))
+            result=output if isinstance(output,dict) else {'output':str(output)}
         elif args.command == "indices":result=list_indices()
         elif args.command == 'assess':result=assess_project(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi)
         elif args.command == 'project':result=prepare_project(args.sources,args.destination,auto_background=not args.without_background_detection).report
@@ -131,7 +162,7 @@ def main(argv=None):
                       .export(args.destination, dpi=args.dpi, overwrite=args.overwrite))}
         print(json.dumps(_json_value(result), ensure_ascii=False, indent=2, allow_nan=False))
         return 0
-    except (ValueError, OSError, KeyError, ImportError) as exc:
+    except (ValueError, OSError, KeyError, ImportError, RuntimeError) as exc:
         print(f"cartomize: {exc}", file=sys.stderr)
         return 2
 

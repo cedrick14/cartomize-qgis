@@ -28,7 +28,7 @@ class ProjectConnections:
         layer.setdefault('kind','raster' if suffix in RASTERS else 'vector')
         # Refresh existing results, including edited class labels.
         for index,old in enumerate(self.results):
-            if old['data']==path:self.results[index]=layer;self.result_choice.setCurrentIndex(index);self.result_targets();return
+            if old['data']==path:self.results[index]={**old,**layer};self.result_choice.setCurrentIndex(index);self.result_targets();return
         self.results.append(layer);self.result_choice.addItem(Path(path).name)
         self.result_choice.setItemData(len(self.results)-1,path,Qt.ItemDataRole.ToolTipRole)
         self.result_choice.setCurrentIndex(len(self.results)-1);self.results_box.show()
@@ -38,10 +38,10 @@ class ProjectConnections:
         layer=self.results[index];targets=['project','mapping','atlas','inspect']
         if layer['kind']=='vector':targets+=['vector']
         else:
-            targets+=['raster','calculator','focal','temporal']
+            targets+=['raster','calculator','focal','temporal','terrain']
             with rasterio.open(layer['data']) as src:
                 if src.tags().get('CARTOMIZE_PRODUCT')!='display_rgba':
-                    targets+=['indices']
+                    targets+=['indices','classification']
                     if src.count>=3:targets+=['composite']
         from .assistant import TOOL_LABELS
         for key in targets:self.result_target.addItem(TOOL_LABELS[key],key)
@@ -65,10 +65,26 @@ class ProjectConnections:
         self.select_tool(target);self.status.setText('Résultat transmis : '+Path(path).name)
     def collect_result(self,path):
         path=Path(path)
-        if path.suffix.lower() in RASTERS|VECTORS:self.register_result(dict(data=path))
+        if path.suffix.lower() in RASTERS|VECTORS:
+            layer=dict(data=path)
+            if path.suffix.lower() in RASTERS:
+                with rasterio.open(path) as src:
+                    if src.tags().get('CARTOMIZE_CLASSES'):
+                        layer.update(kind='raster',role='landcover',classes={float(k):v for k,v in json.loads(src.tags()['CARTOMIZE_CLASSES']).items()})
+            if path.name=='classification.tif':
+                for key,file in [('report',path.parent/'classification.json'),('model',path.parent/'model/model.json')]:
+                    if file.is_file():layer[key]=str(file)
+            elif path.name=='clusters.tif' and (path.parent/'clustering.json').is_file():layer['report']=str(path.parent/'clustering.json')
+            self.register_result(layer)
+            confidence=path.parent/'confidence.tif'
+            if path.name=='classification.tif' and confidence.is_file():self.register_result(dict(data=confidence))
         elif path.name=='project.json':
             import cartomize as cm
             for layer in cm.load_project(path).layers:self.register_result(layer)
+        elif path.name=='automation.json':
+            record=json.loads(path.read_text(encoding='utf-8'))
+            for layer in record['layers']:self.register_result(layer)
+            self.production_config=record.get('map_config');self.resume_button.setVisible(bool(self.production_config))
         elif path.name=='production.json':
             record=json.loads(path.read_text(encoding='utf-8'))
             scientific=path.parent/record['multiband'];display=path.parent/record['composite']
@@ -104,17 +120,18 @@ class ProjectConnections:
             page.title.setText(assistant.title.text())
             recommendation=report.get('recommended_template')
             if recommendation:page.layout_settings.template.setCurrentIndex(page.layout_settings.template.findData(recommendation['id']))
-        elif target in {'vector','raster','composite','inspect'} and not page.source.text():
+        elif target in {'vector','raster','composite','inspect','classification'} and not page.source.text():
             wanted='vector' if target=='vector' else 'raster'
             for layer in layers:
                 suffix=Path(layer['data']).suffix.lower()
                 if (suffix in RASTERS)==(wanted=='raster'):
-                    if target=='composite':
+                    if target in {'composite','classification'}:
                         with rasterio.open(layer['data']) as src:
                             if src.count<3:continue
                     page.source.edit.setText(str(layer['data']));break
             if target=='vector' and any(i['code']=='invalid_geometry' for i in report['issues']):
                 page.operation.setCurrentIndex(page.operation.findData('make_valid'))
+        if target=='classification':page.training.edit.setText(assistant.training.text());page.column.setText(assistant.class_column.text())
         if hasattr(page,'aoi'):page.aoi.edit.setText(report.get('aoi') or '')
         self.select_tool(target)
     def prepare_atlas(self,config):

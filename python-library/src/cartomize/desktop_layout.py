@@ -55,6 +55,10 @@ class LayoutSettings(QWidget):
         self.elements.horizontalHeader().setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
         self.elements.setColumnWidth(0,110);self.elements.setColumnWidth(1,80);self.elements.setColumnWidth(3,130);self.elements.setColumnWidth(4,130)
         self.elements.setMinimumHeight(150)
+        self.items=QTableWidget(0,8);self.items.setHorizontalHeaderLabels(['Élément','X (mm)','Y (mm)','Largeur (mm)','Hauteur (mm)','Rotation (°)','Corps (pt)','Ordre'])
+        self.items.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.items.setMinimumHeight(200)
+        self._item_template=None
+        self.items.itemChanged.connect(self.update_diagram)
         self.template.currentIndexChanged.connect(self.refresh)
         self.format.currentIndexChanged.connect(self.refresh);self.orientation.currentIndexChanged.connect(self.refresh)
         self.refresh()
@@ -74,6 +78,16 @@ class LayoutSettings(QWidget):
             if self.orientation.currentData()=='landscape':size=size[::-1]
             ids=['main']
         self.summary.setText(f'{len(cm.list_templates())} maquettes disponibles · {size[0]:g} × {size[1]:g} mm · {len(ids)} cadre(s) cartographique(s)')
+        old_items={self.items.item(r,0).text():[self.items.item(r,c).text() for c in range(1,8)] for r in range(self.items.rowCount())} if self._item_template==template else {}
+        self._item_template=template;self.items.blockSignals(True);self.items.setRowCount(len(plan.items) if plan else 0)
+        if plan:
+            for row,element in enumerate(plan.items):
+                values=old_items.get(element.item_id,[element.x_mm,element.y_mm,element.width_mm,element.height_mm,element.rotation,element.style.get('fontSize',9),element.z_index])
+                for col,value in enumerate([element.item_id,*values]):
+                    item=QTableWidgetItem(str(value))
+                    if col==0 or col in {5,6} and element.kind not in {'title','subtitle','text'} or col==7 and element.kind in {'scale_bar','north_arrow'}:item.setFlags(item.flags()&~Qt.ItemFlag.ItemIsEditable)
+                    self.items.setItem(row,col,item)
+        self.items.blockSignals(False)
         self.diagram.plan=plan;self.diagram.page_size=size;self.diagram.update()
         self.frames.setRowCount(len(ids))
         for row,ident in enumerate(ids):
@@ -97,6 +111,12 @@ class LayoutSettings(QWidget):
             data=frames.get(self.frames.item(row,0).text(),{})
             values=[', '.join(map(str,data['extent'])) if data.get('extent') else '',data.get('crs') or '', '; '.join(data.get('layers') or [])]
             for col,value in enumerate(values,1):self.frames.item(row,col).setText(value)
+        overrides={i['id']:i for i in settings.get('items',[])}
+        for row in range(self.items.rowCount()):
+            item=overrides.get(self.items.item(row,0).text())
+            if item:
+                values=[item[k] for k in ('x_mm','y_mm','width_mm','height_mm','rotation')]+[item.get('style',{}).get('fontSize',9),item['z_index']]
+                for col,value in enumerate(values,1):self.items.item(row,col).setText(str(value))
         elements={e['id']:e for e in settings.get('elements',[])}
         for row in range(self.elements.rowCount()):
             data=elements.get(self.elements.item(row,0).text(),{})
@@ -118,11 +138,30 @@ class LayoutSettings(QWidget):
             ident,kind,content,labels,values=[self.elements.item(row,col).text().strip() for col in range(5)]
             if content:elements.append(dict(id=ident,kind=kind,content=content,labels=labels,values=values))
         return dict(template=self.template.currentData(),format=self.format.currentText(),orientation=self.orientation.currentData(),
-            legend=self.legend.isChecked(),scale=self.scale.isChecked(),north=self.north.isChecked(),frames=frames,elements=elements)
+            legend=self.legend.isChecked(),scale=self.scale.isChecked(),north=self.north.isChecked(),frames=frames,elements=elements,items=self.capture_items())
+
+
+    def capture_items(self):
+        plan=cm.layout_plan(self.template.currentData()) if self.template.currentData() else None
+        originals={i.item_id:i for i in plan.items} if plan else {};result=[]
+        for row in range(self.items.rowCount()):
+            ident=self.items.item(row,0).text();values=[float(self.items.item(row,c).text()) for c in range(1,8)]
+            item=dict(id=ident,**dict(zip(('x_mm','y_mm','width_mm','height_mm','rotation'),values[:5])),style={**originals[ident].style,**({'fontSize':values[5]} if originals[ident].kind in {'title','subtitle','text'} else {})},z_index=int(values[6]))
+            if not 4<=values[5]<=100:raise ValueError('Corps typographique : 4 à 100 points.')
+            result.append(item)
+        return result
+    def update_diagram(self):
+        if self.template.currentData() is None:return
+        try:
+            mapping=cm.Map(template=self.template.currentData())
+            for item in self.capture_items():mapping.set_item(item['id'],**{k:v for k,v in item.items() if k!='id'})
+            self.diagram.plan=mapping.plan;self.diagram.update();self.summary.setToolTip('')
+        except (ValueError,AttributeError,KeyError) as exc:self.summary.setToolTip(str(exc))
 
 
 def apply_layout(map_object,settings):
     map_object.add_legend(settings['legend']).add_scale_bar(settings['scale']).add_north_arrow(settings['north'])
+    for item in settings.get('items',[]):map_object.set_item(item['id'],**{k:v for k,v in item.items() if k!='id'})
     for frame in settings.get('frames',[]):map_object.set_frame(**frame)
     for item in settings.get('elements',[]):
         if item['kind']=='text':map_object.set_text(item['id'],item['content'])

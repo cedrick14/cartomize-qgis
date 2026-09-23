@@ -4,9 +4,9 @@
 
 Assistant cartographique intelligent, disponible comme bibliothèque Python et fenêtre de traitement,
 par **ONDON NKOUA Cédrick Belmich**.
-Elle fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
+Le moteur autonome fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.5.0a1 : version alpha avec examen du projet, traitements connectés et production cartographique automatisée.** Elle reprend les règles Python
+**Version 0.6.0a1 : version alpha avec planification exécutable, classification, sessions persistantes et production en série.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.5.0a1-py3-none-any.whl
+python -m pip install cartomize-0.6.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -58,6 +58,29 @@ aux diagnostics et aux opérations de la bibliothèque.
 
 Voir le [guide de l’interface graphique](docs/DESKTOP.md) et le
 [tableau des fonctionnalités](docs/FUNCTIONAL_COVERAGE.md).
+
+## Nouveautés 0.6
+
+- **Planification exécutable** : examen des entrées, propositions de maquettes, relations spatiales, traitements dépendants et carte finale ; les couches complémentaires accompagnent les scènes.
+- **Classification** : forêt aléatoire, arbres extrêmement aléatoires, K-moyennes par mini-lots ; validation par entités/groupes ou jeu indépendant, probabilités et modèle rechargeable sans pickle.
+- **Projets** : paramètres de tous les outils, couches, cadres, contenus, résultats et état de l’assistant ; sauvegarde JSON, archive portable CMZ, annuler/rétablir les états enregistrés dans l’historique.
+- **Mise en page** : modification des positions, dimensions, rotation des textes, corps et ordre des éléments ; textes mesurés, placement des étiquettes, contrôle des débordements.
+- **Recettes et séries** : variables, associations de couches, migration des recettes historiques, manifestes jusqu’à 5 000 cartes, journal des résultats.
+- **Révision** : empreintes des fichiers et paramètres, comparaison des changements, décision nominative liée à l’empreinte.
+- **Raster** : pente, exposition, ombrage, TPI, TRI, rugosité et convolution, avec calcul parallèle par blocs.
+- **Projets SIG** : inventaire QGS/QGZ sans QGIS ; lecture, copie et export des mises en page via un Python QGIS ou ArcGIS Pro installé. Cette passerelle native reste à valider dans ces moteurs.
+
+```python
+plan = cm.plan_cartography(
+    ["multibande.tif", "routes.gpkg", "localites.gpkg"],
+    goal="landcover", classification="supervised",
+    training="echantillons.gpkg", class_column="classe",
+    title="Occupation du sol", credits="Sources des données",
+)
+cm.run_plan(plan, "nouvelle_production", workers=4)
+```
+
+La classification supervisée exige des références fournies par l’utilisateur. Sans références, les groupes spectraux ne reçoivent pas de signification inventée. Lire le [guide des nouvelles fonctions](docs/AUTOMATION.md).
 
 ## Examen initial et connexions
 

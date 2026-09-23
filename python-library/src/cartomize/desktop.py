@@ -5,6 +5,7 @@ import sys
 import threading
 import tempfile
 from .desktop_connections import ProjectConnections
+from .desktop_session import SessionControls
 
 try:
     from PySide6.QtCore import Qt, QObject, QThread, Signal, Slot, QUrl
@@ -282,6 +283,7 @@ class MappingPage(Page):
         detail.setWordWrap(True);form.addRow(detail);form.addRow(self.layout_settings.frames)
         form.addRow(QLabel("Contenus facultatifs des emplacements de la maquette : textes, tableaux CSV et graphiques."))
         form.addRow(self.layout_settings.elements)
+        geometry_tab=QWidget();geometry_form=QVBoxLayout(geometry_tab);geometry_form.addWidget(self.layout_settings.items);self.tabs.addTab(geometry_tab,"Géométrie des éléments")
         self.output.filter="Document PDF (*.pdf);;Image PNG (*.png);;Image SVG (*.svg)"
         self.form.addRow("Résolution d’export (ppp)",self.dpi)
         self.preview_button=QPushButton("Aperçu cartographique");self.preview_button.clicked.connect(self.previewRequested.emit);self.form.addRow(self.preview_button)
@@ -315,6 +317,8 @@ class MappingPage(Page):
         for layer in layers:self.append_layer(layer)
         self.tabs.setCurrentIndex(0)
     def append_layer(self,layer):
+        layer=dict(layer)
+        if layer.get('classes') and (layer.get('kind')=='raster' or Path(str(layer['data'])).suffix.lower() in {'.tif','.tiff','.jp2','.vrt','.img'}):layer['classes']={float(k):v for k,v in layer['classes'].items()}
         path=str(layer['data']);self.add_layer(path);row=self.layers.rowCount()-1
         self._analysis_overrides[path]={key:layer[key] for key in ('name','kind','classes','rgb','color','categorical','legend','zorder') if key in layer}
         role=self.layers.cellWidget(row,1);role.setCurrentIndex(max(0,role.findData(layer.get('role'))))
@@ -334,7 +338,7 @@ class MappingPage(Page):
     def review_job(self,path):
         from .desktop_tools import write_result
         config=self.capture_map()
-        return lambda progress,cancel:write_result(self.build_map(config).audit(),path,overwrite=True)
+        return lambda progress,cancel:write_result(self.build_map(config).audit(visual=True),path,overwrite=True)
     @staticmethod
     def build_map(config):
         from .desktop_layout import apply_layout
@@ -388,7 +392,7 @@ class WorkflowPage(Page):
         sequence=QLabel("01  Scènes satellites     →     02  Mosaïque     →     03  Composite multibande\n"
                         "04  Extraction par masque     →     05  Composition colorée     →     06  Mise en page")
         sequence.setObjectName("sequence");sequence.setWordWrap(True);self.form.addRow(sequence)
-        tabs=QTabWidget();self.form.addRow(tabs)
+        tabs=QTabWidget();self.tabs=tabs;self.form.addRow(tabs)
         self.data_tab=QWidget();data=QFormLayout(self.data_tab);tabs.addTab(self.data_tab,"Données")
         self.source=PathField("directory");data.addRow("Répertoire des scènes",self.source)
         self.files=[];selection=QWidget();buttons=QHBoxLayout(selection);buttons.setContentsMargins(0,0,0,0)
@@ -496,7 +500,7 @@ class Worker(QThread):
         except Exception as exc:self.failed.emit(str(exc))
 
 
-class CartomizeWindow(ProjectConnections,QMainWindow):
+class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
     def __init__(self):
         super().__init__();self.setWindowTitle("Cartomize");self.resize(1220,940);self.setMinimumSize(980,700)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -518,16 +522,22 @@ class CartomizeWindow(ProjectConnections,QMainWindow):
         brand=QLabel("Cartomize");brand.setObjectName("brand");identity.addWidget(brand)
         subtitle=QLabel("Assistant cartographique intelligent");subtitle.setObjectName("muted");identity.addWidget(subtitle)
         header.addLayout(identity);header.addStretch();version=QLabel(cm.__version__);version.setObjectName("muted");header.addWidget(version);outer.addLayout(header)
+        session_bar=QHBoxLayout();self.init_session(session_bar);session_bar.addStretch();outer.addLayout(session_bar)
         body=QHBoxLayout();outer.addLayout(body,1)
         self.navigation=QListWidget();self.navigation.setFixedWidth(245);self.navigation.setObjectName("navigation");body.addWidget(self.navigation)
         self.stack=QStackedWidget();body.addWidget(self.stack,1)
         from .desktop_tools import InspectionPage,VectorPage,RasterToolsPage
         from .desktop_project import ProjectPage
         from .desktop_assistant import AssistantPage
+        from .desktop_classification import ClassificationPage
+        from .desktop_recipes import RecipesPage
+        from .desktop_native import NativePage
+        from .desktop_mapops import MapOpsPage
+        from .desktop_terrain import TerrainPage
         from .assistant import TOOL_LABELS
         self.tool_pages=dict(assistant=AssistantPage(self._preview_directory.name),project=ProjectPage(),inspect=InspectionPage(),
-            prepare=PreparationPage(),composite=CompositePage(),vector=VectorPage(),raster=RasterToolsPage(),indices=IndicesPage(),
-            calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage())
+            prepare=PreparationPage(),composite=CompositePage(),classification=ClassificationPage(),vector=VectorPage(),raster=RasterToolsPage(),terrain=TerrainPage(),indices=IndicesPage(),
+            calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage(),recipes=RecipesPage(self),native=NativePage(self._preview_directory.name),mapops=MapOpsPage(self))
         self.pages=list(self.tool_pages.values());titles=['Assistant cartographique' if key=='assistant' else TOOL_LABELS[key] for key in self.tool_pages]
         for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)
@@ -535,7 +545,10 @@ class CartomizeWindow(ProjectConnections,QMainWindow):
                 page.previewRequested.connect(lambda:self.start(preview=True));page.reviewRequested.connect(lambda:self.start(review=True))
                 page.atlasRequested.connect(self.prepare_atlas)
             if isinstance(page,ProjectPage):page.applyRequested.connect(self.apply_project)
+        self.tool('native').layersRequested.connect(self.apply_project)
         self.tool('assistant').openRequested.connect(self.open_assistant_step)
+        self.tool('assistant').planRequested.connect(lambda:self.start(proposal=True))
+        self.tool('assistant').executeRequested.connect(lambda:self.start(execute_plan=True))
         self.navigation.currentRowChanged.connect(self.stack.setCurrentIndex);self.navigation.currentRowChanged.connect(self.page_changed)
         settings=QGroupBox("Paramètres de traitement");self.settings=settings;row=QHBoxLayout(settings)
         self.workers=spin(min(4,os.cpu_count() or 1),1,32);self.block_size=QComboBox();self.block_size.addItems(["256","512","1024","2048"]);self.block_size.setCurrentText("512")
@@ -555,6 +568,7 @@ class CartomizeWindow(ProjectConnections,QMainWindow):
         self.run_button.clicked.connect(self.start);self.cancel_button.clicked.connect(self.cancel)
         self.folder_button.clicked.connect(lambda:QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(self.output_path).resolve().parent))))
         self.navigation.setCurrentRow(0)
+        self.checkpoint()
         self.setStyleSheet("""
             QMainWindow, QWidget { background: #f7f7f7; color: #111111; font-size: 12px; }
             QLabel#brand { color: #000000; font-size: 26px; font-weight: 700; }
@@ -593,26 +607,30 @@ class CartomizeWindow(ProjectConnections,QMainWindow):
         self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Analyser le projet" if isinstance(page,ProjectPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")
         if isinstance(page,AssistantPage):self.run_button.setText('Examiner les données')
     def apply_project(self,layers):
+        self.checkpoint()
         for layer in layers:self.register_result(layer)
         page=next(page for page in self.pages if type(page) is MappingPage)
         page.load_layers(layers);self.navigation.setCurrentRow(self.pages.index(page))
         assessment=self.tool('assistant').assessment
         if assessment and not page.title.text():self.open_assistant_step('mapping',assessment)
         self.status.setText('Couches et symbologie appliquées à la mise en page.')
-    def start(self,checked=False,*,preview=False,review=False):
+    def start(self,checked=False,*,preview=False,review=False,proposal=False,execute_plan=False):
         if self.thread is not None:return
+        self.checkpoint()
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),
                      memory_limit_mb=self.memory.value(),overwrite=self.overwrite.isChecked())
         page=self.pages[self.stack.currentIndex()]
         self._preview_target=None;self._reviewing=review
         try:
-            if preview:
+            if proposal:job=page.plan_job()
+            elif execute_plan:job=page.execution_job(options)
+            elif preview:
                 self._preview_target=Path(self._preview_directory.name)/"apercu.png"
                 job=page.preview_job(self._preview_target)
             elif review:job=page.review_job(Path(self._preview_directory.name)/'controle.json')
             else:job=page.job(options)
         except Exception as exc:self.status.setText(str(exc));return
-        self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self,staged=self.pages[self.stack.currentIndex()].staged);self.thread=self.worker
+        self.cancel_event=threading.Event();self.worker=Worker(job,self.cancel_event,self,staged=execute_plan or self.pages[self.stack.currentIndex()].staged);self.thread=self.worker
         self.worker.progress.connect(self.show_progress);self.worker.stage.connect(self.status.setText);self.worker.succeeded.connect(self.completed)
         self.worker.failed.connect(self.failed);self.worker.cancelled.connect(self.cancelled)
         self.thread.finished.connect(self.cleaned);self.thread.finished.connect(self.thread.deleteLater)

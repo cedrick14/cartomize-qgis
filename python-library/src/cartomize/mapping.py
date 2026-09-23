@@ -132,6 +132,10 @@ class Map:
                     if classes or column:
                         raise ValueError("RGB display cannot also use categorical or single-band styling.")
                 layer_crs = src.crs
+        if classes and (kind=='raster' or column and pd.api.types.is_numeric_dtype(data[column])):
+            converted={float(k):v for k,v in classes.items()}
+            if len(converted)!=len(classes) or not np.isfinite(list(converted)).all():raise ValueError('Codes numériques de nomenclature invalides ou dupliqués.')
+            classes=converted
         role = role or infer_role(layer_name,kind,data.geom_type.dropna() if kind=="vector" else (),column=column,classes=classes,rgb=rgb)
         if role not in ORDER:
             raise ValueError(f"Unknown cartographic role. Choose from {list(ORDER)}.")
@@ -207,10 +211,46 @@ class Map:
         if self.plan is None or not any(i.item_id==item_id and i.kind in kinds for i in self.plan.items):
             raise KeyError(f'No matching layout element: {item_id}')
 
-    def audit(self):
+    def audit(self,*,visual=False):
         """Technical checks before export; not a certification of map accuracy."""
         from .quality import audit_map
-        return audit_map(self)
+        report=audit_map(self)
+        if visual and report['valid']:
+            fig=self.render(dpi=100)
+            try:
+                for item in self.render_diagnostics.get('text',[]):
+                    if not item['fitted']:report['issues'].append(dict(severity='error',code='text_overflow',message='Texte trop long : '+item.get('id',''),layer=None))
+                for item in self.render_diagnostics.get('labels',[]):
+                    if item['omitted']:report['issues'].append(dict(severity='warning',code='labels_omitted',message=f"{len(item['omitted'])} étiquettes sans emplacement libre.",layer=None))
+                report['render']=self.render_diagnostics;report['valid']=not any(i['severity']=='error' for i in report['issues'])
+            finally:fig.clear()
+        return report
+
+    def save(self,path,*,portable=False,overwrite=False):
+        from .session import save_map
+        return save_map(self,path,portable=portable,overwrite=overwrite)
+
+    @classmethod
+    def load(cls,path,**options):
+        from .session import load_map
+        return load_map(path,**options)
+
+    def set_item(self,item_id,**changes):
+        """Edit an existing template item without changing the bundled template."""
+        from dataclasses import replace
+        if self.plan is None:raise ValueError('Choisir une maquette pour modifier ses éléments.')
+        allowed={'x_mm','y_mm','width_mm','height_mm','rotation','z_index','style','content','linked_map_id'}
+        if set(changes)-allowed:raise ValueError('Propriété de mise en page inconnue.')
+        original=next((i for i in self.plan.items if i.item_id==item_id),None)
+        if original is None:raise KeyError(item_id)
+        if 'rotation' in changes and changes['rotation']!=original.rotation and original.kind not in {'title','subtitle','text'}:raise ValueError('La rotation éditable concerne les éléments textuels.')
+        if 'z_index' in changes and changes['z_index']!=original.z_index and original.kind in {'scale_bar','north_arrow'}:raise ValueError('L’échelle et le nord restent associés à leur cadre cartographique.')
+        updated=replace(original,**changes)
+        if not np.isfinite([updated.x_mm,updated.y_mm,updated.width_mm,updated.height_mm,updated.rotation,updated.z_index]).all():raise ValueError('Les dimensions doivent être finies.')
+        if min(updated.x_mm,updated.y_mm)<0 or min(updated.width_mm,updated.height_mm)<=0 or updated.x_mm+updated.width_mm>self.width+.001 or updated.y_mm+updated.height_mm>self.height+.001:
+            raise ValueError('L’élément doit tenir dans la page avec des dimensions positives.')
+        if updated.linked_map_id and updated.linked_map_id not in self.frame_ids:raise ValueError('Cadre associé inconnu.')
+        self.plan=replace(self.plan,items=tuple(updated if i.item_id==item_id else i for i in self.plan.items));return self
 
     def add_legend(self, enabled=True):
         self.legend_enabled = enabled
@@ -240,6 +280,7 @@ class Map:
             raise ValueError("dpi and max_raster_size must be positive.")
         fig = Figure(figsize=(self.width/25.4, self.height/25.4), dpi=dpi, facecolor="white")
         FigureCanvasAgg(fig)
+        self.render_diagnostics={"text":[],"labels":[]}
         frame_axes, frame_legends, frame_crs = {}, {}, {}
         if self.plan:
             map_items = [(i.item_id, (i.x_mm, i.y_mm, i.width_mm, i.height_mm)) for i in self.plan.map_items]
@@ -250,6 +291,7 @@ class Map:
                                     self.height-55 if landscape else self.height-99))]
         for ident, box in map_items:
             ax = self._axes(fig, box)
+            if self.plan:ax.set_zorder(next(i.z_index for i in self.plan.map_items if i.item_id==ident))
             config = self.frames.get(ident, {})
             crs = config.get("crs") or self.crs
             layers = [l for l in self.layers if config.get("layers") is None or l.name in config["layers"]]
@@ -261,6 +303,8 @@ class Map:
                     bounds = Transformer.from_crs(self.crs, crs, always_xy=True).transform_bounds(*self.extent)
             handles = self._draw_layers(ax, layers, crs, bounds, max_raster_size)
             ax.tick_params(labelsize=6, colors="#54616a")
+            if self.plan and ident!=self.plan.primary_map_id and (box[2]<90 or box[3]<55):
+                ax.tick_params(labelbottom=False,labelleft=False)
             ax.grid(alpha=.12, linewidth=.4)
             for spine in ax.spines.values():
                 spine.set_color("#52636a"); spine.set_linewidth(.7)
@@ -268,8 +312,10 @@ class Map:
         if self.plan:
             self._draw_template(fig, frame_axes, frame_legends, frame_crs)
         else:
-            fig.text(12/self.width, 1-15/self.height, self.title, fontsize=17, weight="bold", color="#183f3e", va="top")
-            fig.text(12/self.width, 1-27/self.height, self.subtitle, fontsize=9, color="#52636a", va="top")
+            from .typography import fit_text
+            for ident,text,box,size,weight in [("title",self.title,(12,9,self.width-24,16),17,"bold"),("subtitle",self.subtitle,(12,26,self.width-24,10),9,"normal")]:
+                text_ax=self._axes(fig,box);text_ax.axis("off");_,record=fit_text(text_ax,text,fontsize=size,weight=weight)
+                self.render_diagnostics["text"].append(dict(record,id=ident))
             landscape = self.width > self.height
             legend_box = (self.width-61, 42, 51, self.height-70) if landscape else (12, self.height-52, self.width-24, 31)
             if self.legend_enabled:
@@ -278,7 +324,9 @@ class Map:
                 self._scale(frame_axes["main"], frame_crs["main"])
             if self.north_enabled:
                 self._north(frame_axes["main"], frame_crs["main"])
-            fig.text(12/self.width, 8/self.height, self.credits or str(self.crs), fontsize=7, color="#52636a", va="bottom")
+            text_ax=self._axes(fig,(12,self.height-11,self.width-24,9));text_ax.axis("off")
+            _,record=fit_text(text_ax,self.credits or (':'.join(self.crs.to_authority()) if self.crs.to_authority() else self.crs.name),fontsize=7)
+            self.render_diagnostics["text"].append(dict(record,id="credits"))
         return fig
 
     def _draw_layers(self, ax, layers, crs, bounds, max_size):
@@ -408,22 +456,10 @@ class Map:
         ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
         ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
         ax.ticklabel_format(style="plain", axis="both")
-        # Suppress label overlaps at the current figure resolution.
         ax.figure.canvas.draw()
-        occupied = []
-        xlim, ylim = ax.get_xlim(), ax.get_ylim()
-        for x, y, label in annotations:
-            if not (xlim[0] <= x <= xlim[1] and ylim[0] <= y <= ylim[1]):
-                continue
-            text = ax.annotate(label, (x, y), xytext=(4, 4), textcoords="offset points",
-                               fontsize=7, color="#182d35", clip_on=True,
-                               zorder=max(priorities.values(),default=0)+100,
-                               path_effects=[path_effects.withStroke(linewidth=2, foreground="white")])
-            box = text.get_window_extent(ax.figure.canvas.get_renderer()).expanded(1.08, 1.12)
-            if any(box.overlaps(previous) for previous in occupied):
-                text.remove()
-            else:
-                occupied.append(box)
+        from .typography import place_labels
+        label_report=place_labels(ax,annotations,zorder=max(priorities.values(),default=0)+100)
+        self.render_diagnostics['labels'].append(label_report)
         return legends
 
     def _legend(self, fig, box, entries):
@@ -441,8 +477,17 @@ class Map:
         discrete_height = min(.70 if continuous else .95, .09*len(handles)+.1)
         if handles:
             fontsize = max(5, min(8, box[3]*2.8346*discrete_height/(len(handles)*1.7)))
-            ax.legend(handles=handles, loc="upper left", frameon=False, fontsize=fontsize,
-                      borderaxespad=0, title="Légende", title_fontsize=9)
+            from .typography import wrap_measured
+            from matplotlib.font_manager import FontProperties
+            renderer=fig.canvas.get_renderer();labels=[h.get_label() for h in handles];fitted=False
+            while fontsize>=4.5:
+                wrapped=[wrap_measured(label,max(10,ax.bbox.width-28*fig.dpi/72),renderer,FontProperties(size=fontsize)) for label in labels]
+                legend=ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=fontsize,borderaxespad=0,title='Légende',title_fontsize=min(9,fontsize+1))
+                extent=legend.get_window_extent(renderer)
+                if extent.width<=ax.bbox.width+1 and extent.height<=ax.bbox.height*discrete_height+1:fitted=True;break
+                legend.remove();fontsize-=.5
+            if not fitted:ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=4.5,borderaxespad=0,title='Légende',title_fontsize=5.5)
+            self.render_diagnostics['text'].append(dict(id='legend',text='; '.join(labels),fitted=fitted,fontsize=fontsize,lines=len(handles)))
         start = discrete_height if handles else .06
         for index, (_, name, cmap, norm) in enumerate(continuous):
             step = (1-start)/max(1, len(continuous))
@@ -450,6 +495,7 @@ class Map:
             fig.colorbar(__import__("matplotlib").cm.ScalarMappable(norm=norm, cmap=cmap), cax=bar, orientation="horizontal")
             bar.tick_params(labelsize=6)
             bar.set_title(name, fontsize=7, loc="left", pad=4)
+        return ax
 
     def _north(self, ax, crs, position=(.91, .85)):
         # Project a geodesic toward true north at the frame centre.
@@ -514,19 +560,20 @@ class Map:
                 text = self.texts.get(item.item_id)
                 if text is None:
                     text = self.title if item.kind == "title" else self.subtitle if item.kind == "subtitle" else self.credits if item.item_id in {"credits", "sources"} else item.content.get("text", "")
-                ax = self._axes(fig, box); ax.axis("off")
-                ax.text(0, 1, text, fontsize=max(6, float(item.style.get("fontSize", 9))),
-                        va="top", color=item.style.get("fill", "#182d35"),
-                        weight=item.style.get("fontWeight", "normal"), wrap=True, clip_on=True)
+                ax = self._axes(fig, box,zorder=item.z_index); ax.axis("off")
+                from .typography import fit_text
+                _,record=fit_text(ax,text,fontsize=max(6,float(item.style.get('fontSize',9))),
+                    color=item.style.get('fill','#182d35'),weight=item.style.get('fontWeight','normal'),rotation=item.rotation)
+                self.render_diagnostics['text'].append(dict(record,id=item.item_id))
             elif item.kind == "shape":
                 rectangle = Rectangle((item.x_mm/self.width, 1-(item.y_mm+item.height_mm)/self.height),
                                       item.width_mm/self.width, item.height_mm/self.height,
                                       transform=fig.transFigure, facecolor=item.style.get("fill", "none"),
                                       edgecolor=item.style.get("stroke", "none"), linewidth=float(item.style.get("strokeWidth", .5)),
-                                      zorder=-1)
+                                      zorder=item.z_index)
                 fig.add_artist(rectangle)
             elif item.kind == "legend" and self.legend_enabled:
-                self._legend(fig, box, legends[linked])
+                legend_ax=self._legend(fig, box, legends[linked]);legend_ax.set_zorder(item.z_index)
             elif item.kind in {"scale_bar", "north_arrow"}:
                 # Keep the linked map's display/data transform so the printed
                 # scale has the same physical scale as that map frame.
@@ -541,12 +588,12 @@ class Map:
                 elif item.kind == "north_arrow" and self.north_enabled:
                     self._north(original, crss[linked], position=position)
             elif item.kind == "table" and item.item_id in self.tables:
-                ax = self._axes(fig, box); ax.axis("off")
+                ax = self._axes(fig, box,zorder=item.z_index); ax.axis("off")
                 table = self.tables[item.item_id]
                 artist = ax.table(cellText=table.astype(str).values, colLabels=list(table.columns), loc="center", bbox=[0, 0, 1, 1])
                 artist.auto_set_font_size(False); artist.set_fontsize(7)
             elif item.kind == "chart" and item.item_id in self.charts:
-                ax = self._axes(fig, box)
+                ax = self._axes(fig, box,zorder=item.z_index)
                 labels, values, color = self.charts[item.item_id]
                 ax.bar(labels, values, color=color); ax.tick_params(labelsize=6)
                 ax.set_title(item.content.get("title", ""), fontsize=8)
@@ -559,6 +606,9 @@ class Map:
         errors=[i['message'] for i in self.audit()['issues'] if i['severity']=='error']
         if errors:raise ValueError('; '.join(errors))
         fig = self.render(dpi=dpi, max_raster_size=max_raster_size)
+        overflow=[i['id'] for i in self.render_diagnostics.get('text',[]) if not i['fitted']]
+        if overflow:
+            fig.clear();raise ValueError('Contenu trop grand pour son emplacement : '+', '.join(overflow)+'. Agrandir l’élément ou choisir une autre maquette.')
         fd,temporary=tempfile.mkstemp(prefix='.cartomize-map-',suffix=path.suffix,dir=path.parent);os.close(fd)
         try:
             fig.savefig(temporary, dpi=dpi, facecolor=fig.get_facecolor())

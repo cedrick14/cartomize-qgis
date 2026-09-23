@@ -16,8 +16,13 @@ from .workflow import CartographicProduct, cartographic_workflow
 from .nodata import detect_background, mask_background
 from .project import analyze_project, prepare_project, load_project, PreparedProject
 from .assistant import assess_project
+from .classification import SpectralModel,fit_classifier,load_classifier,classify_landcover,cluster_raster
+from .session import save_session,load_session,save_map,load_map
+from .relations import analyze_relations
+from .automation import plan_cartography,run_plan,propose_layouts
+from .mapops import snapshot_project,compare_snapshots,record_review,verify_review
 
-__version__ = "0.5.0a1"
+__version__ = "0.6.0a1"
 
 
 def launch(*,block=None):
@@ -39,3 +44,17 @@ __all__ = ["Map", "Layer", "GeoDataFrame", "GeoSeries", "points_from_xy", "read_
            "calculate", "reduce_rasters", "ProcessingCancelled", "spectral_indices", "list_indices",
            "get_index", "register_index", "focal", "launch", "CartographicProduct", "cartographic_workflow", "detect_background", "mask_background",
            "analyze_project", "prepare_project", "load_project", "PreparedProject", "assess_project", "nearest"]
+__all__ += ['SpectralModel','fit_classifier','load_classifier','classify_landcover','cluster_raster',
+            'save_session','load_session','save_map','load_map','analyze_relations','plan_cartography','run_plan',
+            'propose_layouts','snapshot_project','compare_snapshots','record_review','verify_review']
+
+from .recipes import save_recipe,load_recipe,instantiate_recipe,run_recipe,run_batch
+
+from .native import native_project,inspect_qgis_project
+
+from .terrain import terrain,convolve
+
+__all__ += ["save_recipe","load_recipe","instantiate_recipe","run_recipe","run_batch",
+            "native_project","inspect_qgis_project","terrain","convolve"]
+raster.terrain=terrain
+raster.convolve=convolve

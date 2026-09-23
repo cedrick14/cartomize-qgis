@@ -8,7 +8,7 @@ from ._validation import frame
 from .imagery import _check_cancel
 
 GOALS={'general':'Carte générale','administrative':'Carte administrative','landcover':'Occupation du sol','atlas':'Atlas cartographique'}
-TOOL_LABELS={'project':'Analyse du projet','prepare':'Prétraitement multispectral','composite':'Composition colorée',
+TOOL_LABELS={'classification':'Classification', 'recipes':'Recettes et production en série', 'native':'Projets SIG', 'mapops':'Révision cartographique', 'terrain':'Analyse de terrain', 'project':'Analyse du projet','prepare':'Prétraitement multispectral','composite':'Composition colorée',
              'vector':'Traitements vectoriels','raster':'Traitements raster','indices':'Indices spectraux',
              'calculator':'Calculatrice raster','focal':'Statistiques focales','temporal':'Statistiques multirasters',
              'mapping':'Mise en page','atlas':'Atlas cartographique','workflow':'Production automatisée','inspect':'Analyse des couches'}

@@ -1,3 +1,7 @@
+# Interface 0.6
+
+Les nouveautés et leurs contrôles sont décrits dans [AUTOMATION](AUTOMATION.md) : exécution des plans, classification, projets persistants, géométrie des éléments, recettes, révision, terrain et projets SIG.
+
 # Interface graphique Cartomize
 
 ## Installation et lancement

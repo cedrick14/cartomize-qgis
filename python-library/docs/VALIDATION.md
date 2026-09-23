@@ -1,11 +1,16 @@
-# Validation de Cartomize Python 0.5.0a1
+# Validation de Cartomize Python 0.6.0a1
 
 22 septembre 2026 · Linux x86_64 · Python 3.12.14.
 
 ## Résultat local
 
-**181 tests automatisés réussis**, dont 29 cas utilisant les classes et widgets Qt réels, en mode hors écran. Les 105 tests antérieurs sont conservés, avec adaptation des sélections à des identifiants d’outils stables.
+**198 tests automatisés réussis**, dont 31 cas utilisant les classes et widgets Qt réels, en mode hors écran. Les 105 tests antérieurs sont conservés, avec adaptation des sélections à des identifiants d’outils stables.
 
+- Classification : deux algorithmes supervisés, K-moyennes, validation séparée, conflits de référence, persistance du modèle, NoData et probabilités.
+- Sessions : paramètres de la fenêtre réouverts, projet portable avec fichiers d’origine supprimés, protection contre les chemins d’archive invalides.
+- Plans, recettes et lots : produits réels, sorties réouvrables, variables, erreurs et poursuite explicite.
+- Terrain : résultats analytiques sur un plan incliné, convolution et égalité entre blocs/threads.
+- Inventaire QGZ, échecs du moteur absent, empreintes et modification réelle de fichier.
 - Les 18 indices intégrés sont confrontés à des valeurs numériques indépendantes du registre de formules.
 - Les 7 statistiques multirasters et les 7 statistiques focales sont comparées à des attentes NumPy ou à des voisinages explicites.
 - Chacune des 13 opérations vectorielles et des 6 opérations raster est exécutée depuis son sélecteur graphique, avec contrôle du résultat.
@@ -16,7 +21,7 @@
 
 Commande : `python -m pytest tests -q` depuis `python-library`.
 
-Les 263 avertissements locaux proviennent de la dépréciation de l’opérateur de multiplication affine employé par Rasterio. Aucun échec n’en résulte. Le nombre peut varier avec les versions des dépendances.
+Les avertissements locaux proviennent de la dépréciation de l’opérateur de multiplication affine employé par Rasterio. Aucun échec n’en résulte. Le nombre peut varier avec les versions des dépendances.
 
 ## Distribution
 
@@ -26,7 +31,7 @@ Le workflow `python-library.yml` exécute les tests et la construction sur Linux
 
 ## Performances mesurées
 
-Benchmark réexécuté pour 0.5.0a1 : 2 048 × 2 048 pixels, quatre bandes, trois indices, trois répétitions dans des processus distincts, ordre tournant et cache non purgé. Médianes : 2,713 s pour trois calculs séparés ; 2,343 s pour le calcul groupé à un thread ; 1,750 s à quatre threads. Les sorties sont identiques selon les empreintes de toutes les bandes, après normalisation des NaN et des zéros signés.
+Mesure historique de 0.5.0a1, conservée sans extrapolation aux nouveaux algorithmes : 2 048 × 2 048 pixels, quatre bandes, trois indices, trois répétitions dans des processus distincts, ordre tournant et cache non purgé. Médianes : 2,713 s pour trois calculs séparés ; 2,343 s pour le calcul groupé à un thread ; 1,750 s à quatre threads. Les sorties sont identiques selon les empreintes de toutes les bandes, après normalisation des NaN et des zéros signés.
 
 Le gain mesuré de 1,55 fois concerne ce scénario, pas tous les traitements. Les tâches concurrentes, le stockage et les caches influencent les mesures. Le budget des tableaux n’est pas un plafond de mémoire du processus. Voir [PERFORMANCE](PERFORMANCE.md) et [les mesures brutes](BENCHMARK_0.5.0a1.json).
 
@@ -34,4 +39,4 @@ Le gain mesuré de 1,55 fois concerne ce scénario, pas tous les traitements. Le
 
 Les données sont synthétiques. Les contrôles Qt hors écran ne remplacent pas un essai manuel sous Windows avec de grandes scènes réelles. Les diagnostics raster utilisent des échantillons ; le contrôle cartographique ne certifie ni la vérité thématique, ni l’absence de toutes les collisions d’étiquettes, ni la lisibilité parfaite.
 
-Le détail des fonctions implémentées, partielles et absentes figure dans [TOOL_AUDIT](TOOL_AUDIT.md). La bibliothèque reste alpha. Elle n’inclut pas la classification supervisée, la lecture intégrale APRX/QGZ ou tous les algorithmes raster. Aucun paquet n’a été publié sur PyPI/TestPyPI dans cette livraison.
+Le détail des fonctions implémentées, partielles et absentes figure dans [TOOL_AUDIT](TOOL_AUDIT.md). La bibliothèque reste alpha. La classification est implémentée et testée. Les appels natifs ArcPy/PyQGIS restent à valider dans les moteurs installés ; la lecture autonome intégrale APRX/QGZ et la couverture de tous les algorithmes raster ne sont pas revendiquées. Aucun paquet n’a été publié sur PyPI/TestPyPI dans cette livraison.
