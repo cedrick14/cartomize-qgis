@@ -27,6 +27,7 @@ def test_chain_page_worker_and_session(app,write_raster,tmp_path):
     from cartomize.desktop import CartomizeWindow
     source=write_raster('source.tif',np.full((40,40),2,dtype='float32'))
     window=CartomizeWindow();window.select_tool('processing');page=window.tool('processing')
+    assert page.processing_steps.table.isColumnHidden(2)
     records=[dict(id='algebra',operation='calculate',parameters={'inputs':{'a':[str(source),1]},'expression':'a * 3'}),
              dict(id='smooth',operation='focal',parameters={'source':'@algebra','statistic':'mean','size':3})]
     page.processing_steps.set_records(records);page.output.edit.setText(str(tmp_path));page.name.setText('chain')
@@ -63,6 +64,9 @@ def test_operation_editor_typed_fields_and_native_directory(app,write_raster,tmp
     editor=OperationDialog([],dict(id='drainage',operation='hydrology',parameters={'source':str(source)},map_layer={'product':'watersheds'}))
     assert editor.value()['map_layer']['product']=='watersheds'
     editor.product.setCurrentText('primary');assert 'product' not in editor.value()['map_layer']
+    editor.close()
+    editor=OperationDialog([],record,allow_map=False)
+    assert not editor.add_map.isEnabled() and 'map_layer' not in editor.value()
     editor.close()
     native=NativePage(tmp_path);native.action.setCurrentIndex(native.action.findData('import'));assert native.output.mode=='directory'
     native.action.setCurrentIndex(native.action.findData('export'));assert native.output.mode=='save'

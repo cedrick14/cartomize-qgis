@@ -21,16 +21,17 @@ COMPLEX={'inputs','sources','kernel','mapping','products','indices','border_valu
 
 
 class OperationDialog(QDialog):
-    def __init__(self,steps,record=None,parent=None):
+    def __init__(self,steps,record=None,parent=None,*,allow_map=True):
         super().__init__(parent);self.setWindowTitle('Étape de traitement');self.resize(620,620)
-        self.previous=steps;self.record=record;layout=QVBoxLayout(self);form=QFormLayout()
+        self.previous=steps;self.record=record;self.allow_map=allow_map;layout=QVBoxLayout(self);form=QFormLayout()
         self.ident=QLineEdit(record['id'] if record else f'process_{len(steps)+1:02d}')
         self.operation=QComboBox()
         for spec in operation_catalog():self.operation.addItem(spec['label'],spec['id'])
         form.addRow('Identifiant du résultat',self.ident);form.addRow('Opération',self.operation);layout.addLayout(form)
         scroll=QScrollArea();scroll.setWidgetResizable(True);self.fields=QWidget();self.form=QFormLayout(self.fields);scroll.setWidget(self.fields);layout.addWidget(scroll)
-        self.product=QComboBox();layout.addWidget(QLabel('Produit cartographique'));layout.addWidget(self.product)
+        self.product=QComboBox();product_label=QLabel('Produit cartographique');layout.addWidget(product_label);layout.addWidget(self.product)
         self.add_map=QCheckBox('Ajouter le résultat à la carte');self.add_map.setChecked(record is not None and record.get('map_layer') is not None);layout.addWidget(self.add_map)
+        for widget in (product_label,self.product,self.add_map):widget.setVisible(allow_map)
         note=QLabel('Choisir un fichier ou le résultat d’une étape précédente. Les identifiants précédés de @ désignent des résultats intermédiaires.');note.setWordWrap(True);layout.addWidget(note)
         buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel);buttons.accepted.connect(self.accept);buttons.rejected.connect(self.reject);layout.addWidget(buttons)
         self.operation.currentIndexChanged.connect(self.changed)
@@ -46,7 +47,7 @@ class OperationDialog(QDialog):
     def changed(self):
         while self.form.rowCount():self.form.removeRow(0)
         self.controls={};spec=operation_spec(self.operation.currentData())
-        self.add_map.setEnabled(spec['output'] in {'raster','vector'});self.product.clear();self.product.addItems(spec['products'])
+        self.add_map.setEnabled(self.allow_map and spec['output'] in {'raster','vector'});self.product.clear();self.product.addItems(spec['products'])
         for field in spec['parameters']:
             name=field['name'];default=field['default'];label=LABELS.get(name,name.replace('_',' '))+(' *' if field['required'] else '')
             if isinstance(default,bool):widget=QCheckBox();widget.setChecked(default);row=widget
@@ -105,9 +106,10 @@ class OperationDialog(QDialog):
 
 
 class ProcessingSteps(QWidget):
-    def __init__(self,parent=None):
-        super().__init__(parent);layout=QVBoxLayout(self)
+    def __init__(self,parent=None,*,allow_map=True):
+        super().__init__(parent);self.allow_map=allow_map;layout=QVBoxLayout(self)
         self.table=QTableWidget(0,3);self.table.setHorizontalHeaderLabels(['Résultat','Opération','Ajouter à la carte']);self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setMinimumHeight(170);layout.addWidget(self.table)
+        self.table.setColumnHidden(2,not allow_map)
         row=QHBoxLayout();layout.addLayout(row)
         for text,fn in [('Ajouter',self.add),('Modifier',self.edit),('Monter',lambda:self.move(-1)),('Descendre',lambda:self.move(1)),('Retirer',self.remove)]:
             button=QPushButton(text);button.clicked.connect(fn);row.addWidget(button)
@@ -122,12 +124,12 @@ class ProcessingSteps(QWidget):
                 self.table.setItem(row,col,item)
         self.table.resizeColumnsToContents()
     def add(self):
-        records=self.records();dialog=OperationDialog(records,parent=self)
+        records=self.records();dialog=OperationDialog(records,parent=self,allow_map=self.allow_map)
         if dialog.exec():self.set_records(records+[dialog.result_record])
     def edit(self):
         row=self.table.currentRow();records=self.records()
         if row<0:return
-        dialog=OperationDialog(records[:row],records[row],self)
+        dialog=OperationDialog(records[:row],records[row],self,allow_map=self.allow_map)
         if dialog.exec():records[row]=dialog.result_record;self.set_records(records)
     def move(self,offset):
         row=self.table.currentRow();records=self.records();other=row+offset
@@ -144,7 +146,7 @@ class ProcessingPage(Page):
     staged=True
     def __init__(self):
         super().__init__('Chaîne de traitements','Définir les opérations et leurs dépendances, puis exécuter l’ensemble dans un nouveau dossier.')
-        self.processing_steps=ProcessingSteps();self.form.addRow(self.processing_steps)
+        self.processing_steps=ProcessingSteps(allow_map=False);self.form.addRow(self.processing_steps)
         self.output.mode='directory';self.name=QLineEdit('traitements');self.form.addRow('Répertoire parent',self.output);self.form.addRow('Nouveau dossier',self.name);self.layout.addStretch()
     def job(self,options):
         from .automation import processing_plan,run_plan
