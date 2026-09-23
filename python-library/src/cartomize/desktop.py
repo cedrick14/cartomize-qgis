@@ -559,6 +559,8 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
         for label,widget in [("Threads de calcul",self.workers),("Bloc (pixels)",self.block_size),("Budget des tableaux",self.memory)]:
             caption=QLabel(label);self.engine_labels.append(caption);row.addWidget(caption);row.addWidget(widget)
         row.addWidget(self.overwrite);outer.addWidget(settings)
+        from .desktop_execution import ExecutionSettings
+        self.execution_settings=ExecutionSettings();outer.addWidget(self.execution_settings)
         self.init_results(outer)
         bottom=QHBoxLayout();self.run_button=QPushButton("Exécuter");self.run_button.setObjectName("primary")
         self.cancel_button=QPushButton("Annuler");self.cancel_button.setEnabled(False)
@@ -599,6 +601,9 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
     def page_changed(self,index):
         if index<0:return
         page=self.pages[index]
+        key=next(k for k,v in self.tool_pages.items() if v is page)
+        self.execution_settings.setVisible(key in {'calculator','indices','temporal','focal','terrain','processing'})
+        self.execution_settings.device.setEnabled(key in {'calculator','indices','temporal','processing'})
         for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
         from .desktop_project import ProjectPage
         from .desktop_assistant import AssistantPage
@@ -621,6 +626,9 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
         options=dict(workers=self.workers.value(),block_size=int(self.block_size.currentText()),
                      memory_limit_mb=self.memory.value(),overwrite=self.overwrite.isChecked())
         page=self.pages[self.stack.currentIndex()]
+        key=next(k for k,v in self.tool_pages.items() if v is page)
+        if key in {'calculator','indices','temporal','focal','terrain','processing'}:
+            options.update(self.execution_settings.parameters(gpu=key in {'calculator','indices','temporal','processing'}))
         self._preview_target=None;self._reviewing=review
         try:
             if proposal:job=page.plan_job()

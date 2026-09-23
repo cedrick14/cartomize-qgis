@@ -151,7 +151,7 @@ def processing_plan(steps):
     return validate_plan(dict(schema='cartomize.automation.v1',nodes=nodes))
 
 
-def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,block_size=512,memory_limit_mb=512,progress=None,stage=None,cancel=None):
+def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,block_size=512,memory_limit_mb=512,execution='threads',scheduler_address=None,device='cpu',progress=None,stage=None,cancel=None):
     import cartomize as cm
     if isinstance(plan,(str,Path)):plan=read_json(plan)
     validate_plan(plan)
@@ -178,7 +178,7 @@ def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,block_si
                 from .processing import execute_operation,operation_spec
                 spec=operation_spec(parameters['operator'])
                 if stage:stage(spec['label'])
-                product=execute_operation(parameters['operator'],parameters['arguments'],work/ident,workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,progress=callback,cancel=cancel)
+                product=execute_operation(parameters['operator'],parameters['arguments'],work/ident,workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,execution=execution,scheduler_address=scheduler_address,device=device,progress=callback,cancel=cancel)
                 result=product['primary'];products[ident]=product['products']
                 if product['kind'] in {'vector','raster'}:assets.append(dict(data=result,kind=product['kind'],name=spec['label']))
             elif op=='prepare':
@@ -192,7 +192,7 @@ def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,block_si
                 result=cm.color_composite(parameters['source'],work/f'{ident}.tif',progress=callback,cancel=cancel)
                 assets.append(dict(data=result,kind='raster',rgb='native',role='background'))
             elif op=='indices':
-                result=cm.spectral_indices(parameters['source'],work/f'{ident}.tif',parameters['indices'],workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,progress=callback,cancel=cancel)
+                result=cm.spectral_indices(parameters['source'],work/f'{ident}.tif',parameters['indices'],workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,execution=execution,scheduler_address=scheduler_address,device=device,progress=callback,cancel=cancel)
                 assets.append(dict(data=result,kind='raster'))
             elif op in {'classify','cluster'}:
                 if op=='classify':result=cm.classify_landcover(parameters['source'],parameters['training'],work/ident,class_column=parameters['class_column'],workers=workers,block_size=min(block_size,1024),progress=callback,cancel=cancel)

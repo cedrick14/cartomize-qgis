@@ -13,3 +13,7 @@ Le parcours commence par l’objectif et les données. Les scènes sont prépar�
 Les appels aux moteurs ArcGIS Pro et QGIS sont écrits mais restent à vérifier dans leurs environnements. Les tests sur données synthétiques ne constituent pas une validation terrain, ni une preuve de parité avec l’ensemble des fonctions natives. La publication PyPI n’a pas été effectuée.
 
 La version 0.7 raccorde 34 traitements, leurs paramètres et leurs produits secondaires au plan et à la fenêtre. Elle ajoute les styles QGIS transférables, le masquage par emprise, le contrôle complet des codes raster, le drainage D8, le routage bidirectionnel et STAC. Le détail des limites restantes figure dans PROCESSING.md : aucune couverture universelle des capteurs, modèles hydrologiques ou objets natifs n’est annoncée.
+
+## Compléments 0.8
+
+Moteurs d’exécution, transfert des styles et validation native : voir [EXECUTION](EXECUTION.md). Les choix Dask/CUDA sont persistés avec la session et transmis aux traitements compatibles. Le calcul distribué utilise des processus réels ; le GPU reste à valider sur le matériel approprié.

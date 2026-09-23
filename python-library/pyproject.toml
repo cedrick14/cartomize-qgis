@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cartomize"
-version = "0.7.0a1"
+version = "0.8.0a1"
 description = "Cartographic layouts, raster analysis and automated geospatial workflows"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,8 @@ dependencies = ["geopandas>=1.0,<2", "matplotlib>=3.8,<4", "numpy>=1.26,<3", "py
 
 [project.optional-dependencies]
 gui = ["PySide6-Essentials>=6.7,<7"]
+distributed = ["dask[distributed]>=2024.8,<2027"]
+gpu = ["cupy-cuda12x[ctk]>=14,<15"]
 dev = ["pytest>=8,<10", "build>=1,<2", "twine>=6,<8"]
 
 [project.urls]

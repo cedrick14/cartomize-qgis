@@ -128,9 +128,11 @@ def _asset(value):
 def _run_blocks(inputs,destination,names,processor,*,workers=1,block_size=512,
                 memory_limit_mb=512,align=False,resampling="nearest",dtype="float32",
                 compression="lzw",overwrite=False,progress=None,cancel=None,halo=0,
-                metadata=None):
+                metadata=None,execution='threads',scheduler_address=None):
     """Read/write GDAL datasets on one thread; bounded array jobs on workers."""
     if not inputs:raise ValueError("At least one raster input is required.")
+    if execution not in {'threads','distributed'}:raise ValueError('execution must be threads or distributed.')
+    if scheduler_address and execution!='distributed':raise ValueError('scheduler_address requires distributed execution.')
     if workers=="auto":workers=min(4,os.cpu_count() or 1)
     if not isinstance(workers,int) or not 1<=workers<=32:raise ValueError("workers must be 1..32 or 'auto'.")
     if not isinstance(block_size,int) or not 32<=block_size<=2048:raise ValueError("block_size must be 32..2048.")
@@ -190,24 +192,33 @@ def _run_blocks(inputs,destination,names,processor,*,workers=1,block_size=512,
             crop=(slice(int(window.row_off)-y,int(window.row_off+window.height)-y),
                   slice(int(window.col_off)-x,int(window.col_off+window.width)-x))
             return values,crop
+        from .execution import compute_block,distributed_client,await_result
         def compute(payload):
-            check_cancel();values,crop=payload;shape=next(iter(values.values())).shape
-            results=processor(values)
-            if len(results)!=len(names):raise ValueError("Processor output count differs from band names.")
-            output=[]
-            for result in results:
-                result=np.ma.asarray(result,dtype="float64")
-                data=np.broadcast_to(result.filled(np.nan),shape)[crop]
-                with np.errstate(over="ignore",invalid="ignore"):data=data.astype(dtype)
-                output.append(np.where(np.isfinite(data),data,np.nan))
-            return np.stack(output)
+            check_cancel();return compute_block(processor,payload,names,dtype)
         with _writer(destination,profile,overwrite=overwrite,sources=[a.path for a,_ in assets.values()]) as dst:
             if progress:progress(0,total)
             def write(window,result):
                 nonlocal done
                 check_cancel();dst.write(result,window=window);done+=1
                 if progress:progress(done,total)
-            if workers==1:
+            if execution=='distributed':
+                with distributed_client(workers,scheduler_address) as client:
+                    pending=deque()
+                    try:
+                        for window in windows():
+                            check_cancel()
+                            if len(pending)>=max_pending:
+                                old,future=pending.popleft()
+                                try:write(old,await_result(future,check_cancel))
+                                finally:future.release()
+                            pending.append((window,client.submit(compute_block,processor,read(window),names,dtype,pure=False)))
+                        while pending:
+                            old,future=pending.popleft()
+                            try:write(old,await_result(future,check_cancel))
+                            finally:future.release()
+                    finally:
+                        if pending:client.cancel([f for _,f in pending])
+            elif workers==1:
                 for window in windows():check_cancel();write(window,compute(read(window)))
             else:
                 with ThreadPoolExecutor(max_workers=workers,thread_name_prefix="cartomize-raster") as executor:
@@ -230,7 +241,8 @@ def _run_blocks(inputs,destination,names,processor,*,workers=1,block_size=512,
                             processing=json.dumps(metadata or {},ensure_ascii=False),
                             inputs=json.dumps(provenance),workers=workers,block_size=block_size,
                             estimated_working_mb=estimated/1024**2,elapsed_seconds=time.perf_counter()-started,
-                            alignment=str(bool(align)),resampling=resampling)
+                            alignment=str(bool(align)),resampling=resampling,execution=execution,
+                            device=(metadata or {}).get('device','cpu'))
     return Path(destination)
 
 
@@ -256,8 +268,16 @@ def calculate(expression,inputs,destination,**options):
     from ._validation import output_path
     output_path(destination,options.get('overwrite',False),[_asset(v)[0].path for v in inputs.values()])
     if not selected and inputs:selected={next(iter(inputs)):next(iter(inputs.values()))}
-    return _run_blocks(selected,destination,list(parsed),lambda values:[e.evaluate(values) for e in parsed.values()],
-                       metadata={"operation":"raster_algebra","expressions":expressions},**options)
+    device=options.pop('device','cpu')
+    if device not in {'cpu','cuda'}:raise ValueError('device must be cpu or cuda.')
+    processor=lambda values:[e.evaluate(values) for e in parsed.values()]
+    if device=='cuda':
+        from .cuda import CudaExpressions
+        from .execution import cuda_module
+        if options.get('execution','threads')=='threads':cuda_module()
+        processor=CudaExpressions(expressions.values())
+    return _run_blocks(selected,destination,list(parsed),processor,
+                       metadata={"operation":"raster_algebra","expressions":expressions,'device':device},**options)
 
 
 def reduce_rasters(sources,destination,*,statistic="mean",band=1,min_valid=1,**options):

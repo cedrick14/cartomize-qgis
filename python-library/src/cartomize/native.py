@@ -97,6 +97,16 @@ def native_project(project,*,engine=None,python=None,action='inspect',destinatio
         result=read_json(work/'response.json')
         if not result.get('ok'):raise RuntimeError(result.get('error','Échec du moteur SIG.'))
         if process.returncode:raise RuntimeError('Le moteur SIG a quitté en erreur.')
+        if action=='inspect' and engine=='qgis':
+            from .native_styles import layer_style
+            for layer in result['result'].get('layers',[]):
+                xml=layer.pop('style_xml',None)
+                if xml:
+                    layer['options'],layer['transfer_warnings']=layer_style(ET.fromstring(xml))
+                    layer['options']['zorder']=layer.pop('zorder',0)
+                source=layer.get('source','')
+                if '|' in source:
+                    layer['source'],_,layer['provider_options']=source.partition('|')
         if final:
             _check_cancel(cancel)
             if not target.is_file():raise RuntimeError('Le moteur SIG n’a pas produit le fichier attendu.')
@@ -161,3 +171,31 @@ def import_native_project(project,destination,*,engine=None,python=None,cancel=N
             layers=[dict(source=layer['data'],name=layer['name'],kind=layer['kind'],visible=True,options={k:v for k,v in layer.items() if k not in {'data','name','kind'}}) for layer in layers]))
         save_json(report,work/'transfer.json');_check_cancel(cancel)
     return report
+
+
+def validate_native_runtime(project,destination,*,python,engine=None,layout=None,cancel=None):
+    """Exercise a real installed GIS: inventory, copy and all three map exports.
+
+    No mocked runtime counts as validation. The original project is read only.
+    The requested layout is required to be unique; all products are published
+    together, including engine inventory and source hashes.
+    """
+    import hashlib
+    from .storage import new_directory,relocate_products
+    project=Path(project).resolve();engine=engine or ('arcgis' if project.suffix.lower()=='.aprx' else 'qgis')
+    before=hashlib.sha256(project.read_bytes()).hexdigest();destination=Path(destination).resolve()
+    with new_directory(destination) as work:
+        inventory=native_project(project,engine=engine,python=python,cancel=cancel)
+        native_project(project,engine=engine,python=python,action='copy',destination=work/('copy.aprx' if engine=='arcgis' else 'copy.qgz'),cancel=cancel)
+        checks=[]
+        for suffix,signature in [('pdf',b'%PDF'),('png',b'\x89PNG\r\n\x1a\n'),('svg',None)]:
+            result=native_project(project,engine=engine,python=python,action='export',layout=layout,destination=work/('map.'+suffix),cancel=cancel)
+            target=Path(result['output']);data=target.read_bytes()
+            if not data or signature and not data.startswith(signature):raise RuntimeError('Export natif invalide : '+suffix)
+            if suffix=='svg' and not ET.fromstring(data).tag.endswith('svg'):raise RuntimeError('Export SVG invalide.')
+            checks.append(dict(format=suffix,bytes=len(data),sha256=hashlib.sha256(data).hexdigest()))
+        after=hashlib.sha256(project.read_bytes()).hexdigest()
+        if before!=after:raise RuntimeError('Le projet source a été modifié par le moteur natif.')
+        report=dict(schema='cartomize.native.validation.v1',engine=engine,python=str(Path(python).resolve()),project=str(project),source_sha256=before,source_unchanged=True,exports=checks,inventory=inventory)
+        save_json(report,work/'validation.json');relocate_products(work,destination)
+    return destination/'validation.json'

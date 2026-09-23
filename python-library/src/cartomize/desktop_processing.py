@@ -153,4 +153,5 @@ class ProcessingPage(Page):
         from pathlib import Path
         from .recipes import safe_name
         plan=processing_plan(self.processing_steps.records());destination=Path(self.destination())/safe_name(self.name.text())
-        return lambda progress,cancel,stage:run_plan(plan,destination,workers=options.get('workers',1),block_size=options.get('block_size',512),memory_limit_mb=options.get('memory_limit_mb',512),progress=progress,cancel=cancel,stage=stage)
+        engine={k:options[k] for k in ('execution','device','scheduler_address') if k in options}
+        return lambda progress,cancel,stage:run_plan(plan,destination,workers=options.get('workers',1),block_size=options.get('block_size',512),memory_limit_mb=options.get('memory_limit_mb',512),progress=progress,cancel=cancel,stage=stage,**engine)

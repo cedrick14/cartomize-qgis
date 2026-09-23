@@ -67,6 +67,8 @@ def _catalog():
 
 
 _ENGINE = {'workers':1,'block_size':512,'memory_limit_mb':512,'align':False,'resampling':'nearest','dtype':'float32','compression':'lzw'}
+BLOCK_OPERATIONS={'calculate','indices','reduce','focal','terrain','convolve'}
+CUDA_OPERATIONS={'calculate','indices','reduce'}
 _HIDDEN = {'destination','overwrite','progress','cancel','stage','options','kwargs','how_fixed','quantity'}
 
 
@@ -80,6 +82,9 @@ def operation_catalog():
             required=p.default is p.empty
             parameters.append(dict(name=name,required=required,default=None if required else json_value(p.default)))
         products=['primary']
+        if key in BLOCK_OPERATIONS:
+            for name,default in dict(execution='threads',scheduler_address=None).items():parameters.append(dict(name=name,required=False,default=default))
+        if key in CUDA_OPERATIONS:parameters.append(dict(name='device',required=False,default='cpu'))
         if key=='hydrology':products+=['filled','direction','accumulation','streams','watersheds']
         if key=='classify':products+=['classification','confidence']
         if key=='classify':
@@ -106,6 +111,8 @@ def validate_parameters(operation,parameters):
     allowed={p.name for p in signature.parameters.values() if p.kind not in (p.VAR_KEYWORD,p.VAR_POSITIONAL)}
     # **options only conveys the documented block-engine options, never arbitrary arguments.
     if 'options' in signature.parameters:allowed.update(_ENGINE)
+    if operation in BLOCK_OPERATIONS:allowed.update({'execution','scheduler_address'})
+    if operation in CUDA_OPERATIONS:allowed.add('device')
     if operation=='classify':
         from .classification import fit_classifier
         allowed.update(set(inspect.signature(fit_classifier).parameters)-_HIDDEN)
@@ -132,7 +139,7 @@ def _paths(value):
         for item in value:yield from _paths(item)
 
 
-def execute_operation(operation,parameters,destination,*,workers=1,block_size=512,memory_limit_mb=512,progress=None,cancel=None):
+def execute_operation(operation,parameters,destination,*,workers=1,block_size=512,memory_limit_mb=512,execution='threads',scheduler_address=None,device='cpu',progress=None,cancel=None):
     """Run one registered operator and return a reopenable product record."""
     spec=validate_parameters(operation,parameters);_check_cancel(cancel)
     sources=list(_paths(parameters));destination=Path(destination).resolve()
@@ -142,6 +149,9 @@ def execute_operation(operation,parameters,destination,*,workers=1,block_size=51
         import geopandas as gpd
         import pandas as pd
         p=dict(parameters);function=spec['function'];signature=inspect.signature(function)
+        if operation in BLOCK_OPERATIONS:
+            p.setdefault('execution',execution);p.setdefault('scheduler_address',scheduler_address)
+        if operation in CUDA_OPERATIONS:p.setdefault('device',device)
         if operation=='raster.reclassify':p['mapping']={float(k):v for k,v in p['mapping'].items()}
         # JSON raster assets use [path, band], accepted by the array engine.
         if 'destination' in signature.parameters:

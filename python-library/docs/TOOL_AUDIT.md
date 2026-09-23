@@ -1,4 +1,4 @@
-# Implémentation des outils — Cartomize 0.7.0a1
+# Implémentation des outils — Cartomize 0.8.0a1
 
 23 septembre 2026. Les anciens constats sont conservés dans [l’audit 0.5](TOOL_AUDIT_0.5.md). Cette version raccorde les traitements et ajoute des algorithmes et leurs connexions effectives à l’API, à la fenêtre et à la ligne de commande.
 
@@ -37,9 +37,9 @@ Les nouveaux parcours graphiques utilisent le vrai travailleur Qt pour la classi
 
 ## Portée et validation externe restante
 
-- **Passerelle native** : le code des appels ArcPy/PyQGIS est présent et raccordé ; leur exécution doit être validée avec les moteurs installés. La version autonome ne reconstitue pas intégralement tous les objets APRX/QGZ.
+- **Passerelle native** : la commande `native-validate` exécute inventaire, copie et exports PDF/PNG/SVG dans le moteur installé. Un travail CI dédié utilise réellement QGIS ; ArcPy nécessite encore une validation sur un poste ArcGIS Pro licencié. La version autonome ne reconstitue pas intégralement tous les objets APRX/QGZ.
 - **Cartographie** : les propositions et placements sont des heuristiques contrôlables. Les débordements textuels sont détectés, les légendes utilisent plusieurs colonnes et les étiquettes évitent les symboles ponctuels ; une lisibilité parfaite, l’exactitude thématique et tous les conflits visuels ne peuvent pas être certifiés automatiquement.
-- **Couverture** : la reconnaissance par noms reste Landsat Collection 2 L2 SR et Sentinel-2 L2A. Les autres produits peuvent être décrits par STAC ou un manifeste de bandes explicite. Aucun catalogue fini ne couvre toutes les opérations raster. Le drainage D8, les bassins, le routage bidirectionnel et le téléchargement HTTP(S) STAC sont implémentés. Les modèles hydrauliques, MFD/D-infinity, les contraintes routières avancées, GPU et calcul distribué ne sont pas implémentés.
+- **Couverture** : la reconnaissance par noms reste Landsat Collection 2 L2 SR et Sentinel-2 L2A. Les autres produits peuvent être décrits par STAC ou un manifeste de bandes explicite. Aucun catalogue fini ne couvre toutes les opérations raster. Le drainage D8, les bassins, le routage bidirectionnel et le téléchargement HTTP(S) STAC sont implémentés. Les modèles hydrauliques, MFD/D-infinity et les contraintes routières avancées ne sont pas implémentés. Dask exécute les traitements par blocs dans des processus séparés ou sur un cluster explicite. CUDA est implémenté pour l’algèbre, les indices et les réductions, mais nécessite encore une validation matérielle.
 - **Publication** : paquet construit et code disponible sur la branche de travail ; pas de dépôt PyPI/TestPyPI ni fusion effectués par cette livraison.
 - **Terrain** : les tests synthétiques et Qt hors écran ne remplacent pas une campagne sur des scènes réelles volumineuses et une validation manuelle des moteurs natifs.
 
@@ -50,3 +50,7 @@ Voir [le guide d’utilisation](AUTOMATION.md) et [la validation](VALIDATION.md)
 Enchaînement terrain → calculatrice → statistiques → carte ; 13 opérateurs vectoriels et six opérateurs raster exécutés via le registre ; sorties secondaires hydrologiques ; import QGIS catégorisé avec sous-couche et groupe masqué ; zéro valide dans une emprise ; code raster rare absent de la nomenclature ; téléchargement STAC avec pagination, empreintes et annulation transactionnelle ; session STAC portable. Les formulaires exécutent les fonctions réelles et conservent les étapes après réouverture.
 
 Voir [PROCESSING](PROCESSING.md) pour les paramètres, hypothèses et limites de chaque algorithme.
+
+## Compléments 0.8
+
+Les réglages d’exécution sont reliés à la CLI, aux outils concernés, à l’assistant et aux sessions. Les catégories masquées, classes graduées, traits, symboles simples et composites, palettes exactes/discrètes/interpolées et contrastes en niveaux de gris sont transférés. Les expressions QGIS, symboles SVG natifs, propriétés définies par les données et certains effets restent signalés comme non transférés ; leur rendu intégral se fait par le moteur QGIS. Le transfert ne revendique pas une reproduction universelle.

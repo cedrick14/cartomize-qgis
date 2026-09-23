@@ -14,7 +14,7 @@ from rasterio.vrt import WarpedVRT
 from pyproj import CRS, Transformer
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.colors import ListedColormap, BoundaryNorm, Normalize
+from matplotlib.colors import ListedColormap, BoundaryNorm, Normalize, LinearSegmentedColormap, is_color_like
 from matplotlib.patches import Patch, Rectangle
 from matplotlib.lines import Line2D
 from matplotlib.ticker import ScalarFormatter
@@ -48,6 +48,12 @@ class Layer:
     rgb: str | tuple | None = None
     percentiles: tuple = (2,98)
     gamma: float = 1.0
+    ranges: list = field(default_factory=list)
+    category_styles: dict = field(default_factory=dict)
+    symbol_layers: list = field(default_factory=list)
+    hidden_categories: list = field(default_factory=list)
+    raster_ramp: dict = field(default_factory=dict)
+    raster_range: tuple | None = None
 
 
 def _extent(bounds):
@@ -90,7 +96,8 @@ class Map:
     def add_layer(self, data, *, name=None, kind=None, column=None, labels=None,
                   color=None, cmap="viridis", categorical=False, classes=None,
                   band=1, alpha=1.0, legend=None, role=None, zorder=None,
-                  rgb=None, percentiles=(2,98), gamma=1.0, **style):
+                  rgb=None, percentiles=(2,98), gamma=1.0, ranges=(),category_styles=None,
+                  symbol_layers=(),hidden_categories=(),raster_ramp=None,raster_range=None,**style):
         """Add vector data or a raster path; classes={code: (label, color)}.
 
         Use kind='raster' for raster formats without a .tif/.tiff/.vrt suffix.
@@ -98,6 +105,12 @@ class Map:
         """
         if not 0 <= alpha <= 1:
             raise ValueError("alpha must be between zero and one.")
+        ranges=[dict(r) for r in ranges]
+        for i,r in enumerate(ranges):
+            if not np.isfinite([r['lower'],r['upper']]).all() or r['lower']>r['upper'] or not is_color_like(r['color']):raise ValueError('Classe graduée invalide.')
+            if i and r['lower']<ranges[i-1]['upper']:raise ValueError('Les classes graduées se chevauchent ou ne sont pas ordonnées.')
+        if ranges and (not column or classes):raise ValueError('Les classes graduées nécessitent un champ numérique et excluent les catégories.')
+        if raster_range is not None and (len(raster_range)!=2 or not np.isfinite(raster_range).all() or raster_range[0]>=raster_range[1]):raise ValueError('Bornes du rendu raster invalides.')
         if kind is None:
             kind = "raster" if isinstance(data, (str, Path)) and Path(data).suffix.lower() in {".tif", ".tiff", ".vrt", ".img", ".jp2"} else "vector"
         if kind not in {"raster", "vector"}:
@@ -118,6 +131,7 @@ class Map:
             if column and not pd.api.types.is_numeric_dtype(data[column]):
                 categorical = True
             if classes and column:categorical=True
+            if ranges and not pd.api.types.is_numeric_dtype(data[column]):raise ValueError('Champ numérique requis pour les classes graduées.')
             layer_crs = data.crs
         else:
             with rasterio.open(data) as src:
@@ -136,6 +150,13 @@ class Map:
             converted={float(k):v for k,v in classes.items()}
             if len(converted)!=len(classes) or not np.isfinite(list(converted)).all():raise ValueError('Codes numériques de nomenclature invalides ou dupliqués.')
             classes=converted
+            if category_styles:category_styles={float(k):v for k,v in category_styles.items()}
+            hidden_categories=[float(k) for k in hidden_categories]
+        if raster_ramp:
+            items=raster_ramp.get('items',[])
+            if raster_ramp.get('type') not in {'linear','discrete','exact'} or not items or any(not np.isfinite(i['value']) or not is_color_like(i['color']) for i in items):raise ValueError('Rampe raster invalide.')
+            if any(a['value']>=b['value'] for a,b in zip(items,items[1:])):raise ValueError('Les valeurs de rampe doivent être strictement croissantes.')
+            if raster_ramp['type']=='linear' and len(items)<2:raise ValueError('Deux couleurs au moins pour une interpolation.')
         role = role or infer_role(layer_name,kind,data.geom_type.dropna() if kind=="vector" else (),column=column,classes=classes,rgb=rgb)
         if role not in ORDER:
             raise ValueError(f"Unknown cartographic role. Choose from {list(ORDER)}.")
@@ -157,7 +178,9 @@ class Map:
         self.layers.append(Layer(data=data,name=layer_name,kind=kind,column=column,labels=labels,color=color,cmap=cmap,
                                  categorical=categorical,classes=dict(classes or {}),band=band,alpha=alpha,
                                  legend=(rgb is None) if legend is None else legend,style=style,role=role,zorder=zorder,
-                                 rgb=rgb,percentiles=tuple(percentiles),gamma=gamma))
+                                 rgb=rgb,percentiles=tuple(percentiles),gamma=gamma,ranges=ranges,
+                                 category_styles=dict(category_styles or {}),symbol_layers=list(symbol_layers),hidden_categories=list(hidden_categories),
+                                 raster_ramp=dict(raster_ramp or {}),raster_range=tuple(raster_range) if raster_range else None))
         if source is not None:self._sources.append(source)
         return self
 
@@ -360,6 +383,7 @@ class Map:
                 data = layer.data.to_crs(crs)
                 present = data.geometry.notna() & ~data.geometry.is_empty
                 data = data.loc[present]
+                if layer.column and layer.hidden_categories:data=data.loc[~data[layer.column].isin(layer.hidden_categories)]
                 if data.empty:
                     continue
                 style = dict(alpha=layer.alpha, aspect=None,zorder=priorities[layer.name])
@@ -368,18 +392,36 @@ class Map:
                 line = all("Line" in kind for kind in kinds)
                 style.update({"markersize": 22} if point else {"linewidth": 1.1} if line else {"edgecolor": "#ffffff", "linewidth": .5})
                 style.update(layer.style)
+                def draw_features(features,color,symbol=None):
+                    if features.empty:return
+                    symbol=dict(symbol or {});components=symbol.pop('symbol_layers',None) or layer.symbol_layers or [{}]
+                    for component in components:
+                        settings={**style,**symbol,**component};ink=settings.pop('color',color)
+                        settings['alpha']=layer.alpha*float(symbol.get('alpha',1))*float(component.get('alpha',1))
+                        features.plot(ax=ax,color=ink,**settings)
                 if point:
                     radius=max(2,math.sqrt(float(style.get('markersize',22)))/2+1)
                     for geometry in data.geometry:
                         for pt in geometry.geoms if geometry.geom_type=='MultiPoint' else [geometry]:label_obstacles.append((pt.x,pt.y,radius))
                 entries = []
-                if layer.column and layer.categorical:
+                if layer.ranges:
+                    values=pd.to_numeric(data[layer.column],errors='coerce');assigned=np.zeros(len(data),dtype=bool)
+                    visible=np.zeros(len(data),dtype=bool)
+                    for i,r in enumerate(layer.ranges):
+                        selected=np.asarray(values.between(r['lower'],r['upper']))&~assigned;assigned|=selected
+                        if not r.get('visible',True):continue
+                        visible|=selected;symbol=r.get('style',{});draw_features(data.loc[selected],r['color'],symbol)
+                        entries.append((r.get('label',str(r['upper'])),r['color'],symbol))
+                    data=data.loc[visible]
+                elif layer.column and layer.categorical:
                     categories = sorted(data[layer.column].dropna().unique(), key=str)
                     palette = colormaps[layer.cmap].resampled(max(1, len(categories)))
                     color_map = {c: layer.classes.get(c, (str(c), palette(i)))[1] for i, c in enumerate(categories)}
                     colors = [color_map.get(value, "#d9dfe1") for value in data[layer.column]]
-                    data.plot(ax=ax, color=colors, **style)
-                    entries = [(layer.classes.get(c, (str(c), None))[0], color_map[c]) for c in categories]
+                    if layer.category_styles:
+                        for c in categories:draw_features(data.loc[data[layer.column]==c],color_map[c],layer.category_styles.get(c,{}))
+                    else:draw_features(data,colors)
+                    entries = [(layer.classes.get(c, (str(c), None))[0], color_map[c],layer.category_styles.get(c,{})) for c in categories]
                 elif layer.column:
                     values = pd.to_numeric(data[layer.column], errors="coerce")
                     valid = values[np.isfinite(values)]
@@ -390,11 +432,13 @@ class Map:
                     if layer.legend:
                         legends.append(("continuous", layer.name, colormaps[layer.cmap], norm))
                 else:
-                    data.plot(ax=ax, color=layer.color, **style)
-                    entries = [(layer.name, layer.color)]
+                    draw_features(data,layer.color)
+                    entries = [(layer.name, layer.color,{})]
                 if layer.legend:
-                    for label, color in entries:
-                        handle = Line2D([], [], marker="o", linestyle="none", color=color, markersize=5, label=str(label)) if point else Line2D([], [], color=color, label=str(label)) if line else Patch(facecolor=color, edgecolor=style.get("edgecolor","#64706b"), linewidth=max(.3,style.get("linewidth",.3)), label=str(label))
+                    for label, color, symbol in entries:
+                        legend_style={**style,**symbol};legend_style.update((symbol.get('symbol_layers') or layer.symbol_layers or [{}])[-1])
+                        ink=legend_style.get('color',color)
+                        handle = Line2D([], [], marker=legend_style.get('marker','o'), linestyle="none", color=ink, markersize=math.sqrt(legend_style.get('markersize',25)), label=str(label)) if point else Line2D([], [], color=ink,linewidth=legend_style.get('linewidth',1.1),linestyle=legend_style.get('linestyle','-'),label=str(label)) if line else Patch(facecolor=ink, edgecolor=legend_style.get("edgecolor","#64706b"), linewidth=max(.3,legend_style.get("linewidth",.3)), label=str(label))
                         legends.append(("discrete", handle))
                 if layer.labels:
                     for geometry, text in zip(data.geometry, data[layer.labels]):
@@ -416,7 +460,20 @@ class Map:
                         data = np.ma.masked_invalid(vrt.read(layer.band, masked=True,
                                      out_shape=(max(1, int(vrt.height*ratio)), max(1, int(vrt.width*ratio)))))
                         extent = (vrt.bounds.left, vrt.bounds.right, vrt.bounds.bottom, vrt.bounds.top)
-                if layer.classes:
+                if layer.raster_ramp:
+                    ramp=layer.raster_ramp;items=ramp['items'];stops=np.array([i['value'] for i in items]);colors=[i['color'] for i in items]
+                    if ramp['type']=='linear':
+                        norm=Normalize(stops[0],stops[-1]);cmap=LinearSegmentedColormap.from_list('cartomize',list(zip((stops-stops[0])/(stops[-1]-stops[0]),colors)))
+                        display=np.ma.masked_where((data<stops[0])|(data>stops[-1]),data) if ramp.get('clip') else data
+                        if layer.legend:legends.append(('continuous',layer.name,cmap,norm))
+                    else:
+                        indices=np.searchsorted(stops,data.data,side='left');mask=np.ma.getmaskarray(data)|(indices>=len(stops))
+                        if ramp['type']=='exact':mask|=stops[np.minimum(indices,len(stops)-1)]!=data.data
+                        if ramp.get('clip'):mask|=data.data<stops[0]
+                        display=np.ma.array(indices,mask=mask);cmap=ListedColormap(colors);norm=BoundaryNorm(np.arange(len(items)+1)-.5,len(items))
+                        if layer.legend:legends.extend(('discrete',Patch(facecolor=i['color'],label=i.get('label',str(i['value'])))) for i in items)
+                    ax.imshow(display,extent=extent,origin='upper',cmap=cmap,norm=norm,alpha=layer.alpha,interpolation='nearest',zorder=priorities[layer.name])
+                elif layer.classes:
                     keys = sorted(layer.classes)
                     display = np.ma.masked_all(data.shape, dtype=float)
                     for i, key in enumerate(keys):
@@ -431,7 +488,7 @@ class Map:
                         legends.extend(("discrete", Patch(facecolor=layer.classes[k][1], label=str(layer.classes[k][0]))) for k in keys)
                 else:
                     cmap = colormaps[layer.cmap]
-                    artist = ax.imshow(data, extent=extent, origin="upper", cmap=cmap, alpha=layer.alpha, interpolation="nearest",zorder=priorities[layer.name])
+                    artist = ax.imshow(data, extent=extent, origin="upper", cmap=cmap, norm=Normalize(*layer.raster_range) if layer.raster_range else None,alpha=layer.alpha, interpolation="nearest",zorder=priorities[layer.name])
                     if layer.legend:
                         legends.append(("continuous", layer.name, cmap, artist.norm))
         if bounds and automatic_extent:

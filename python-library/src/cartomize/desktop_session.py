@@ -9,6 +9,7 @@ from .storage import json_value
 
 
 def widget_state(widget):
+    if type(widget).__name__=='ExecutionSettings':return dict(type='execution',widgets=capture_widgets(widget))
     if type(widget).__name__=='ProcessingSteps':return dict(type='processing_steps',records=widget.records())
     if hasattr(widget,'edit') and hasattr(widget,'mode'):
         text=widget.edit.text()
@@ -48,7 +49,8 @@ def capture_widgets(page):
 
 def restore_widget(widget,state):
     kind=state['type']
-    if kind=='processing_steps':widget.set_records(state['records'])
+    if kind=='execution':restore_widgets(widget,state['widgets'])
+    elif kind=='processing_steps':widget.set_records(state['records'])
     elif kind=='path':widget.edit.setText(state['text']);widget.mode=state['mode'];widget.filter=state['filter']
     elif kind=='line':widget.setText(state['text'])
     elif kind=='plain':widget.setPlainText(state['text'])
@@ -99,7 +101,7 @@ class SessionControls:
             if getattr(page,'project',None) is not None and hasattr(page.project,'manifest'):extras['project_manifest']=str(page.project.manifest)
             pages[key]=dict(widgets=capture_widgets(page),extras=extras)
         return json_value(dict(schema='cartomize.desktop.v1',pages=pages,selected=next(k for k,v in self.tool_pages.items() if v is self.pages[self.stack.currentIndex()]),
-            results=self.results,production_config=self.production_config,processing={k:widget_state(getattr(self,k)) for k in ('workers','block_size','memory','overwrite')},
+            results=self.results,production_config=self.production_config,processing={k:widget_state(getattr(self,k)) for k in ('workers','block_size','memory','overwrite','execution_settings')},
             input_directories=[str(Path(page.source.text()).resolve()) for page in self.pages if hasattr(page,'source') and getattr(page.source,'mode',None)=='directory' and page.source.text() and Path(page.source.text()).is_dir()]))
     def restore_session(self,state):
         if state.get('schema')!='cartomize.desktop.v1':raise ValueError('Le document ne contient pas une session de la fenêtre.')

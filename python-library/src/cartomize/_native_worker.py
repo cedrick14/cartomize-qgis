@@ -58,8 +58,12 @@ def qgis(request):
             project.layoutManager().addLayout(layout)
         layouts=project.layoutManager().printLayouts()
         if request['action']=='inspect':
-            layers=[dict(id=x.id(),name=x.name(),source=x.source(),provider=x.providerType(),visible=project.layerTreeRoot().findLayer(x.id()).isVisible() if project.layerTreeRoot().findLayer(x.id()) else True,broken=not x.isValid(),kind='vector' if x.type().value==0 else 'raster') for x in project.mapLayers().values()]
-            return dict(schema='cartomize.native.inventory.v1',engine='qgis',layers=layers,layouts=[dict(name=x.name()) for x in layouts])
+            layers=[];ordered=project.layerTreeRoot().layerOrder()
+            for i,x in enumerate(ordered):
+                document=QDomDocument('qgis');node=document.createElement('maplayer');document.appendChild(node)
+                x.writeLayerXml(node,document,QgsReadWriteContext())
+                layers.append(dict(id=x.id(),name=x.name(),source=x.source(),provider=x.providerType(),visible=project.layerTreeRoot().findLayer(x.id()).isVisible() if project.layerTreeRoot().findLayer(x.id()) else True,broken=not x.isValid(),kind='vector' if int(x.type())==0 else 'raster',style_xml=document.toString(),zorder=len(ordered)-i))
+            return dict(schema='cartomize.native.inventory.v1',engine='qgis',runtime_version=Qgis.QGIS_VERSION,layers=layers,layouts=[dict(name=x.name()) for x in layouts])
         if request['action']=='export' or request['texts'] or request['extents']:
             layout=choose(layouts,request['layout'],'qgis')
             for name,text in request['texts'].items():
@@ -82,7 +86,9 @@ def qgis(request):
                 settings=getattr(QgsLayoutExporter,cls)();settings.dpi=request['dpi']
                 if getattr(exporter,method)(destination,settings)!=QgsLayoutExporter.Success:raise RuntimeError('Export QGIS impossible.')
         return dict(engine='qgis',output=destination)
-    finally:app.exitQgis()
+    finally:
+        QgsProject.instance().clear()
+        app.exitQgis()
 
 
 if __name__=='__main__':

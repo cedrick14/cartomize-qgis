@@ -248,3 +248,7 @@ natif continue à demander l’interpréteur du logiciel SIG installé.
 **Analyse du projet** accepte une **emprise valide** polygonale. Les pixels extérieurs
 sont masqués dans une copie multibande ; les vrais zéros situés à l’intérieur restent
 valides en l’absence d’une autre règle explicite de masquage.
+
+## Compléments 0.8
+
+Moteurs d’exécution, transfert des styles et validation native : voir [EXECUTION](EXECUTION.md). Les choix Dask/CUDA sont persistés avec la session et transmis aux traitements compatibles. Le calcul distribué utilise des processus réels ; le GPU reste à valider sur le matériel approprié.

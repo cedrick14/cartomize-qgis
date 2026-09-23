@@ -21,3 +21,7 @@ La [liste actuelle des 20 rubriques](TOOL_AUDIT.md) présente leurs algorithmes,
 | Publication Python | Wheel, distribution source, métadonnées et documentation ; PyPI non publié |
 
 Les limites restantes sont détaillées dans l’inventaire des outils : parité native complète, couverture universelle des capteurs/algorithmes et performances garanties sur tous les volumes ne sont pas revendiquées.
+
+## Compléments 0.8
+
+Moteurs d’exécution, transfert des styles et validation native : voir [EXECUTION](EXECUTION.md). Les choix Dask/CUDA sont persistés avec la session et transmis aux traitements compatibles. Le calcul distribué utilise des processus réels ; le GPU reste à valider sur le matériel approprié.

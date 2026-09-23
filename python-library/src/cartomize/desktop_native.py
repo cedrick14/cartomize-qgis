@@ -14,6 +14,7 @@ class NativePage(Page):
         self.directory=Path(directory);self.source=PathField(filter='Projets SIG (*.qgs *.qgz *.aprx)');self.python=PathField(filter='Python SIG (*)')
         self.action=QComboBox()
         for label,value in [('Inventaire du projet','inspect'),('Exporter une mise en page','export'),('Enregistrer une copie du projet','copy'),('Importer les couches et les styles','import')]:self.action.addItem(label,value)
+        self.action.addItem('Valider le moteur natif','validate')
         self.import_name=QLineEdit('projet_importe');self.form.addRow('Dossier du projet importé',self.import_name)
         self.layout_name=QLineEdit();self.template=PathField(filter='Maquette native (*.qpt *.pagx)');self.texts=QPlainTextEdit('{}');self.extents=QPlainTextEdit('{}')
         self.texts.setMaximumHeight(65);self.extents.setMaximumHeight(65);self.dpi=spin(150,72,1200);self.output.filter='Fichiers SIG (*.pdf *.png *.svg *.qpt *.pagx *.qgs *.qgz *.aprx)'
@@ -23,14 +24,18 @@ class NativePage(Page):
         self.inventory=None;self.finish()
         self.action.currentIndexChanged.connect(lambda:self.configure_destination())
     def configure_destination(self):
-        self.output.mode='directory' if self.action.currentData()=='import' else 'save'
+        self.output.mode='directory' if self.action.currentData() in {'import','validate'} else 'save'
     def job(self,options):
         from .native import native_project
         from .storage import save_json
         action=self.action.currentData();kwargs=dict(project=self.source.text(),python=self.python.text() or None,action=action,destination=self.destination() if action!='inspect' else None,layout=self.layout_name.text() or None,template=self.template.text() or None,texts=json.loads(self.texts.toPlainText()),extents=json.loads(self.extents.toPlainText()),dpi=self.dpi.value())
-        if action=='import':
+        if action in {'import','validate'}:
             from .recipes import safe_name
             kwargs['destination']=Path(kwargs['destination'])/safe_name(self.import_name.text())
+        if action=='validate':
+            from .native import validate_native_runtime
+            if not kwargs['python']:raise ValueError('Sélectionner le Python du moteur SIG installé.')
+            return lambda progress,cancel:validate_native_runtime(kwargs['project'],kwargs['destination'],python=kwargs['python'],layout=kwargs['layout'],cancel=cancel)
         path=self.directory/'native-inventory.json'
         def run(progress,cancel):return save_json(native_project(**kwargs,cancel=cancel),path,overwrite=True)
         return run

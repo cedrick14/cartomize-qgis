@@ -52,6 +52,8 @@ class AssistantPage(Page):
         self.form=outer_form
         self.processing_workers=spin(1,1,32);self.processing_block=spin(512,32,1024);self.processing_memory=spin(512,16,65536)
         for label,widget in [('Travailleurs de calcul',self.processing_workers),('Taille des blocs (pixels)',self.processing_block),('Budget des tableaux (Mo)',self.processing_memory)]:self.form.addRow(label,widget)
+        from .desktop_execution import ExecutionSettings
+        self.execution_settings=ExecutionSettings();self.form.addRow(self.execution_settings)
         for label,widget in [('Maquette proposée',self.proposals),('Répertoire parent',self.output),('Nom du résultat',self.name)]:self.form.addRow(label,widget)
         controls=QWidget();row=QHBoxLayout(controls)
         self.plan_button=QPushButton('Établir le plan de traitement');self.execute_button=QPushButton('Exécuter le plan');self.execute_button.setEnabled(False)
@@ -127,4 +129,5 @@ class AssistantPage(Page):
         for node in plan['nodes']:
             if node['operation']=='map':node['parameters']['template']=self.proposals.currentData()
         destination=Path(self.destination())/safe_name(self.name.text());workers=self.processing_workers.value();block_size=self.processing_block.value();memory=self.processing_memory.value()
-        return lambda progress,cancel,stage:run_plan(plan,destination,workers=workers,block_size=block_size,memory_limit_mb=memory,progress=progress,cancel=cancel,stage=stage)
+        engine=self.execution_settings.parameters()
+        return lambda progress,cancel,stage:run_plan(plan,destination,workers=workers,block_size=block_size,memory_limit_mb=memory,progress=progress,cancel=cancel,stage=stage,**engine)

@@ -22,7 +22,7 @@ from .relations import analyze_relations
 from .automation import plan_cartography,run_plan,propose_layouts
 from .mapops import snapshot_project,compare_snapshots,record_review,verify_review
 
-__version__ = "0.7.0a1"
+__version__ = "0.8.0a1"
 
 
 def launch(*,block=None):
@@ -70,3 +70,7 @@ from .hydrology import hydrology
 from .routing import shortest_path
 from .catalogs import search_stac,download_stac,scene_from_stac,load_scenes_manifest
 __all__ += ['hydrology','shortest_path','search_stac','download_stac','scene_from_stac','load_scenes_manifest']
+
+from .execution import execution_capabilities
+from .native import validate_native_runtime
+__all__ += ["execution_capabilities", "validate_native_runtime"]

@@ -28,9 +28,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -e ".[dev,gui]"
+      - run: python -m pip install -e ".[dev,gui,distributed]"
       - run: python -m pytest
         env:
           QT_QPA_PLATFORM: offscreen
       - run: python -m build
       - run: python -m twine check dist/*
+
+  qgis:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: python-library
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QGIS native runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-qgis libegl1 libopengl0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev]"
+      - name: Exercise native QGIS project and exports
+        run: python -m pytest tests/test_native_runtime.py -v
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CARTOMIZE_QGIS_PYTHON: /usr/bin/python3

@@ -27,6 +27,7 @@ def main(argv=None):
     subs = parser.add_subparsers(dest="command", required=True)
     subs.add_parser("gui", help="Open the Cartomize desktop interface")
     subs.add_parser("indices", help="List spectral indices and formulas")
+    subs.add_parser("engines",help="Report CPU, distributed and CUDA capabilities")
     assess=subs.add_parser('assess',help='Inspect project inputs and propose ordered cartographic steps')
     assess.add_argument('sources',nargs='+');assess.add_argument('--goal',choices=['general','administrative','landcover','atlas'],default='general')
     assess.add_argument('--kind',choices=['layers','scenes'],default='layers');assess.add_argument('--aoi')
@@ -106,11 +107,24 @@ def main(argv=None):
     planning.add_argument('--without-cloud-mask',action='store_true')
     for command in (operation,execute):
         command.add_argument('--block-size',type=int,default=512);command.add_argument('--memory-limit-mb',type=int,default=512)
+    for command in (calc,index,focal_parser,reduction,terrain_parser,convolution,operation,execute):
+        command.add_argument('--execution',choices=['threads','distributed'],default='threads')
+        command.add_argument('--scheduler-address',help='Address of a trusted Dask cluster; omit for local worker processes')
+    for command in (calc,index,reduction,operation,execute):command.add_argument('--device',choices=['cpu','cuda'],default='cpu')
+    validation=subs.add_parser('native-validate',help='Run real inventory, copy and PDF/PNG/SVG tests in an installed GIS')
+    validation.add_argument('project');validation.add_argument('destination');validation.add_argument('--python',required=True);validation.add_argument('--layout');validation.add_argument('--engine',choices=['qgis','arcgis'])
     args = parser.parse_args(argv)
+    execution={key:getattr(args,key) for key in ('execution','scheduler_address','device') if hasattr(args,key)}
     try:
-        if args.command in {'operations','process'}:
+        if args.command=='engines':
+            from .execution import execution_capabilities
+            result=execution_capabilities()
+        elif args.command=='native-validate':
+            from .native import validate_native_runtime
+            result={'output':str(validate_native_runtime(args.project,args.destination,python=args.python,engine=args.engine,layout=args.layout))}
+        elif args.command in {'operations','process'}:
             from .processing import operation_catalog,execute_operation
-            result=operation_catalog() if args.command=='operations' else execute_operation(args.operation,json.loads(Path(args.parameters).read_text(encoding='utf-8')),args.destination,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb)
+            result=operation_catalog() if args.command=='operations' else execute_operation(args.operation,json.loads(Path(args.parameters).read_text(encoding='utf-8')),args.destination,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,**execution)
         elif args.command == "gui":
             from .desktop import main as desktop_main
             return desktop_main()
@@ -119,10 +133,10 @@ def main(argv=None):
             from .storage import save_json
             if args.command=='classify':output=cm.classify_landcover(args.source,args.training,args.destination,model=args.model,class_column=args.class_column,label_column=args.label_column,validation=args.validation,algorithm=args.algorithm,workers=args.workers)
             elif args.command=='cluster':output=cm.cluster_raster(args.source,args.destination,clusters=args.clusters)
-            elif args.command=='terrain':output=cm.terrain(args.source,args.destination,products=args.products.split(','),z_factor=args.z_factor,workers=args.workers)
-            elif args.command=='convolve':output=cm.convolve(args.source,args.destination,json.loads(args.kernel),normalize=args.normalize)
+            elif args.command=='terrain':output=cm.terrain(args.source,args.destination,products=args.products.split(','),z_factor=args.z_factor,workers=args.workers,**execution)
+            elif args.command=='convolve':output=cm.convolve(args.source,args.destination,json.loads(args.kernel),normalize=args.normalize,**execution)
             elif args.command=='plan':output=save_json(cm.plan_cartography(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi,title=args.title,credits=args.credits,training=args.training,classification=args.classification,class_column=args.class_column,indices=[i for i in args.indices.split(',') if i],layers=args.layer,atlas_zones=args.atlas_zones,atlas_field=args.atlas_field,processing_steps=json.loads(Path(args.steps).read_text(encoding='utf-8')) if args.steps else [],mask_clouds=not args.without_cloud_mask),args.destination)
-            elif args.command=='run-plan':output=cm.run_plan(args.plan,args.destination,dpi=args.dpi,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb)
+            elif args.command=='run-plan':output=cm.run_plan(args.plan,args.destination,dpi=args.dpi,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,**execution)
             elif args.command=='recipe':output=cm.run_recipe(args.recipe,args.destination,variables=json.loads(args.variables),bindings=json.loads(args.bindings))
             elif args.command=='batch':output=cm.run_batch(args.manifest,args.destination,bindings=json.loads(args.bindings),reviewed=args.reviewed,continue_on_error=args.continue_on_error)
             else:output=cm.native_project(args.project,python=args.python,action=args.action,destination=args.destination,layout=args.layout,template=args.template,texts=json.loads(args.texts),extents=json.loads(args.extents))
@@ -131,7 +145,7 @@ def main(argv=None):
         elif args.command == 'assess':result=assess_project(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi)
         elif args.command == 'project':result=prepare_project(args.sources,args.destination,auto_background=not args.without_background_detection).report
         elif args.command in {"calculate","index","focal","reduce"}:
-            options=dict(workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,overwrite=args.overwrite)
+            options=dict(workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb,overwrite=args.overwrite,**execution)
             if args.command=="calculate":
                 inputs={name:(path,int(band)) for name,path,band in args.input}
                 if len(inputs)!=len(args.input):raise ValueError("Input variable names must be unique.")
