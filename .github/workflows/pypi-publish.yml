@@ -4,7 +4,6 @@ on:
   push:
     branches: ['feat/cartomize-python-library']
     tags: ['python-v*']
-    paths: ['python-library/**', '.github/workflows/pypi-publish.yml']
   workflow_dispatch:
     inputs:
       index:
