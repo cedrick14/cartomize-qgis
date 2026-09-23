@@ -224,31 +224,6 @@ class TemporalPage(Page):
         return lambda progress,cancel:cm.reduce_rasters(sources,destination,progress=progress,cancel=cancel,**kwargs,**options)
 
 
-class PreparationPage(Page):
-    engine=False
-    def __init__(self):
-        super().__init__("Prétraitement multispectral","Calibration radiométrique, masque de qualité, mosaïque, assemblage des bandes et extraction par masque.")
-        self.source=PathField("directory");self.aoi=PathField(filter=VECTOR_FILTER);self.crs=QLineEdit()
-        self.crs.setPlaceholderText("Exemple : EPSG:32733")
-        self.bands=QLineEdit("blue,green,red,nir");self.resolution=spin(0,0,100000)
-        self.resolution.setSpecialValueText("Résolution native la plus grossière")
-        self.clouds=QCheckBox("Appliquer les masques QA/SCL disponibles");self.clouds.setChecked(True)
-        self.dates=QCheckBox("Autoriser une mosaïque multitemporelle")
-        for label,widget in [("Répertoire des scènes",self.source),("Zone d’étude",self.aoi),("Système de coordonnées cible",self.crs),
-            ("Bandes spectrales",self.bands),("Résolution (m)",self.resolution),("Masque de qualité",self.clouds),("Dates d’acquisition",self.dates)]:self.form.addRow(label,widget)
-        self.files=[];self.inventory=QLabel('Landsat Collection 2 L2 · Sentinel-2 L2A')
-        select=QPushButton('Sélectionner les bandes…');clear=QPushButton('Utiliser le répertoire')
-        select.clicked.connect(lambda:WorkflowPage.select_files(self));clear.clicked.connect(lambda:WorkflowPage.clear_files(self))
-        self.form.addRow(select,clear);self.form.addRow(self.inventory)
-        self.finish()
-    def job(self,options):
-        source=list(self.files) if self.files else self.source.text()
-        kwargs=dict(destination=self.destination(),aoi=self.aoi.text() or None,
-            target_crs=self.crs.text().strip() or None,band_order=[b.strip() for b in self.bands.text().split(",")],
-            resolution=self.resolution.value() or None,mask_clouds=self.clouds.isChecked(),allow_mixed_dates=self.dates.isChecked(),overwrite=options["overwrite"])
-        return lambda progress,cancel:cm.prepare_imagery(cm.discover_scenes(source),**kwargs,progress=progress,cancel=cancel).path
-
-
 class MappingPage(Page):
     engine=False
     cancellable=False
@@ -536,6 +511,7 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
         from .desktop_terrain import TerrainPage
         from .assistant import TOOL_LABELS
         from .desktop_processing import ProcessingPage
+        from .desktop_imagery import PreparationPage
         self.tool_pages=dict(assistant=AssistantPage(self._preview_directory.name),project=ProjectPage(),inspect=InspectionPage(),
             prepare=PreparationPage(),composite=CompositePage(),classification=ClassificationPage(),vector=VectorPage(),raster=RasterToolsPage(),terrain=TerrainPage(),indices=IndicesPage(),
             calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage(),processing=ProcessingPage(),recipes=RecipesPage(self),native=NativePage(self._preview_directory.name),mapops=MapOpsPage(self))
@@ -607,7 +583,7 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
         for widget in (*self.engine_labels,self.workers,self.block_size,self.memory):widget.setVisible(page.engine)
         from .desktop_project import ProjectPage
         from .desktop_assistant import AssistantPage
-        self.settings.setVisible(not isinstance(page,(WorkflowPage,ProjectPage,AssistantPage)))
+        self.settings.setVisible(key not in {'workflow','project','assistant','prepare'})
         self.settings.setTitle("Paramètres de traitement" if page.engine else "")
         self.settings.setStyleSheet("" if page.engine else "QGroupBox { border: none; margin-top: 0px; padding-top: 0px; }")
         self.run_button.setText("Exécuter la chaîne" if isinstance(page,WorkflowPage) else "Analyser le projet" if isinstance(page,ProjectPage) else "Produire l’atlas" if isinstance(page,AtlasPage) else "Exporter la carte" if isinstance(page,MappingPage) else "Exécuter")

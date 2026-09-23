@@ -6,13 +6,15 @@ Assistant cartographique intelligent, disponible comme bibliothèque Python et f
 par **ONDON NKOUA Cédrick Belmich**.
 Le moteur autonome fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.8.0a1 : calcul distribué Dask, moteur CUDA optionnel, styles QGIS enrichis et validation des moteurs natifs.** Elle reprend les règles Python
+**Version 0.8.1a1 : prétraitement multispectral à options, choix des canaux RVB et export des bandes séparées.** Elle conserve Dask, le moteur CUDA optionnel, les styles QGIS enrichis et reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
 publié sur PyPI dans le cadre de cette livraison.
 
 ## Installation
+
+Le [guide du prétraitement à options](docs/IMAGERY_SELECTION.md) décrit la sélection des scènes et bandes, la mosaïque facultative, le découpage, le multibande scientifique et les fichiers de visualisation séparés.
 
 Python 3.11 ou plus récent. Depuis ce dossier :
 
@@ -23,7 +25,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.8.0a1-py3-none-any.whl
+python -m pip install cartomize-0.8.1a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès

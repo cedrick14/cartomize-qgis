@@ -4,12 +4,14 @@ Les nouveautés et leurs contrôles sont décrits dans [AUTOMATION](AUTOMATION.m
 
 # Interface graphique Cartomize
 
+Depuis 0.8.1, **Prétraitement multispectral** propose un tableau des bandes par scène, les cases de sélection des opérations, les trois canaux RVB et l’export monobande. Voir [le parcours détaillé](IMAGERY_SELECTION.md).
+
 ## Installation et lancement
 
 Depuis le wheel fourni, avec Python 3.11 ou plus récent :
 
 ```bash
-python -m pip install "cartomize-0.5.0a1-py3-none-any.whl[gui]"
+python -m pip install "cartomize-0.8.1a1-py3-none-any.whl[gui]"
 cartomize-desktop
 ```
 

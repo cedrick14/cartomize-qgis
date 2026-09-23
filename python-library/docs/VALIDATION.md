@@ -1,10 +1,12 @@
-# Validation de Cartomize 0.8.0a1
+# Validation de Cartomize 0.8.1a1
 
 23 septembre 2026 · Linux x86_64 · Python 3.12.
 
 ## Résultat local
 
-**295 tests réussis, 2 tests différés**, dont 36 cas Qt. Les 236 tests de 0.7 sont conservés. La commande exécutée est `QT_QPA_PLATFORM=offscreen python -m pytest tests -q`.
+**315 tests réussis, 2 tests différés**, dont 38 cas Qt. Les tests de 0.7 et 0.8 sont conservés. La commande exécutée est `QT_QPA_PLATFORM=offscreen python -m pytest tests -q`.
+
+Les 20 nouveaux tests de 0.8.1 couvrent les quatorze combinaisons de produits avec et sans mosaïque, le découpage polygonal et ses trous, les canaux RVB choisis, la conservation des valeurs/masques/calibrations lors de l’extraction des bandes, les erreurs et annulations sans dossier partiel. Deux parcours Qt exécutent les données sélectionnées, les correspondances manuelles, les sorties indépendantes par scène et la réouverture d’une session portable avec ses cases et canaux.
 
 Les nouveaux tests comparent quarante expressions du calcul CUDA au moteur masqué de référence à travers une interface de tableaux NumPy. Cette vérification porte sur les règles numériques et les masques ; elle n’est pas une exécution CUDA.
 

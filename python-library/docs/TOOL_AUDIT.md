@@ -1,4 +1,4 @@
-# Implémentation des outils — Cartomize 0.8.0a1
+# Implémentation des outils — Cartomize 0.8.1a1
 
 23 septembre 2026. Les anciens constats sont conservés dans [l’audit 0.5](TOOL_AUDIT_0.5.md). Cette version raccorde les traitements et ajoute des algorithmes et leurs connexions effectives à l’API, à la fenêtre et à la ligne de commande.
 
@@ -9,7 +9,7 @@
 | Assistant cartographique | Examen, plan dépendant, variantes de maquettes, exécution jusqu’aux exports et reprise de mise en page |
 | Analyse du projet | Copies masquées, fond périphérique, classes éditables, application à la carte, rétablissement des sources |
 | Analyse des couches | Diagnostic raster et vectoriel |
-| Prétraitement multispectral | Calibration, QA/SCL, mosaïque, assemblage multibande, extraction ; sortie scientifique |
+| Prétraitement multispectral | Tableau des bandes par scène, correspondances manuelles, calibration, QA/SCL, mosaïque facultative, assemblage multibande, extraction par masque, canaux RVB et GeoTIFF monobandes séparés ; session persistante |
 | Composition colorée | Quatre compositions spectrales et RVB natif ; sortie RGBA |
 | Classification | Forêt aléatoire, arbres extrêmement aléatoires, K-moyennes ; classes, confiance, validation et modèle |
 | Traitements vectoriels | 13 opérations GeoPandas, dont superposition, jointure, tampon, dissolution et réparation |

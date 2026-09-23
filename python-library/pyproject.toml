@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cartomize"
-version = "0.8.0a1"
+version = "0.8.1a1"
 description = "Cartographic layouts, raster analysis and automated geospatial workflows"
 readme = "README.md"
 requires-python = ">=3.11"

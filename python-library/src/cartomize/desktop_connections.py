@@ -78,6 +78,17 @@ class ProjectConnections:
             self.register_result(layer)
             confidence=path.parent/'confidence.tif'
             if path.name=='classification.tif' and confidence.is_file():self.register_result(dict(data=confidence))
+        elif path.name=='imagery.json':
+            record=json.loads(path.read_text(encoding='utf-8'))
+            for product in record['products']:
+                if product['multiband']:
+                    self.register_result(dict(data=product['multiband'],name='Multibande · '+', '.join(product['scenes'])))
+                    self.tool('composite').source.edit.setText(product['multiband'])
+                    self.tool('indices').source.edit.setText(product['multiband'])
+                if product['composition']:
+                    self.register_result(dict(data=product['composition'],rgb='native',role='background',name='Composition colorée · '+', '.join(product['scenes'])))
+                for band in product['bands'].values():
+                    self.register_result(dict(data=band['path'],name=band['name']))
         elif path.name=='project.json':
             import cartomize as cm
             for layer in cm.load_project(path).layers:self.register_result(layer)
@@ -106,6 +117,7 @@ class ProjectConnections:
         layers=[dict(r.get('options',{}),data=r['source']) for r in report['layers']]
         if report['data_kind']=='scenes':layers=list(self.results)
         if target=='prepare':
+            page.invalidate_inputs()
             if len(paths)==1 and Path(paths[0]).is_dir():
                 page.files=[];page.source.setEnabled(True);page.source.edit.setText(paths[0]);page.inventory.setText('Répertoire sélectionné')
             else:

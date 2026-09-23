@@ -124,6 +124,7 @@ class SessionControls:
                 if key=='assistant':page.open_button.setEnabled(bool(page.assessment));page.execute_button.setEnabled(bool(page.execution_plan))
                 if hasattr(page,'files'):
                     page.source.setEnabled(not page.files);page.inventory.setText(f'{len(page.files)} fichiers sélectionnés' if page.files else 'Répertoire des scènes')
+                if hasattr(page,'restore_controls'):page.restore_controls()
             self.results=[];self.result_choice.clear()
             for layer in state.get('results',[]):
                 if layer.get('classes') and layer.get('kind')=='raster':layer['classes']={float(k):v for k,v in layer['classes'].items()}
