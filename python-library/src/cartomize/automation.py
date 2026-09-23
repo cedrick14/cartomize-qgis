@@ -34,7 +34,7 @@ def propose_layouts(goal='general',*,bounds=None,layer_count=1,classes=0,count=3
 def plan_cartography(inputs,*,goal='general',data_kind='layers',aoi=None,title='',credits='',
                      training=None,class_column='classe',classification=None,indices=(),template=None,
                      target_crs=None,repair=True,relations=True,atlas_zones=None,atlas_field=None,
-                     allow_mixed_dates=False,layers=()):
+                     allow_mixed_dates=False,layers=(),processing_steps=(),mask_clouds=True):
     """Build a serializable dependency graph without modifying input files."""
     if classification not in {None,'supervised','unsupervised'}:raise ValueError('Mode de classification inconnu.')
     assessment=assess_project(inputs,data_kind=data_kind,goal=goal,aoi=aoi)
@@ -47,11 +47,13 @@ def plan_cartography(inputs,*,goal='general',data_kind='layers',aoi=None,title='
         assessment['layers'].extend(extra['layers'])
     nodes=[];layers=[];scientific=None
     def add(operation,parameters,requires=()):
-        ident=f'step_{len(nodes)+1:02d}';nodes.append(dict(id=ident,operation=operation,parameters=parameters,requires=list(requires)));return ident
+        ident=f'step_{len(nodes)+1:02d}'
+        while any(n['id']==ident for n in nodes):ident+='_'
+        nodes.append(dict(id=ident,operation=operation,parameters=parameters,requires=list(requires)));return ident
     if data_kind=='scenes':
         from .indices import get_index
         bands=list(dict.fromkeys(['blue','green','red','nir']+[b for index in indices for b in get_index(index).bands]))
-        scientific=add('prepare',dict(sources=assessment['inputs'],aoi=aoi,crs=target_crs,allow_mixed_dates=allow_mixed_dates,bands=bands))
+        scientific=add('prepare',dict(sources=assessment['inputs'],aoi=aoi,crs=target_crs,allow_mixed_dates=allow_mixed_dates,bands=bands,mask_clouds=mask_clouds))
         rgb=add('composite',dict(source='@'+scientific),[scientific]);layers.append(dict(data='@'+rgb,role='background',rgb='native',name='Image satellite'))
     for record in assessment['layers']:
         item=dict(record['options'],data=record['source'],name=record['name'],kind=record['kind'])
@@ -73,6 +75,31 @@ def plan_cartography(inputs,*,goal='general',data_kind='layers',aoi=None,title='
         if scientific is None:raise ValueError('Ajouter un raster scientifique pour les indices.')
         node=add('indices',dict(source='@'+scientific if scientific.startswith('step_') else scientific,indices=list(indices)),[scientific] if scientific.startswith('step_') else [])
         # Indices remain analytical products; do not obscure the chosen thematic map.
+    # User steps are placed after scientific preparation and before cartography.
+    # Stable explicit identifiers allow later operators to consume earlier products.
+    from .processing import validate_parameters,operation_spec
+    used={n['id'] for n in nodes}
+    def substitute(value):
+        if isinstance(value,str) and value=='@scientific':
+            if scientific is None:raise ValueError('Aucun raster scientifique disponible.')
+            return '@'+scientific if scientific.startswith('step_') else scientific
+        if isinstance(value,dict):return {k:substitute(v) for k,v in value.items()}
+        if isinstance(value,(list,tuple)):return [substitute(v) for v in value]
+        return value
+    for index,step in enumerate(processing_steps):
+        ident=step.get('id',f'process_{index+1:02d}')
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',ident) or ident in used:raise ValueError('Identifiant de traitement invalide ou dupliqué : '+str(ident))
+        operation=step['operation'];parameters=substitute(step['parameters'])
+        validate_parameters(operation,parameters)
+        refs=reference_ids(parameters)
+        if not refs<=used:raise ValueError('Référence absente ou placée après son utilisation : '+', '.join(sorted(refs-used)))
+        nodes.append(dict(id=ident,operation='process',parameters=dict(operator=operation,arguments=parameters),requires=sorted(refs)))
+        used.add(ident)
+        if step.get('map_layer') is not None:
+            spec=operation_spec(operation)
+            if spec['output'] not in {'raster','vector'}:raise ValueError('Un tableau ne peut pas être ajouté comme couche.')
+            layer=dict(step['map_layer']);product=layer.pop('product',None);layer.update(data='@'+ident+(':'+product if product else ''),kind=spec['output']);layer.setdefault('name',spec['label'])
+            layers.append(layer)
     requirements=[n['id'] for n in nodes]
     preparation=add('project',dict(layers=layers),requirements)
     if relations:add('relations',dict(layers='@'+preparation),[preparation])
@@ -89,33 +116,74 @@ def plan_cartography(inputs,*,goal='general',data_kind='layers',aoi=None,title='
                             nodes=nodes,proposals=proposals,classification=classification))
 
 
-def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,progress=None,stage=None,cancel=None):
+def reference_ids(value):
+    if isinstance(value,str) and value.startswith('@'):return {value[1:].partition(':')[0]}
+    if isinstance(value,dict):return set().union(*(reference_ids(v) for v in value.values()))
+    if isinstance(value,(list,tuple)):return set().union(*(reference_ids(v) for v in value))
+    return set()
+
+
+def validate_plan(plan):
+    """Validate the complete graph before a treatment can write anything."""
+    from .processing import validate_parameters
+    if plan.get('schema')!='cartomize.automation.v1':raise ValueError('Plan de traitement incompatible.')
+    allowed={'prepare','repair','composite','project','indices','classify','cluster','relations','map','atlas','process'}
+    nodes=plan.get('nodes',[])
+    if not nodes or len(nodes)>5000:raise ValueError('Le plan doit contenir entre 1 et 5 000 étapes.')
+    ids=set()
+    for node in nodes:
+        ident=node.get('id','');requires=node.get('requires',[]);parameters=node.get('parameters',{})
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',ident):raise ValueError('Identifiant de traitement invalide.')
+        if ident in ids or not set(requires)<=ids or node.get('operation') not in allowed:raise ValueError('Dépendances ou opération du plan invalides.')
+        refs=reference_ids(parameters)
+        if not refs<=set(requires):raise ValueError('Chaque résultat utilisé doit figurer dans les dépendances : '+ident)
+        if node['operation']=='process':validate_parameters(parameters['operator'],parameters['arguments'])
+        ids.add(ident)
+    return plan
+
+
+def processing_plan(steps):
+    """Build a processing-only graph; inputs may refer to @previous_step."""
+    nodes=[]
+    for step in steps:
+        parameters=dict(operator=step['operation'],arguments=step['parameters'])
+        nodes.append(dict(id=step['id'],operation='process',parameters=parameters,requires=sorted(reference_ids(parameters))))
+    return validate_plan(dict(schema='cartomize.automation.v1',nodes=nodes))
+
+
+def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,block_size=512,memory_limit_mb=512,progress=None,stage=None,cancel=None):
     import cartomize as cm
     if isinstance(plan,(str,Path)):plan=read_json(plan)
-    if plan.get('schema')!='cartomize.automation.v1':raise ValueError('Plan de traitement incompatible.')
+    validate_plan(plan)
     if not formats or any(f not in {'pdf','png','svg'} for f in formats):raise ValueError('Formats : PDF, PNG ou SVG.')
-    allowed={'prepare','repair','composite','project','indices','classify','cluster','relations','map','atlas'}
-    ids=set();nodes=plan['nodes']
-    for node in nodes:
-        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',node['id']):raise ValueError('Identifiant de traitement invalide.')
-        if node['id'] in ids or not set(node['requires'])<=ids or node['operation'] not in allowed:raise ValueError('Dépendances ou opération du plan invalides.')
-        ids.add(node['id'])
-    results={};assets=[];ledger=[];mapping=None;destination=Path(destination).resolve()
+    nodes=plan['nodes']
+    results={};products={};assets=[];ledger=[];mapping=None;destination=Path(destination).resolve()
     def resolve(value):
         if isinstance(value,str) and value.startswith('@'):
-            if value[1:] not in results:raise ValueError('Résultat requis absent : '+value)
-            return results[value[1:]]
+            key,sep,product=value[1:].partition(':')
+            if key not in results:raise ValueError('Résultat requis absent : '+value)
+            if sep:
+                if product not in products.get(key,{}):raise ValueError('Produit intermédiaire absent : '+value)
+                return products[key][product]
+            return results[key]
         if isinstance(value,dict):return {k:resolve(v) for k,v in value.items()}
         if isinstance(value,list):return [resolve(v) for v in value]
         return value
     with new_directory(destination) as work:
         for number,node in enumerate(nodes):
             _check_cancel(cancel);op=node['operation'];ident=node['id'];parameters=resolve(node['parameters']);start=datetime.now(timezone.utc).isoformat()
-            if stage:stage({'prepare':'Prétraitement multispectral','repair':'Réparation des géométries','project':'Analyse du projet','composite':'Composition colorée','classify':'Classification supervisée','cluster':'Classification non supervisée','indices':'Indices spectraux','relations':'Relations spatiales','map':'Mise en page','atlas':'Atlas cartographique'}[op])
+            if stage:stage({'prepare':'Prétraitement multispectral','repair':'Réparation des géométries','project':'Analyse du projet','composite':'Composition colorée','classify':'Classification supervisée','cluster':'Classification non supervisée','indices':'Indices spectraux','relations':'Relations spatiales','map':'Mise en page','atlas':'Atlas cartographique','process':'Traitement enregistré'}[op])
             callback=lambda done,total:progress(number*100+int(done/max(1,total)*100),len(nodes)*100) if progress else None
-            if op=='prepare':
+            if op=='process':
+                from .processing import execute_operation,operation_spec
+                spec=operation_spec(parameters['operator'])
+                if stage:stage(spec['label'])
+                product=execute_operation(parameters['operator'],parameters['arguments'],work/ident,workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,progress=callback,cancel=cancel)
+                result=product['primary'];products[ident]=product['products']
+                if product['kind'] in {'vector','raster'}:assets.append(dict(data=result,kind=product['kind'],name=spec['label']))
+            elif op=='prepare':
                 result=cm.prepare_imagery(cm.discover_scenes(parameters['sources']),work/f'{ident}.tif',aoi=parameters['aoi'],target_crs=parameters['crs'],
-                    band_order=parameters.get('bands',['blue','green','red','nir']),allow_mixed_dates=parameters['allow_mixed_dates'],progress=callback,cancel=cancel).path
+                    band_order=parameters.get('bands',['blue','green','red','nir']),mask_clouds=parameters.get('mask_clouds',True),allow_mixed_dates=parameters['allow_mixed_dates'],progress=callback,cancel=cancel).path
                 assets.append(dict(data=result,kind='raster',name='Multibande scientifique'))
             elif op=='repair':
                 result=work/f'{ident}.gpkg';cm.make_valid(parameters['source']).to_file(result,driver='GPKG',index=False)
@@ -124,10 +192,10 @@ def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,progress
                 result=cm.color_composite(parameters['source'],work/f'{ident}.tif',progress=callback,cancel=cancel)
                 assets.append(dict(data=result,kind='raster',rgb='native',role='background'))
             elif op=='indices':
-                result=cm.spectral_indices(parameters['source'],work/f'{ident}.tif',parameters['indices'],workers=workers,progress=callback,cancel=cancel)
+                result=cm.spectral_indices(parameters['source'],work/f'{ident}.tif',parameters['indices'],workers=workers,block_size=block_size,memory_limit_mb=memory_limit_mb,progress=callback,cancel=cancel)
                 assets.append(dict(data=result,kind='raster'))
             elif op in {'classify','cluster'}:
-                if op=='classify':result=cm.classify_landcover(parameters['source'],parameters['training'],work/ident,class_column=parameters['class_column'],workers=workers,progress=callback,cancel=cancel)
+                if op=='classify':result=cm.classify_landcover(parameters['source'],parameters['training'],work/ident,class_column=parameters['class_column'],workers=workers,block_size=min(block_size,1024),progress=callback,cancel=cancel)
                 else:result=cm.cluster_raster(parameters['source'],work/ident,progress=callback,cancel=cancel)
                 assets.append(dict(data=result,kind='raster',role='landcover',report=str(Path(result).parent/('classification.json' if op=='classify' else 'clustering.json')),**({'model':str(Path(result).parent/'model/model.json')} if op=='classify' else {})))
             elif op=='project':
@@ -149,14 +217,13 @@ def run_plan(plan,destination,*,dpi=150,formats=('pdf','png'),workers=1,progress
             if isinstance(value,dict):return {k:publish(v) for k,v in value.items()}
             if isinstance(value,(list,tuple)):return [publish(v) for v in value]
             return value
-        # Rewrite every internal manifest so reopening never uses temporary paths.
-        for path in work.rglob('*.json'):
-            document=read_json(path);save_json(publish(document),path,overwrite=True)
+        from .storage import relocate_products
+        relocate_products(work,destination)
         if mapping is not None:
             from .session import map_document
             document=publish(map_document(mapping));save_json(document,work/'map.json')
         record=publish(dict(schema='cartomize.automation.result.v1',plan=plan,steps=ledger,layers=assets,
-                    map_file=str(work/'map.json') if mapping else None,map_config=ui_config if mapping else None,
+                    results={key:str(value) for key,value in results.items() if isinstance(value,(str,Path))},products=products,map_file=str(work/'map.json') if mapping else None,map_config=ui_config if mapping else None,
                     outputs=[str(work/f'carte.{fmt}') for fmt in formats] if mapping else []))
         save_json(record,work/'automation.json');_check_cancel(cancel)
     return destination/'automation.json'

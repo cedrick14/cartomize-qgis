@@ -69,6 +69,9 @@ def detect_background(source,*,max_size=1024,keep_values=()):
             mask_flags=[[v.name for v in flags] for flags in src.mask_flag_enums],
             candidates=candidates,automatic_border_values=[v['value'] for v in candidates if v['automatic']],
             binary_zero_preserved=binary,native_rgb=native_rgb,
+            ambiguous_values=[v['value'] for v in candidates if not v['automatic'] and v['value'] not in keep_values],
+            background_method='sampled_border_pattern',
+            decision_required=bool(binary and 0 in unique or any(not v['automatic'] for v in candidates)),
             note='Background inference is heuristic; sources and interior disconnected values remain unchanged.')
 
 
@@ -94,7 +97,7 @@ class _Components:
 
 
 def mask_background(source,destination,*,border_values=(),nodata_values=(),keep_values=(),
-                    block_size=512,max_components=2_000_000,overwrite=False,progress=None,cancel=None):
+                    block_size=512,max_components=2_000_000,overwrite=False,progress=None,cancel=None,valid_footprint=None):
     """Copy all bands and write an internal mask without changing input pixels.
 
     Additional border values are removed only in 4-connected components touching
@@ -112,6 +115,12 @@ def mask_background(source,destination,*,border_values=(),nodata_values=(),keep_
     with rasterio.open(source) as src:
         if src.crs is None:raise ValueError('The raster has no CRS.')
         if len(set(src.dtypes))!=1:raise ValueError('Bands with different data types require separate outputs.')
+        footprint=None
+        if valid_footprint is not None:
+            from ._validation import frame
+            footprint=frame(valid_footprint).to_crs(src.crs)
+            if footprint.empty or not footprint.geom_type.isin(['Polygon','MultiPolygon']).all() or not footprint.geometry.is_valid.all():raise ValueError('L’emprise valide doit contenir des polygones valides.')
+            footprint=list(footprint.geometry)
         bands=_bands(src);tiles=math.ceil(src.width/block_size)*math.ceil(src.height/block_size)
         total=tiles*(2 if border_values else 1);components=_Components(max_components);records=[]
         if border_values:
@@ -143,7 +152,7 @@ def mask_background(source,destination,*,border_values=(),nodata_values=(),keep_
                 if progress:progress(number,total)
         profile=src.profile.copy();profile.update(driver='GTiff',compress='lzw',tiled=True,blockxsize=256,blockysize=256,BIGTIFF='IF_SAFER')
         profile.pop('photometric',None)
-        counts=dict(provider_invalid=0,additional_border_masked=0,additional_value_masked=0,valid_pixels=0)
+        counts=dict(provider_invalid=0,additional_border_masked=0,additional_value_masked=0,outside_footprint_masked=0,valid_pixels=0)
         # A single TIFF must retain its mask when moved to its final name.
         with rasterio.Env(GDAL_TIFF_INTERNAL_MASK=True):
             with _writer(destination,profile,overwrite=overwrite,sources=(source,)) as dst:
@@ -159,7 +168,12 @@ def mask_background(source,destination,*,border_values=(),nodata_values=(),keep_
                     explicit=_matches(data,nodata_values)
                     counts['additional_border_masked']+=int((border_mask&valid).sum())
                     counts['additional_value_masked']+=int((explicit&valid&~border_mask).sum())
-                    valid&=~border_mask&~explicit;counts['valid_pixels']+=int(valid.sum())
+                    valid&=~border_mask&~explicit
+                    if footprint is not None:
+                        from rasterio.features import geometry_mask
+                        inside=geometry_mask(footprint,out_shape=valid.shape,transform=src.window_transform(window),invert=True)
+                        counts['outside_footprint_masked']+=int((valid&~inside).sum());valid&=inside
+                    counts['valid_pixels']+=int(valid.sum())
                     dst.write(all_data,window=window);dst.write_mask(valid.astype('uint8')*255,window=window)
                     if progress:progress((tiles if border_values else 0)+number,total)
                 dst.descriptions=src.descriptions;dst.scales=src.scales;dst.offsets=src.offsets;dst.colorinterp=src.colorinterp

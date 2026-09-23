@@ -43,6 +43,7 @@ class ProjectPage(Page):
         note=QLabel('Les masques NoData déclarés sont conservés. Les fonds détectés sont masqués dans des copies. '
                     'Les rasters binaires 0/1 restent inchangés. Les valeurs supplémentaires s’appliquent à toute l’image ; séparer les codes par des virgules.')
         note.setWordWrap(True);self.form.addRow(note)
+        self.footprint=PathField(filter='Emprise valide (*.gpkg *.geojson *.shp)');self.form.addRow('Emprise valide (facultatif)',self.footprint)
         self.directory=PathField('directory');self.name=QLineEdit('analyse_projet')
         self.form.addRow('Répertoire de sortie',self.directory);self.form.addRow('Nouveau répertoire de préparation',self.name)
         self.tabs=QTabWidget();self.report=QTableWidget(0,4)
@@ -70,7 +71,7 @@ class ProjectPage(Page):
             except Exception as exc:self.summary.setText(str(exc))
     def job(self,options):
         layers=[dict(data=self.layers.item(row,0).text(),nodata_values=values(self.layers.item(row,1).text()),
-                     keep_values=values(self.layers.item(row,2).text())) for row in range(self.layers.rowCount())]
+                     keep_values=values(self.layers.item(row,2).text()),valid_footprint=self.footprint.text() or None) for row in range(self.layers.rowCount())]
         if not layers:raise ValueError('Importer au moins une couche géographique.')
         name=self.name.text().strip()
         if not self.directory.text():raise ValueError('Choisir un répertoire de sortie.')
@@ -83,7 +84,7 @@ class ProjectPage(Page):
         generic=False;masked=0
         for number,record in enumerate(project.report['layers']):
             row=self.report.rowCount();self.report.insertRow(row)
-            count=sum(record.get('mask_result',{}).get(k,0) for k in ('additional_border_masked','additional_value_masked'));masked+=count
+            count=sum(record.get('mask_result',{}).get(k,0) for k in ('additional_border_masked','additional_value_masked','outside_footprint_masked'));masked+=count
             diagnosis='Raster binaire : 0 conservé' if record['diagnostic'].get('binary_zero_preserved') else 'Classes discrètes' if record.get('classes') else 'Raster multibande' if record['kind']=='raster' and record['diagnostic']['bands']>1 else 'Raster' if record['kind']=='raster' else 'Géométries et attributs'
             rules=[]
             for key,label in [('border_values','Bord'),('nodata_values','Global')]:
@@ -96,7 +97,8 @@ class ProjectPage(Page):
                 code=fixed(f"{item['value']:g}");code.setData(Qt.ItemDataRole.UserRole,item['value']);self.classes.setItem(row,1,code)
                 self.classes.setItem(row,2,QTableWidgetItem(item['label']));self.classes.setItem(row,3,QTableWidgetItem(item['color']))
                 generic|=item['label_source']=='code'
-        self.summary.setText(f'{len(project.layers)} couches analysées. {masked:,} pixels de fond supplémentaires masqués. Sources conservées.'+
+        ambiguous=sum(bool(r['diagnostic'].get('decision_required')) and not r.get('valid_footprint') for r in project.report['layers'])
+        self.summary.setText((f'{ambiguous} couche(s) : vérifier les valeurs de fond ou fournir une emprise valide. ' if ambiguous else '')+f'{len(project.layers)} couches analysées. {masked:,} pixels de fond supplémentaires masqués. Sources conservées.'+
                              (' Compléter les libellés des classes dans Nomenclature.' if generic else ''))
         self.apply_button.setEnabled(True);self.restore_button.setEnabled(True)
     def apply(self):

@@ -1,6 +1,6 @@
-# Implémentation des outils — Cartomize 0.6.0a1
+# Implémentation des outils — Cartomize 0.7.0a1
 
-22 septembre 2026. Les anciens constats sont conservés dans [l’audit 0.5](TOOL_AUDIT_0.5.md). Cette version ajoute des algorithmes et leurs connexions effectives à l’API, à la fenêtre et à la ligne de commande.
+23 septembre 2026. Les anciens constats sont conservés dans [l’audit 0.5](TOOL_AUDIT_0.5.md). Cette version raccorde les traitements et ajoute des algorithmes et leurs connexions effectives à l’API, à la fenêtre et à la ligne de commande.
 
 ## Outils et connexions
 
@@ -23,7 +23,8 @@
 | Atlas cartographique | Une carte par entité, paramètres transmis depuis la mise en page |
 | Production automatisée | Parcours direct scènes → multibande → composition → couches → carte |
 | Recettes et production en série | Recettes réutilisables, variables, associations, migration historique, manifestes jusqu’à 5 000 tâches |
-| Projets SIG | Inventaire QGS/QGZ, transmission des sources locales ; passerelle native optionnelle pour copie et export |
+| Projets SIG | Inventaire QGS/QGZ, import des sous-couches et styles pris en charge ; passerelle native optionnelle pour copie et export |
+| Chaîne de traitements | 34 opérateurs, références aux résultats et produits secondaires, paramètres moteur, exécution autonome ou intégrée à la carte |
 | Révision cartographique | Instantanés, empreintes, comparaison, décision nominative et contrôle de la carte |
 
 Les résultats raster/vectoriels sont transférables aux outils compatibles. Le plan et les recettes produisent des fichiers réels ; un bouton qui aboutit seulement à une proposition n’est pas compté comme traitement. Les sources restent protégées. Les nouveaux dossiers complets sont publiés après succès ; un lot peut conserver ses succès seulement si la poursuite sur erreur a été demandée.
@@ -37,9 +38,15 @@ Les nouveaux parcours graphiques utilisent le vrai travailleur Qt pour la classi
 ## Portée et validation externe restante
 
 - **Passerelle native** : le code des appels ArcPy/PyQGIS est présent et raccordé ; leur exécution doit être validée avec les moteurs installés. La version autonome ne reconstitue pas intégralement tous les objets APRX/QGZ.
-- **Cartographie** : les propositions et placements sont des heuristiques contrôlables. Les débordements textuels sont détectés ; une lisibilité parfaite, l’exactitude thématique et tous les conflits visuels ne peuvent pas être certifiés automatiquement.
-- **Couverture** : les capteurs reconnus restent Landsat Collection 2 L2 SR et Sentinel-2 L2A, avec correspondances explicites pour les autres. Aucun catalogue fini ne couvre toutes les opérations raster. Hydrologie complète, routage, GPU, calcul distribué et téléchargement de scènes ne sont pas implémentés ici.
+- **Cartographie** : les propositions et placements sont des heuristiques contrôlables. Les débordements textuels sont détectés, les légendes utilisent plusieurs colonnes et les étiquettes évitent les symboles ponctuels ; une lisibilité parfaite, l’exactitude thématique et tous les conflits visuels ne peuvent pas être certifiés automatiquement.
+- **Couverture** : la reconnaissance par noms reste Landsat Collection 2 L2 SR et Sentinel-2 L2A. Les autres produits peuvent être décrits par STAC ou un manifeste de bandes explicite. Aucun catalogue fini ne couvre toutes les opérations raster. Le drainage D8, les bassins, le routage bidirectionnel et le téléchargement HTTP(S) STAC sont implémentés. Les modèles hydrauliques, MFD/D-infinity, les contraintes routières avancées, GPU et calcul distribué ne sont pas implémentés.
 - **Publication** : paquet construit et code disponible sur la branche de travail ; pas de dépôt PyPI/TestPyPI ni fusion effectués par cette livraison.
 - **Terrain** : les tests synthétiques et Qt hors écran ne remplacent pas une campagne sur des scènes réelles volumineuses et une validation manuelle des moteurs natifs.
 
 Voir [le guide d’utilisation](AUTOMATION.md) et [la validation](VALIDATION.md).
+
+## Corrections 0.7 vérifiées
+
+Enchaînement terrain → calculatrice → statistiques → carte ; 13 opérateurs vectoriels et six opérateurs raster exécutés via le registre ; sorties secondaires hydrologiques ; import QGIS catégorisé avec sous-couche et groupe masqué ; zéro valide dans une emprise ; code raster rare absent de la nomenclature ; téléchargement STAC avec pagination, empreintes et annulation transactionnelle ; session STAC portable. Les formulaires exécutent les fonctions réelles et conservent les étapes après réouverture.
+
+Voir [PROCESSING](PROCESSING.md) pour les paramètres, hypothèses et limites de chaque algorithme.

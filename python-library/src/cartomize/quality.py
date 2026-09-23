@@ -1,4 +1,4 @@
-"""Explicit technical map checks, with bounded raster sampling."""
+"""Technical map checks and complete, blockwise thematic-code validation."""
 from pathlib import Path
 import numpy as np
 import rasterio
@@ -26,8 +26,14 @@ def audit_map(map_object):
                     sample=np.ma.masked_invalid(src.read(layer.band,out_shape=shape,masked=True))
                     values=sample.compressed()
                     if not values.size:issue('warning','empty_raster_sample','Aucun pixel valide dans l’échantillon de contrôle ; vérifier l’emprise.',layer.name)
-                    if layer.classes and values.size and not np.isin(values,list(layer.classes)).all():
-                        issue('error','unmapped_classes','Des codes observés sont absents de la nomenclature.',layer.name)
+                    if layer.classes:
+                        from .nodata import _windows
+                        for window in _windows(src,512):
+                            codes=np.ma.masked_invalid(src.read(layer.band,window=window,masked=True)).compressed()
+                            unknown=codes[~np.isin(codes,list(layer.classes))]
+                            if unknown.size:
+                                issue('error','unmapped_classes','Codes absents de la nomenclature : '+', '.join(map(str,np.unique(unknown)[:20])),layer.name)
+                                break
             except (OSError,rasterio.errors.RasterioError,ValueError,IndexError) as exc:
                 issue('error','unreadable_raster',str(exc),layer.name)
         if layer.classes and any(str(v[0]).startswith('Classe ') for v in layer.classes.values()):
@@ -37,6 +43,6 @@ def audit_map(map_object):
             if item.kind=='table' and item.item_id not in map_object.tables:issue('warning','empty_table',f'Tableau non renseigné : {item.item_id}')
             if item.kind=='chart' and item.item_id not in map_object.charts:issue('warning','empty_chart',f'Graphique non renseigné : {item.item_id}')
     return dict(schema='cartomize.map.audit.v1',valid=not any(i['severity']=='error' for i in issues),issues=issues,
-                layer_plan=map_object.layer_plan(),scope='Geometry validity, fields, sampled raster classes and layout metadata.',
-                limitations=['Not a certification of scientific accuracy or completeness.','Raster checks use a bounded sample.',
+                layer_plan=map_object.layer_plan(),scope='Geometry validity, fields, full raster class coverage and layout metadata.',
+                limitations=['Not a certification of scientific accuracy or completeness.','Raster emptiness uses a sample; class coverage is checked by blocks.',
                              'Label collisions, text overflow and all spatial relations are not exhaustively checked.'])

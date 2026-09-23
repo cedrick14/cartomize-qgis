@@ -98,10 +98,20 @@ def main(argv=None):
     batch=subs.add_parser('batch',help='Execute a batch manifest')
     batch.add_argument('manifest');batch.add_argument('destination');batch.add_argument('--bindings',default='{}');batch.add_argument('--reviewed',action='store_true');batch.add_argument('--continue-on-error',action='store_true')
     native=subs.add_parser('native',help='Inventory/export/copy a QGIS or ArcGIS Pro project using its runtime')
-    native.add_argument('project');native.add_argument('--python');native.add_argument('--action',choices=['inspect','export','copy'],default='inspect');native.add_argument('--destination');native.add_argument('--layout');native.add_argument('--template');native.add_argument('--texts',default='{}');native.add_argument('--extents',default='{}')
+    native.add_argument('project');native.add_argument('--python');native.add_argument('--action',choices=['inspect','export','copy','import'],default='inspect');native.add_argument('--destination');native.add_argument('--layout');native.add_argument('--template');native.add_argument('--texts',default='{}');native.add_argument('--extents',default='{}')
+    subs.add_parser('operations',help='List registered processing operators')
+    operation=subs.add_parser('process',help='Execute one registered operation')
+    operation.add_argument('operation');operation.add_argument('parameters',help='JSON parameter file');operation.add_argument('destination');operation.add_argument('--workers',type=int,default=1)
+    planning.add_argument('--steps',help='JSON file containing additional processing steps')
+    planning.add_argument('--without-cloud-mask',action='store_true')
+    for command in (operation,execute):
+        command.add_argument('--block-size',type=int,default=512);command.add_argument('--memory-limit-mb',type=int,default=512)
     args = parser.parse_args(argv)
     try:
-        if args.command == "gui":
+        if args.command in {'operations','process'}:
+            from .processing import operation_catalog,execute_operation
+            result=operation_catalog() if args.command=='operations' else execute_operation(args.operation,json.loads(Path(args.parameters).read_text(encoding='utf-8')),args.destination,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb)
+        elif args.command == "gui":
             from .desktop import main as desktop_main
             return desktop_main()
         elif args.command in {'classify','cluster','terrain','convolve','plan','run-plan','recipe','batch','native'}:
@@ -111,8 +121,8 @@ def main(argv=None):
             elif args.command=='cluster':output=cm.cluster_raster(args.source,args.destination,clusters=args.clusters)
             elif args.command=='terrain':output=cm.terrain(args.source,args.destination,products=args.products.split(','),z_factor=args.z_factor,workers=args.workers)
             elif args.command=='convolve':output=cm.convolve(args.source,args.destination,json.loads(args.kernel),normalize=args.normalize)
-            elif args.command=='plan':output=save_json(cm.plan_cartography(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi,title=args.title,credits=args.credits,training=args.training,classification=args.classification,class_column=args.class_column,indices=[i for i in args.indices.split(',') if i],layers=args.layer,atlas_zones=args.atlas_zones,atlas_field=args.atlas_field),args.destination)
-            elif args.command=='run-plan':output=cm.run_plan(args.plan,args.destination,dpi=args.dpi,workers=args.workers)
+            elif args.command=='plan':output=save_json(cm.plan_cartography(args.sources,goal=args.goal,data_kind=args.kind,aoi=args.aoi,title=args.title,credits=args.credits,training=args.training,classification=args.classification,class_column=args.class_column,indices=[i for i in args.indices.split(',') if i],layers=args.layer,atlas_zones=args.atlas_zones,atlas_field=args.atlas_field,processing_steps=json.loads(Path(args.steps).read_text(encoding='utf-8')) if args.steps else [],mask_clouds=not args.without_cloud_mask),args.destination)
+            elif args.command=='run-plan':output=cm.run_plan(args.plan,args.destination,dpi=args.dpi,workers=args.workers,block_size=args.block_size,memory_limit_mb=args.memory_limit_mb)
             elif args.command=='recipe':output=cm.run_recipe(args.recipe,args.destination,variables=json.loads(args.variables),bindings=json.loads(args.bindings))
             elif args.command=='batch':output=cm.run_batch(args.manifest,args.destination,bindings=json.loads(args.bindings),reviewed=args.reviewed,continue_on_error=args.continue_on_error)
             else:output=cm.native_project(args.project,python=args.python,action=args.action,destination=args.destination,layout=args.layout,template=args.template,texts=json.loads(args.texts),extents=json.loads(args.extents))

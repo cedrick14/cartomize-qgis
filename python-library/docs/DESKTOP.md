@@ -224,3 +224,27 @@ les cadres indépendants, l’aperçu, l’atlas, les diagnostics, les traitemen
 vectoriels/raster et les outils de calcul. Un essai manuel Windows reste à
 réaliser. Le [tableau des fonctionnalités](FUNCTIONAL_COVERAGE.md) indique
 précisément ce qui est disponible et les fonctions natives non transposées.
+
+
+## Chaînes de traitements — 0.7
+
+Dans **Assistant cartographique**, ouvrir l’onglet **Chaîne de traitements**.
+Ajouter une étape, choisir son opération et renseigner les paramètres du formulaire.
+Les champs de source acceptent un fichier ou un résultat antérieur précédé de `@`.
+La case **Ajouter le résultat à la carte** associe le produit à la mise en page finale.
+Pour l’hydrologie, choisir le produit cartographique : accumulation, directions,
+réseau ou bassins. Modifier l’ordre avec Monter/Descendre ; une dépendance inversée
+est refusée avant exécution.
+
+La rubrique indépendante **Chaîne de traitements** exécute les mêmes opérations
+sans imposer une carte finale. Choisir le répertoire parent et le nom d’un nouveau
+dossier. Les réglages de travailleurs, blocs et budget mémoire sont transmis aux
+opérations compatibles ; les dérivées hydrologiques utilisent un calcul global.
+
+**Projets SIG → Importer les couches et les styles** crée un nouveau projet Cartomize.
+Les éléments non transférables figurent dans le rapport. Une copie ou un export
+natif continue à demander l’interpréteur du logiciel SIG installé.
+
+**Analyse du projet** accepte une **emprise valide** polygonale. Les pixels extérieurs
+sont masqués dans une copie multibande ; les vrais zéros situés à l’intérieur restent
+valides en l’absence d’une autre règle explicite de masquage.

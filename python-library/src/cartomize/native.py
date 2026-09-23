@@ -25,7 +25,16 @@ def inspect_qgis_project(path):
         text=path.read_bytes()
     if b'<!ENTITY' in text.upper():raise ValueError('Entités XML non autorisées.')
     root=ET.fromstring(text);layers=[]
-    visibility={item.get('id'):item.get('checked')!='Qt::Unchecked' for item in root.findall('.//layer-tree-layer')}
+    visibility={};order=[]
+    def walk(node,visible=True):
+        visible=visible and node.get('checked')!='Qt::Unchecked'
+        if node.tag=='layer-tree-layer':visibility[node.get('id')]=visible;order.append(node.get('id'))
+        for child in node:
+            if child.tag in {'layer-tree-group','layer-tree-layer'}:walk(child,visible)
+    tree=root.find('layer-tree-group')
+    if tree is not None:walk(tree)
+    custom=root.find('./layer-tree-canvas/custom-order')
+    if custom is not None and custom.get('enabled')=='1':order=[i.text for i in custom.findall('item')]
     for element in root.findall('./projectlayers/maplayer'):
         source=element.findtext('datasource','');provider=element.findtext('provider','');ident=element.findtext('id','')
         local=None
@@ -37,6 +46,9 @@ def inspect_qgis_project(path):
         if '|' in source:record['provider_options']=source.partition('|')[2]
         renderer=element.find('renderer-v2')
         if renderer is not None:record['renderer']=renderer.get('type');record['column']=renderer.get('attr')
+        from .native_styles import layer_style
+        record['options'],record['transfer_warnings']=layer_style(element)
+        record['options']['zorder']=len(order)-order.index(ident) if ident in order else len(layers)+1
         layers.append(record)
     return dict(schema='cartomize.native.inventory.v1',engine='qgis',project=str(path),layers=layers,layouts=[dict(name=i.get('name','')) for i in root.findall('./Layouts/Layout')],mode='xml_inventory',note='Inventaire des références locales. Le rendu et les mises en page natifs nécessitent le moteur QGIS.')
 
@@ -49,6 +61,7 @@ def native_project(project,*,engine=None,python=None,action='inspect',destinatio
     by their original engine. Requires ArcGIS Pro/ArcPy or QGIS/PyQGIS.
     """
     project=Path(project).resolve();engine=engine or ('arcgis' if project.suffix.lower()=='.aprx' else 'qgis')
+    if action=='import':return import_native_project(project,destination,engine=engine,python=python,cancel=cancel)
     if engine not in {'arcgis','qgis'} or action not in {'inspect','export','copy'}:raise ValueError('Moteur ou opération native invalide.')
     if not project.is_file():raise FileNotFoundError(project)
     if python is None and action=='inspect' and engine=='qgis':return inspect_qgis_project(project)
@@ -94,3 +107,57 @@ def native_project(project,*,engine=None,python=None,action='inspect',destinatio
                 except BaseException:dst.close();final.unlink(missing_ok=True);raise
             result['result']['output']=str(final)
         return result['result']
+
+
+
+def import_native_project(project,destination,*,engine=None,python=None,cancel=None):
+    """Materialize supported visible native layers and persist their styles.
+
+    Unsupported renderers/providers are enumerated in transfer_warnings. This
+    is a documented translation, while native copy/export retains native objects.
+    """
+    import geopandas as gpd
+    from .storage import new_directory
+    from .session import map_document
+    from .composition import compose_map
+    if not destination:raise ValueError('Indiquer un nouveau dossier pour le projet importé.')
+    inventory=native_project(project,engine=engine,python=python,action='inspect',cancel=cancel)
+    destination=Path(destination).resolve();layers=[];warnings=[]
+    with new_directory(destination) as work:
+        for i,layer in enumerate(inventory.get('layers',[])):
+            _check_cancel(cancel)
+            if not layer.get('visible',True):continue
+            name=layer['name'];source=layer.get('source');options=dict(layer.get('options',{}))
+            warnings.extend(name+' : '+w for w in layer.get('transfer_warnings',[]))
+            if not source or '://' in source or not Path(source.split('|')[0]).is_file():
+                warnings.append(name+' : source non locale ou inaccessible.');continue
+            source=Path(source.split('|')[0]);provider_options=layer.get('provider_options','')
+            kind=layer.get('kind','vector')
+            if kind=='raster':
+                if provider_options:warnings.append(name+' : sous-jeu raster nécessitant le moteur natif.');continue
+                data=source
+            elif kind=='vector':
+                kwargs={};unsupported=False
+                for item in provider_options.split('|') if provider_options else []:
+                    key,sep,value=item.partition('=')
+                    if key=='layername' and sep:kwargs['layer']=value
+                    elif key=='layerid' and sep:kwargs['layer']=int(value)
+                    else:unsupported=True
+                if unsupported:warnings.append(name+' : filtre fournisseur nécessitant le moteur natif.');continue
+                data=work/f'layer_{i:03d}.gpkg';gpd.read_file(source,**kwargs).to_file(data,driver='GPKG',index=False)
+            else:continue
+            layers.append(dict(data=str(data),name=name,kind=kind,**options))
+        if not layers:raise ValueError('Aucune couche locale transférable dans le projet.')
+        mapping=compose_map(layers,title=Path(project).stem,clip_vectors=False)
+        document=map_document(mapping)
+        def publish(value):
+            if isinstance(value,str) and value.startswith(str(work)+os.sep):return str(destination)+value[len(str(work)):]
+            if isinstance(value,dict):return {k:publish(v) for k,v in value.items()}
+            if isinstance(value,list):return [publish(v) for v in value]
+            return value
+        save_json(publish(document),work/'map.json')
+        report=publish(dict(schema='cartomize.native.transfer.v1',engine=inventory['engine'],project=str(Path(project).resolve()),
+            map_file=str(work/'map.json'),transfer_warnings=warnings,
+            layers=[dict(source=layer['data'],name=layer['name'],kind=layer['kind'],visible=True,options={k:v for k,v in layer.items() if k not in {'data','name','kind'}}) for layer in layers]))
+        save_json(report,work/'transfer.json');_check_cancel(cancel)
+    return report

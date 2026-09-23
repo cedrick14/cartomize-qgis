@@ -104,13 +104,20 @@ def discover_scenes(inputs):
     """
     if isinstance(inputs, (str, Path)):
         inputs = [inputs]
-    paths = set()
+    paths = set();explicit=[]
     for item in inputs:
+        if isinstance(item,Scene):explicit.append(item);continue
         p = Path(item).expanduser().resolve()
-        if p.is_dir():
+        if p.is_dir() and (p/'scenes.json').is_file():
+            from .catalogs import load_scenes_manifest
+            explicit.extend(load_scenes_manifest(p/'scenes.json'))
+        elif p.is_dir():
             paths.update(q for q in p.rglob("*") if q.is_file() and q.suffix.lower() in {".tif", ".tiff", ".jp2"})
         elif p.is_file():
-            paths.add(p)
+            if p.suffix.lower()=='.json':
+                from .catalogs import load_scenes_manifest
+                explicit.extend(load_scenes_manifest(p))
+            else:paths.add(p)
         else:
             raise FileNotFoundError(p)
     landsat, sentinel, unknown = {}, {}, []
@@ -143,7 +150,7 @@ def discover_scenes(inputs):
             unknown.append(p.name)
     if unknown:
         raise ValueError("Unrecognized band filenames; provide explicit Scene/Band mappings: "+", ".join(unknown[:8]))
-    scenes = []
+    scenes = list(explicit)
     for (directory, ident), group in landsat.items():
         sensor_code = ident[2:4]
         if sensor_code not in {"04","05","07","08","09"}:

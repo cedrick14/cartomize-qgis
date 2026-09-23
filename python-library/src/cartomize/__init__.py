@@ -22,7 +22,7 @@ from .relations import analyze_relations
 from .automation import plan_cartography,run_plan,propose_layouts
 from .mapops import snapshot_project,compare_snapshots,record_review,verify_review
 
-__version__ = "0.6.0a1"
+__version__ = "0.7.0a1"
 
 
 def launch(*,block=None):
@@ -58,3 +58,15 @@ __all__ += ["save_recipe","load_recipe","instantiate_recipe","run_recipe","run_b
             "native_project","inspect_qgis_project","terrain","convolve"]
 raster.terrain=terrain
 raster.convolve=convolve
+
+from .processing import operation_catalog,execute_operation
+from .automation import processing_plan,validate_plan
+__all__ += ['operation_catalog','execute_operation','processing_plan','validate_plan']
+
+from .native import import_native_project
+__all__ += ['import_native_project']
+
+from .hydrology import hydrology
+from .routing import shortest_path
+from .catalogs import search_stac,download_stac,scene_from_stac,load_scenes_manifest
+__all__ += ['hydrology','shortest_path','search_stac','download_stac','scene_from_stac','load_scenes_manifest']

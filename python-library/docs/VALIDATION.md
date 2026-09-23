@@ -1,10 +1,10 @@
-# Validation de Cartomize Python 0.6.0a1
+# Validation de Cartomize Python 0.7.0a1
 
-22 septembre 2026 · Linux x86_64 · Python 3.12.14.
+23 septembre 2026 · Linux x86_64 · Python 3.12.14.
 
 ## Résultat local
 
-**198 tests automatisés réussis**, dont 31 cas utilisant les classes et widgets Qt réels, en mode hors écran. Les 105 tests antérieurs sont conservés, avec adaptation des sélections à des identifiants d’outils stables.
+**236 tests automatisés réussis**, dont 34 cas utilisant les classes et widgets Qt réels, en mode hors écran. Les 198 tests de la version 0.6 sont conservés.
 
 - Classification : deux algorithmes supervisés, K-moyennes, validation séparée, conflits de référence, persistance du modèle, NoData et probabilités.
 - Sessions : paramètres de la fenêtre réouverts, projet portable avec fichiers d’origine supprimés, protection contre les chemins d’archive invalides.
@@ -40,3 +40,9 @@ Le gain mesuré de 1,55 fois concerne ce scénario, pas tous les traitements. Le
 Les données sont synthétiques. Les contrôles Qt hors écran ne remplacent pas un essai manuel sous Windows avec de grandes scènes réelles. Les diagnostics raster utilisent des échantillons ; le contrôle cartographique ne certifie ni la vérité thématique, ni l’absence de toutes les collisions d’étiquettes, ni la lisibilité parfaite.
 
 Le détail des fonctions implémentées, partielles et absentes figure dans [TOOL_AUDIT](TOOL_AUDIT.md). La bibliothèque reste alpha. La classification est implémentée et testée. Les appels natifs ArcPy/PyQGIS restent à valider dans les moteurs installés ; la lecture autonome intégrale APRX/QGZ et la couverture de tous les algorithmes raster ne sont pas revendiquées. Aucun paquet n’a été publié sur PyPI/TestPyPI dans cette livraison.
+
+## Validation des corrections 0.7
+
+Les 38 nouveaux cas vérifient les opérations enregistrées, la topologie du plan avant écriture, la conservation des sources, les produits secondaires, les paramètres, les empreintes de téléchargement, la pagination STAC et les références de session. Les valeurs de pente, d’accumulation et de longueur sont comparées à des résultats analytiques. Les téléchargements sont exercés contre un véritable serveur HTTP local contrôlé ; aucun accès à un fournisseur privé n’est revendiqué. Trois cas Qt supplémentaires utilisent les vrais formulaires et travailleurs.
+
+La construction et Twine sont vérifiés sur le paquet 0.7. Les passerelles natives nécessitent encore des tests dans les moteurs installés ; la tentative d’installation de PyQGIS dans l’environnement local n’a pas abouti en raison des restrictions du gestionnaire système.

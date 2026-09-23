@@ -535,9 +535,10 @@ class CartomizeWindow(SessionControls,ProjectConnections,QMainWindow):
         from .desktop_mapops import MapOpsPage
         from .desktop_terrain import TerrainPage
         from .assistant import TOOL_LABELS
+        from .desktop_processing import ProcessingPage
         self.tool_pages=dict(assistant=AssistantPage(self._preview_directory.name),project=ProjectPage(),inspect=InspectionPage(),
             prepare=PreparationPage(),composite=CompositePage(),classification=ClassificationPage(),vector=VectorPage(),raster=RasterToolsPage(),terrain=TerrainPage(),indices=IndicesPage(),
-            calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage(),recipes=RecipesPage(self),native=NativePage(self._preview_directory.name),mapops=MapOpsPage(self))
+            calculator=CalculatorPage(),focal=FocalPage(),temporal=TemporalPage(),mapping=MappingPage(),atlas=AtlasPage(),workflow=WorkflowPage(),processing=ProcessingPage(),recipes=RecipesPage(self),native=NativePage(self._preview_directory.name),mapops=MapOpsPage(self))
         self.pages=list(self.tool_pages.values());titles=['Assistant cartographique' if key=='assistant' else TOOL_LABELS[key] for key in self.tool_pages]
         for title,page in zip(titles,self.pages):
             self.navigation.addItem(title);scroll=QScrollArea();scroll.setWidgetResizable(True);scroll.setWidget(page);self.stack.addWidget(scroll)

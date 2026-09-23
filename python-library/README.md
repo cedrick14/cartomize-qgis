@@ -6,7 +6,7 @@ Assistant cartographique intelligent, disponible comme bibliothèque Python et f
 par **ONDON NKOUA Cédrick Belmich**.
 Le moteur autonome fonctionne sans installation d'ArcGIS Pro, d'ArcPy ou de QGIS.
 
-**Version 0.6.0a1 : version alpha avec planification exécutable, classification, sessions persistantes et production en série.** Elle reprend les règles Python
+**Version 0.7.0a1 : version alpha avec chaînes de traitements extensibles, transfert de styles QGIS et analyse hydrologique.** Elle reprend les règles Python
 et les 24 maquettes originales. Le rendu autonome et les traitements
 GeoPandas/Rasterio sont nouveaux : cette version ne prétend pas reproduire
 toutes les fonctions de l'extension native. Aucun paquet n'a encore été
@@ -23,7 +23,7 @@ python -m pip install .
 Ou, avec le fichier wheel fourni :
 
 ```bash
-python -m pip install cartomize-0.6.0a1-py3-none-any.whl
+python -m pip install cartomize-0.7.0a1-py3-none-any.whl
 ```
 
 Les dépendances sont téléchargées par pip. Aucun compte Cartomize ou accès
@@ -59,7 +59,20 @@ aux diagnostics et aux opérations de la bibliothèque.
 Voir le [guide de l’interface graphique](docs/DESKTOP.md) et le
 [tableau des fonctionnalités](docs/FUNCTIONAL_COVERAGE.md).
 
-## Nouveautés 0.6
+## Corrections et extensions 0.7
+
+- 34 opérations enregistrées, chaînables depuis l’API, la ligne de commande ou les formulaires de la fenêtre.
+- Références aux résultats intermédiaires, y compris les sorties secondaires : `@drainage:watersheds`, `@classification:confidence`.
+- Transmission des travailleurs, blocs et budgets mémoire ; validation des dépendances et publication atomique.
+- Import QGIS : sous-couches GeoPackage, ordre et visibilité des groupes, couleurs catégorisées, transparence et champs d’étiquettes ; rapport explicite des propriétés non transférées.
+- Masquage multibande par emprise valide, conservation des classes zéro et contrôle complet des codes raster par blocs.
+- Légendes sur plusieurs colonnes et étiquettes évitant les symboles ponctuels.
+- Priority-Flood, directions D8, accumulation, réseau par seuil et bassins versants ; plus court chemin sur réseau préparé.
+- Recherche STAC, téléchargement contrôlé, empreintes, calibration STAC 1.0/1.1 et manifestes multisenseurs.
+
+Voir [le guide des chaînes et nouveaux traitements](docs/PROCESSING.md).
+
+## Fonctions introduites en 0.6
 
 - **Planification exécutable** : examen des entrées, propositions de maquettes, relations spatiales, traitements dépendants et carte finale ; les couches complémentaires accompagnent les scènes.
 - **Classification** : forêt aléatoire, arbres extrêmement aléatoires, K-moyennes par mini-lots ; validation par entités/groupes ou jeu indépendant, probabilités et modèle rechargeable sans pickle.

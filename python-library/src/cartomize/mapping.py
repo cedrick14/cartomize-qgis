@@ -330,7 +330,7 @@ class Map:
         return fig
 
     def _draw_layers(self, ax, layers, crs, bounds, max_size):
-        legends, annotations = [], []
+        legends, annotations, label_obstacles = [], [], []
         priorities={r["name"]:r["zorder"] for r in self.layer_plan()}
         layers=sorted(layers,key=lambda l:priorities[l.name])
         automatic_extent = bounds is None
@@ -368,6 +368,10 @@ class Map:
                 line = all("Line" in kind for kind in kinds)
                 style.update({"markersize": 22} if point else {"linewidth": 1.1} if line else {"edgecolor": "#ffffff", "linewidth": .5})
                 style.update(layer.style)
+                if point:
+                    radius=max(2,math.sqrt(float(style.get('markersize',22)))/2+1)
+                    for geometry in data.geometry:
+                        for pt in geometry.geoms if geometry.geom_type=='MultiPoint' else [geometry]:label_obstacles.append((pt.x,pt.y,radius))
                 entries = []
                 if layer.column and layer.categorical:
                     categories = sorted(data[layer.column].dropna().unique(), key=str)
@@ -458,7 +462,7 @@ class Map:
         ax.ticklabel_format(style="plain", axis="both")
         ax.figure.canvas.draw()
         from .typography import place_labels
-        label_report=place_labels(ax,annotations,zorder=max(priorities.values(),default=0)+100)
+        label_report=place_labels(ax,annotations,zorder=max(priorities.values(),default=0)+100,obstacles=label_obstacles)
         self.render_diagnostics['labels'].append(label_report)
         return legends
 
@@ -476,18 +480,21 @@ class Map:
                 continuous.append(entry)
         discrete_height = min(.70 if continuous else .95, .09*len(handles)+.1)
         if handles:
-            fontsize = max(5, min(8, box[3]*2.8346*discrete_height/(len(handles)*1.7)))
             from .typography import wrap_measured
             from matplotlib.font_manager import FontProperties
             renderer=fig.canvas.get_renderer();labels=[h.get_label() for h in handles];fitted=False
-            while fontsize>=4.5:
-                wrapped=[wrap_measured(label,max(10,ax.bbox.width-28*fig.dpi/72),renderer,FontProperties(size=fontsize)) for label in labels]
-                legend=ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=fontsize,borderaxespad=0,title='Légende',title_fontsize=min(9,fontsize+1))
-                extent=legend.get_window_extent(renderer)
-                if extent.width<=ax.bbox.width+1 and extent.height<=ax.bbox.height*discrete_height+1:fitted=True;break
-                legend.remove();fontsize-=.5
-            if not fitted:ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=4.5,borderaxespad=0,title='Légende',title_fontsize=5.5)
-            self.render_diagnostics['text'].append(dict(id='legend',text='; '.join(labels),fitted=fitted,fontsize=fontsize,lines=len(handles)))
+            max_columns=min(4,len(handles),max(1,int(ax.bbox.width/(55*fig.dpi/72))))
+            for fontsize in np.arange(8,4,-.5):
+                for columns in range(1,max_columns+1):
+                    width=max(10,ax.bbox.width/columns-30*fig.dpi/72)
+                    wrapped=[wrap_measured(label,width,renderer,FontProperties(size=fontsize)) for label in labels]
+                    legend=ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=fontsize,borderaxespad=0,title='Légende',title_fontsize=min(9,fontsize+1),ncol=columns,columnspacing=1)
+                    extent=legend.get_window_extent(renderer)
+                    if extent.width<=ax.bbox.width+1 and extent.height<=ax.bbox.height*discrete_height+1:fitted=True;break
+                    legend.remove()
+                if fitted:break
+            if not fitted:ax.legend(handles=handles,labels=wrapped,loc='upper left',frameon=False,fontsize=4.5,borderaxespad=0,title='Légende',title_fontsize=5.5,ncol=columns)
+            self.render_diagnostics['text'].append(dict(id='legend',text='; '.join(labels),fitted=fitted,fontsize=float(fontsize),lines=len(handles),columns=columns))
         start = discrete_height if handles else .06
         for index, (_, name, cmap, norm) in enumerate(continuous):
             step = (1-start)/max(1, len(continuous))

@@ -91,7 +91,7 @@ def save_session(state,path,*,portable=False,overwrite=False):
         if source in documents:continue
         try:document=read_json(source)
         except (ValueError,OSError):continue
-        if not isinstance(document,dict) or not str(document.get('schema','')).startswith('cartomize.'):continue
+        if not isinstance(document,dict) or not (str(document.get('schema','')).startswith('cartomize.') or document.get('stac_version') or document.get('type')=='FeatureCollection' and all(i.get('stac_version') for i in document.get('features',[]))):continue
         documents[source]=document
         def absolute(value):
             try:
@@ -195,6 +195,11 @@ def save_map(map_object,path,*,portable=False,overwrite=False):
 
 
 def load_map(path,**options):
+    if not zipfile.is_zipfile(path):
+        document=read_json(path)
+        if document.get('schema')=='cartomize.map.v1':
+            if options:raise ValueError('Les options de session nécessitent un projet enregistré avec Map.save().')
+            return map_from_document(document)
     session=load_session(path,**options)
     if session.missing:raise FileNotFoundError('Sources absentes : '+', '.join(session.missing))
     return map_from_document(session.state['map'])

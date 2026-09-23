@@ -9,6 +9,7 @@ from .storage import json_value
 
 
 def widget_state(widget):
+    if type(widget).__name__=='ProcessingSteps':return dict(type='processing_steps',records=widget.records())
     if hasattr(widget,'edit') and hasattr(widget,'mode'):
         text=widget.edit.text()
         if text and Path(text).exists():text=str(Path(text).resolve())
@@ -47,7 +48,8 @@ def capture_widgets(page):
 
 def restore_widget(widget,state):
     kind=state['type']
-    if kind=='path':widget.edit.setText(state['text']);widget.mode=state['mode'];widget.filter=state['filter']
+    if kind=='processing_steps':widget.set_records(state['records'])
+    elif kind=='path':widget.edit.setText(state['text']);widget.mode=state['mode'];widget.filter=state['filter']
     elif kind=='line':widget.setText(state['text'])
     elif kind=='plain':widget.setPlainText(state['text'])
     elif kind=='check':widget.setChecked(state['checked'])

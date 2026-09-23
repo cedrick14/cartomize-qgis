@@ -8,7 +8,7 @@ from ._validation import frame
 from .imagery import _check_cancel
 
 GOALS={'general':'Carte générale','administrative':'Carte administrative','landcover':'Occupation du sol','atlas':'Atlas cartographique'}
-TOOL_LABELS={'classification':'Classification', 'recipes':'Recettes et production en série', 'native':'Projets SIG', 'mapops':'Révision cartographique', 'terrain':'Analyse de terrain', 'project':'Analyse du projet','prepare':'Prétraitement multispectral','composite':'Composition colorée',
+TOOL_LABELS={'processing':'Chaîne de traitements','classification':'Classification', 'recipes':'Recettes et production en série', 'native':'Projets SIG', 'mapops':'Révision cartographique', 'terrain':'Analyse de terrain', 'project':'Analyse du projet','prepare':'Prétraitement multispectral','composite':'Composition colorée',
              'vector':'Traitements vectoriels','raster':'Traitements raster','indices':'Indices spectraux',
              'calculator':'Calculatrice raster','focal':'Statistiques focales','temporal':'Statistiques multirasters',
              'mapping':'Mise en page','atlas':'Atlas cartographique','workflow':'Production automatisée','inspect':'Analyse des couches'}
@@ -25,7 +25,7 @@ def assess_project(inputs,*,data_kind='layers',goal='general',aoi=None,progress=
     if data_kind not in {'layers','scenes'}:raise ValueError('Choisir des couches ou des scènes.')
     inputs=[inputs] if isinstance(inputs,(str,Path)) else list(inputs)
     if not inputs:raise ValueError('Importer les données du projet.')
-    paths=[str(Path(x).expanduser().resolve()) for x in inputs];issues=[];layers=[];scenes=[];steps=[]
+    paths=[str(Path(x['data'] if isinstance(x,dict) else x).expanduser().resolve()) for x in inputs];issues=[];layers=[];scenes=[];steps=[]
     def issue(severity,code,message,tool=None):issues.append(dict(severity=severity,code=code,message=message,tool=tool))
     def step(tool,reason,optional=False):
         if tool not in {s['tool'] for s in steps}:steps.append(dict(tool=tool,title=TOOL_LABELS[tool],reason=reason,optional=optional))
@@ -52,7 +52,8 @@ def assess_project(inputs,*,data_kind='layers',goal='general',aoi=None,progress=
         for i,path in enumerate(paths,1):
             _check_cancel(cancel)
             try:
-                record=analyze_project([path],cancel=cancel)['layers'][0];layers.append(record);diagnostic=record['diagnostic']
+                layer_input={**inputs[i-1],'data':path} if isinstance(inputs[i-1],dict) else path
+                record=analyze_project([layer_input],cancel=cancel)['layers'][0];layers.append(record);diagnostic=record['diagnostic']
                 if record['kind']=='vector':
                     if diagnostic['invalid_geometries']:issue('error','invalid_geometry',f"{record['name']} : géométries invalides à réparer.",'vector')
                     if diagnostic['missing_geometries'] or diagnostic['empty_geometries']:issue('warning','empty_geometry',f"{record['name']} : géométries vides ou absentes.",'vector')

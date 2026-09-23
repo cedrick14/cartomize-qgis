@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json
 import tempfile
+import re
 import numpy as np
 import rasterio
 from matplotlib import colormaps
@@ -42,6 +43,9 @@ def _raster_classes(source,overrides=None,*,cancel=None,max_classes=64):
     with rasterio.open(source) as src:
         known=_class_metadata(src,overrides)
         if src.count!=1:return None,known
+        text=' '.join([Path(source).stem,*[v or '' for v in src.descriptions]]).casefold()
+        continuous=src.tags().get('operation') in {'terrain','convolution','spectral_indices','focal','raster_reduction'} or bool(re.search(r'(^|[ _-])(dem|mnt|dtm|dsm|elevation|altitude|slope|pente|hillshade|ndvi|ndmi|evi)([ _-]|$)',text))
+        if continuous and not known:return None,known
         for window in _windows(src,512):
             _check_cancel(cancel)
             data=np.ma.masked_invalid(src.read(1,window=window,masked=True)).compressed()
@@ -90,6 +94,7 @@ def analyze_project(layers,*,auto_background=True,progress=None,cancel=None):
             diagnostic=detect_background(source,keep_values=keep)
             border=diagnostic['automatic_border_values'] if auto_background else []
             record.update(diagnostic=diagnostic,border_values=border,nodata_values=explicit,keep_values=keep,
+                          valid_footprint=str(Path(options['valid_footprint']).resolve()) if options.get('valid_footprint') else None,
                           supplied_classes={str(k):v for k,v in known.items()})
             record['options']=dict(role=options.get('role'),band=options.get('band',1),
                                    rgb=options.get('rgb','native' if diagnostic['native_rgb'] else None))
@@ -99,8 +104,9 @@ def analyze_project(layers,*,auto_background=True,progress=None,cancel=None):
             role=options.get('role') or infer_role(name,'vector',types)
             record.update(diagnostic=diagnostic)
             record['options']=dict(role=role,labels=options.get('labels') or diagnostic.get('label_field'),column=options.get('column'))
+            if options.get('classes') is not None:record['options']['classes']=options['classes']
         else:raise ValueError('Types de couches : raster ou vector.')
-        for key in ('alpha','cmap','color','legend','zorder'):
+        for key in ('alpha','cmap','color','legend','zorder','categorical','edgecolor','linewidth','markersize'):
             if key in options:record['options'][key]=options[key]
         result.append(record)
         if progress:progress(number,len(layers))
@@ -140,16 +146,16 @@ def prepare_project(layers,destination,*,auto_background=True,progress=None,stag
             _check_cancel(cancel);source=Path(record['source']);prepared=source
             if stage:stage(f"Préparation cartographique : {record['name']}")
             if record['kind']=='raster':
-                if record['border_values'] or record['nodata_values']:
+                if record['border_values'] or record['nodata_values'] or record.get('valid_footprint'):
                     relative=Path('rasters')/f'{index+1:03d}_{source.stem}.tif';prepared=work/relative
                     record['mask_result']=mask_background(source,prepared,border_values=record['border_values'],
-                        nodata_values=record['nodata_values'],keep_values=record['keep_values'],cancel=cancel,
+                        nodata_values=record['nodata_values'],keep_values=record['keep_values'],valid_footprint=record.get('valid_footprint'),cancel=cancel,
                         progress=lambda done,count:progress(25+int(65*(index+done/count)/total),100) if progress else None)
                     if record['mask_result']['valid_pixels']==0:raise ValueError(f"Aucun pixel valide après masquage : {record['name']}")
                     record['mask_result']['path']=str(relative);record['prepared']=str(relative)
                 else:
                     record['prepared']=str(source);record['mask_result']={'additional_border_masked':0,'additional_value_masked':0}
-                classes,_=_raster_classes(prepared,record['supplied_classes'],cancel=cancel)
+                classes,_=_raster_classes(prepared,record['supplied_classes'],cancel=cancel) if record['options'].get('categorical') is not False or record['supplied_classes'] else (None,{})
                 record['classes']=classes
                 if classes:
                     record['options']['classes']={str(c['value']):[c['label'],c['color']] for c in classes}
